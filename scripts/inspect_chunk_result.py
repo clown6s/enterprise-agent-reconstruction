@@ -21,7 +21,7 @@ from app.ingestion.processing.parsers.text import TextParser
 
 
 # 只改这一行，填入要测试的文档完整路径。
-DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+DOCUMENT_PATH = r"D:\datum\古代诗歌常用意象.txt"
 
 
 def main() -> int:

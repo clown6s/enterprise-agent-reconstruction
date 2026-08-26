@@ -12,7 +12,7 @@ from app.ingestion.bootstrap.container import build_parser
 
 
 # 只改这一行，填入要测试的文档完整路径。
-DOCUMENT_PATH = r"D:\datum\内科学.pdf"
+DOCUMENT_PATH = r"D:\datum\中华人工共和国刑法.pdf"
 
 
 def main() -> int:

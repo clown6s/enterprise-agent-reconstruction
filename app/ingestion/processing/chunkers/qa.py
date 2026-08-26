@@ -8,15 +8,23 @@ _ANSWER = re.compile(r"^\s*(?:答|答案|解析)\s*[:：]\s*(.*)$")
 _SECTION = re.compile(r"^\s*(?:第?[一二三四五六七八九十百千万]+[、.．]|##\s*).+")
 
 
+def _split_long(text: str, limit: int):
+    rest = text.strip()
+    while len(rest) > limit:
+        cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
+        cut = cut + 1 if cut >= limit // 2 else limit
+        yield rest[:cut].strip()
+        rest = rest[cut:].strip()
+    if rest:
+        yield rest
+
+
 def qa_confidence(document: ParsedDocument) -> dict:
     lines = [line.strip() for line in document.text.splitlines() if line.strip()]
-    questions = sum(bool(_QUESTION.match(line)) and ("？" in line or "?" in line or
-                     bool(re.search(r"什么|哪里|如何|为什么|哪些|多少|谁|何时|吗", line)))
-                    for line in lines)
+    questions = sum(bool(_QUESTION.match(line)) for line in lines)
     answers = sum(bool(_ANSWER.match(line)) for line in lines)
-    confidence = min(1.0, questions / max(1, len(lines)) * 2 +
-                     answers / max(1, len(lines)) * 2)
-    return {"kind": "qa" if questions >= 5 and answers >= 3 else "generic",
+    confidence = min(1.0, (questions + answers) / max(1, len(lines)) * 2)
+    return {"kind": "qa" if questions >= 2 and answers >= 1 else "generic",
             "confidence": confidence, "question_count": questions,
             "answer_count": answers}
 
@@ -43,8 +51,8 @@ class QaChunker:
                 paired = any(_ANSWER.match(line.strip()) for line in current)
                 metadata = {"kind": "qa", "question_number": number,
                             "qa_status": "paired" if paired else "unknown"}
-                for part_index, start in enumerate(range(0, len(body), self.max_chars)):
-                    part = body[start:start + self.max_chars].strip()
+                parts = _split_long(body, self.max_chars)
+                for part_index, part in enumerate(parts):
                     if part:
                         units.append(ChunkRecord(
                             text=part, kind="qa", section_path=(section,) if section else (),

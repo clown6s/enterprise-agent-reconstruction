@@ -30,6 +30,8 @@ class PdfParser:
         cleaned = [self._clean_page(page.text, page.page_number) for page in pages]
         repeated_headers = self._repeated_margin_lines(cleaned, top=True)
         repeated_footers = self._repeated_margin_lines(cleaned, top=False)
+        page_number_lines = {str(page.page_number) for page in pages}
+        repeated_footers.update(page_number_lines)
         toc_pages = {page.page_number for page, text in zip(pages, cleaned)
                      if self._is_toc_page(text)}
 

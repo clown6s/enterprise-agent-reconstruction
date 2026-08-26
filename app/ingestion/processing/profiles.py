@@ -44,10 +44,10 @@ def _generic(document):
 
 
 class ProfileRegistry:
-    def __init__(self, profiles: list[tuple[str, Callable]] | None = None):
-        self._profiles = list(profiles or [])
+    def __init__(self, profiles: list[tuple[str, Callable[[ParsedDocument], Classification]]] | None = None):
+        self._profiles: list[tuple[str, Callable[[ParsedDocument], Classification]]] = list(profiles or [])
 
-    def register(self, name: str, detector: Callable) -> None:
+    def register(self, name: str, detector: Callable[[ParsedDocument], Classification]) -> None:
         if any(existing == name for existing, _ in self._profiles):
             raise ValueError(f"重复注册文档 profile: {name}")
         self._profiles.append((name, detector))
@@ -57,6 +57,9 @@ class ProfileRegistry:
         candidates = [item for item in candidates if item.confidence > 0]
         if not candidates:
             return _generic(document)
+        qa_candidate = next((item for item in candidates if item.kind == "qa"), None)
+        if qa_candidate and qa_candidate.confidence >= 0.65:
+            return qa_candidate
         candidates.sort(key=lambda item: item.confidence, reverse=True)
         if candidates[0].confidence < 0.65:
             return _generic(document)
