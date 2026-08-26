@@ -48,6 +48,7 @@ class ParsedDocument:
     layout_blocks: tuple[LayoutBlock, ...] = ()
     diagnostics: dict[str, Any] = field(default_factory=dict)
     profile: str | None = None
+    parser: str | None = None
 
 
 @dataclass(frozen=True)
