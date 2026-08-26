@@ -34,10 +34,20 @@ def build_parser():
     return ParserRegistry([TextParser(), CsvParser(), DocxParser(), PdfParser()])
 
 
+def build_chunkers():
+    return ChunkerRegistry({
+        "qa": QaChunker(),
+        "legal": LegalChunker(),
+        "technical_book": TechnicalChunker(),
+        "medical_book": MedicalChunker(),
+        "generic": GenericChunker(),
+    })
+
+
 def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None):
     parser = build_parser()
     classifier = RegistryClassifier(default_profiles())
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "medical_book": MedicalChunker(), "generic": GenericChunker()})
+    chunkers = build_chunkers()
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
         embedder=embedder or _NoopEmbedder(), vectors=vectors or _NoopVectors(),

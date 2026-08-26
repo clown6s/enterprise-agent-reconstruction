@@ -6,22 +6,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.ingestion.domain.models import DocumentSource
-from app.ingestion.processing.chunker_registry import ChunkerRegistry
-from app.ingestion.processing.parsers.docx import DocxParser
-from app.ingestion.processing.parsers.pdf import PdfParser
+from app.ingestion.bootstrap.container import build_parser, build_chunkers
 from app.ingestion.processing.profiles import default_profiles
-from app.ingestion.processing.chunkers.qa import QaChunker
-from app.ingestion.processing.chunkers.legal import LegalChunker
-from app.ingestion.processing.chunkers.generic import GenericChunker
-from app.ingestion.processing.chunkers.technical import TechnicalChunker
-from app.ingestion.processing.chunkers.medical import MedicalChunker
-from app.ingestion.processing.parsers.csv import CsvParser
-from app.ingestion.processing.parsers.registry import ParserRegistry
-from app.ingestion.processing.parsers.text import TextParser
 
 
 # 只改这一行，填入要测试的文档完整路径。
-DOCUMENT_PATH = r"D:\datum\古代诗歌常用意象.txt"
+DOCUMENT_PATH = r"D:\datum\内科学.pdf"
 
 
 def main() -> int:
@@ -33,10 +23,9 @@ def main() -> int:
         print(f"文件不存在: {path}")
         return 1
     source = DocumentSource(path.name, path.read_bytes())
-    parsed = ParserRegistry([TextParser(), CsvParser(), DocxParser(), PdfParser()]).parse(source)
+    parsed = build_parser().parse(source)
     classification = default_profiles().classify(parsed)
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "medical_book": MedicalChunker(), "generic": GenericChunker()})
-    chunks = chunkers.chunk(classification.kind, parsed, source)
+    chunks = build_chunkers().chunk(classification.kind, parsed, source)
     print(f"文件: {path}")
     print(f"解析器: {parsed.parser}")
     print(f"分类: {classification.kind} (confidence={classification.confidence:.3f})")
@@ -45,7 +34,7 @@ def main() -> int:
     for index, chunk in enumerate(chunks, 1):
         print(f"[{index}] kind={chunk.kind} article={chunk.metadata.get('article')} "
               f"question={chunk.metadata.get('question_number')} page={chunk.page} "
-              f"continuation={chunk.continuation}")
+              f"section={' > '.join(chunk.section_path)} continuation={chunk.continuation}")
         print(chunk.text)
         print("-" * 80)
     return 0
