@@ -1,0 +1,41 @@
+"""单独查看文档解析结果，只读取文件，不调用外部服务。"""
+from collections import Counter
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from app.ingestion.domain.models import DocumentSource
+from app.ingestion.processing.parsers.docx import DocxParser
+from app.ingestion.processing.parsers.pdf import PdfParser
+from app.ingestion.bootstrap.container import build_parser
+from app.ingestion.processing.text import CsvParser, ParserRegistry, TextParser
+
+
+# 只改这一行，填入要测试的文档完整路径。
+DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+
+
+def main() -> int:
+    if not DOCUMENT_PATH.strip():
+        print("请先在 DOCUMENT_PATH = r\"\" 中填入文件路径")
+        return 2
+    path = Path(DOCUMENT_PATH.strip())
+    if not path.is_file():
+        print(f"文件不存在: {path}")
+        return 1
+    parser = build_parser()
+    result = parser.parse(DocumentSource(path.name, path.read_bytes()))
+    print(f"文件: {path}")
+    print(f"解析器: {result.parser}")
+    print(f"诊断: {result.diagnostics}")
+    print(f"Block 类型: {dict(Counter(block.kind for block in result.layout_blocks))}")
+    print(f"Block 数量: {len(result.layout_blocks)}")
+    print("=" * 80)
+    print(result.text)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

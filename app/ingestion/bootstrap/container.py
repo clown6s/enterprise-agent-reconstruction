@@ -1,11 +1,15 @@
-"""Composition root for the offline-capable ingestion core."""
+"""上传核心的统一依赖装配入口。"""
+import os
+
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
 from ..processing.classifier import RegistryClassifier
 from ..processing.profiles import default_profiles
 from ..processing.qa import QaChunker
+from ..processing.legal import LegalChunker
 from ..processing.text import CsvParser, GenericChunker, ParserRegistry, TextParser
 from ..processing.parsers.docx import DocxParser
+from ..processing.parsers.pdf import PdfParser
 
 
 class _NoopEmbedder:
@@ -21,11 +25,14 @@ class _NoopOriginals:
     def archive(self, digest, source): pass
 
 
+def build_parser():
+    return ParserRegistry([TextParser(), CsvParser(), DocxParser(), PdfParser()])
+
+
 def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None):
-    parser = ParserRegistry([TextParser(), CsvParser(), DocxParser()])
-    profiles = default_profiles()
-    classifier = RegistryClassifier(profiles)
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "generic": GenericChunker()})
+    parser = build_parser()
+    classifier = RegistryClassifier(default_profiles())
+    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "generic": GenericChunker()})
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
         embedder=embedder or _NoopEmbedder(), vectors=vectors or _NoopVectors(),

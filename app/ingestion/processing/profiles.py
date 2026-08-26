@@ -25,6 +25,12 @@ def _technical(document):
     return Classification("technical_book", min(0.95, signals / 5), ("technical_signals",))
 
 
+def _qa(document):
+    from .qa import qa_confidence
+    info = qa_confidence(document)
+    return Classification("qa", info["confidence"], ("question_answer_pairs",)) if info["kind"] == "qa" else Classification("qa", 0)
+
+
 def _generic(document):
     return Classification("generic", 0, ("fallback",))
 
@@ -55,4 +61,5 @@ def default_profiles() -> ProfileRegistry:
     registry = ProfileRegistry()
     registry.register("legal", _legal)
     registry.register("technical_book", _technical)
+    registry.register("qa", _qa)
     return registry

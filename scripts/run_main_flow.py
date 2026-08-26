@@ -1,18 +1,14 @@
-"""Run the main IngestDocument flow on one real DOCX, fully offline.
-
-Reads only; uses noop embedder/vector/metadata/original stores so no
-external service is touched. Fill DOCX_PATH then run:
-  .venv\\Scripts\\python.exe scripts\\run_main_flow.py
-"""
+"""Run the main IngestDocument flow on one real DOCX, fully offline."""
 from pathlib import Path
-from collections import Counter
 
 from app.ingestion.bootstrap.container import build_ingestion
 from app.ingestion.domain.models import DocumentSource
+from app.ingestion.processing.profiles import default_profiles
+from app.ingestion.processing.parsers.docx import DocxParser
 
 
 # 只改这一行，填入要测试的 DOCX 文件完整路径。
-DOCX_PATH = r""
+DOCX_PATH = r"D:\datum\中华人民共和国治安管理处罚法_20250627.docx"
 
 
 def main() -> int:
@@ -23,17 +19,14 @@ def main() -> int:
     if not path.is_file():
         print(f"文件不存在: {path}")
         return 1
-
-    service = build_ingestion()
-    result = service.execute(DocumentSource(path.name, path.read_bytes()))
-
+    content = path.read_bytes()
+    source = DocumentSource(path.name, content)
+    parsed = DocxParser().parse(source)
+    classification = default_profiles().classify(parsed)
+    result = build_ingestion().execute(source)
     print(f"文件: {path}")
     print(f"状态: {result.status}")
-    print(f"profile: {getattr(service, 'classifier', None) and ''}")
-    kinds = Counter()
-    if result.document_id:
-        # noop vectors don't store rows; just report lifecycle status
-        pass
+    print(f"Profile: {classification.kind} (confidence={classification.confidence:.3f})")
     print(f"文档ID: {result.document_id}")
     print(f"Chunk 数: {result.chunks}")
     print(f"诊断: {result.diagnostics}")
