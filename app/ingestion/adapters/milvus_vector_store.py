@@ -47,7 +47,7 @@ class MilvusVectorStore:
             pass
 
     def has_document(self, document_id: str) -> bool:
-        rows = self._client.query(self._collection, filter=f'document_id == "{_escape(document_id)}"', output_fields=["chunk_id"], limit=1)
+        rows = self._client.query(self._collection, filter=f'document_id == "{_escape(document_id)}"', output_fields=["chunk_id", "document_id"], limit=1)
         return any(row.get("document_id") == document_id for row in rows)
 
     def insert(self, rows: list[dict]) -> bool:

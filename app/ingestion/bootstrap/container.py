@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from ..domain.models import DocumentSource
 
 from ..adapters.milvus_vector_store import MilvusVectorStore
+from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
 
 from ..application.ingest_document import IngestDocument
@@ -85,6 +86,15 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             database=os.getenv("MILVUS_DB", "default"),
             collection=os.getenv("MILVUS_COLLECTION", "document_chunks_4096"),
             embedding_dim=int(os.getenv("EMBEDDING_DIM", "4096")),
+        )
+    if metadata is None and os.getenv("MYSQL_HOST"):
+        metadata = MySQLMetadataStore(
+            host=os.environ["MYSQL_HOST"], port=int(os.getenv("MYSQL_PORT", "3306")),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", os.getenv("MYSQL_ROOT_PASSWORD", "")),
+            database=os.getenv("MYSQL_DB", "enterprise_agent"),
+            min_pool=int(os.getenv("MYSQL_POOL_MIN", "1")),
+            max_pool=int(os.getenv("MYSQL_POOL_MAX", "8")),
         )
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
