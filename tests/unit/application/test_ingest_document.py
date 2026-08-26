@@ -6,7 +6,7 @@ class Parser:
 class Classifier:
     def classify(self, document, source): return "generic"
 class Chunker:
-    def chunk(self, document, source): return [ChunkRecord(document.text)]
+    def chunk(self, kind, document, source): return [ChunkRecord(document.text)]
 class Embedder:
     def __init__(self): self.calls = 0
     def embed_batch(self, texts): self.calls += 1; return [[0.1]]
