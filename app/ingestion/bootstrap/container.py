@@ -9,6 +9,7 @@ from ..processing.chunkers.legal import LegalChunker
 from ..processing.chunkers.generic import GenericChunker
 from ..processing.chunkers.qa import QaChunker
 from ..processing.chunkers.technical import TechnicalChunker
+from ..processing.chunkers.medical import MedicalChunker
 from ..processing.parsers.csv import CsvParser
 from ..processing.parsers.registry import ParserRegistry
 from ..processing.parsers.text import TextParser
@@ -36,7 +37,7 @@ def build_parser():
 def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None):
     parser = build_parser()
     classifier = RegistryClassifier(default_profiles())
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "generic": GenericChunker()})
+    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "medical_book": MedicalChunker(), "generic": GenericChunker()})
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
         embedder=embedder or _NoopEmbedder(), vectors=vectors or _NoopVectors(),

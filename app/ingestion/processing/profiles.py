@@ -19,7 +19,15 @@ def _legal(document):
     return Classification("legal", min(0.95, articles / 10), ("article_structure",)) if articles >= 5 else Classification("legal", 0)
 
 
-def _technical(document):
+def _medical_book(document):
+    text = document.text
+    signals = sum(bool(re.search(pattern, text, re.I)) for pattern in (
+        "内科学", "疾病", "诊断", "治疗", "症状", "病理", "临床",
+    ))
+    return Classification("medical_book", min(0.95, signals / 4), ("medical_signals",)) if signals >= 3 else Classification("medical_book", 0)
+
+
+def _structured_book(document):
     text = document.text
     signals = sum(bool(re.search(pattern, text, re.I)) for pattern in ("目录", r"第\s*\d+\s*章", "API", "代码", "函数", "模块", "```") )
     return Classification("technical_book", min(0.95, signals / 5), ("technical_signals",))
@@ -60,6 +68,7 @@ class ProfileRegistry:
 def default_profiles() -> ProfileRegistry:
     registry = ProfileRegistry()
     registry.register("legal", _legal)
-    registry.register("technical_book", _technical)
+    registry.register("medical_book", _medical_book)
+    registry.register("technical_book", _structured_book)
     registry.register("qa", _qa)
     return registry

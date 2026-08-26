@@ -14,6 +14,7 @@ from app.ingestion.processing.chunkers.qa import QaChunker
 from app.ingestion.processing.chunkers.legal import LegalChunker
 from app.ingestion.processing.chunkers.generic import GenericChunker
 from app.ingestion.processing.chunkers.technical import TechnicalChunker
+from app.ingestion.processing.chunkers.medical import MedicalChunker
 from app.ingestion.processing.parsers.csv import CsvParser
 from app.ingestion.processing.parsers.registry import ParserRegistry
 from app.ingestion.processing.parsers.text import TextParser
@@ -34,7 +35,7 @@ def main() -> int:
     source = DocumentSource(path.name, path.read_bytes())
     parsed = ParserRegistry([TextParser(), CsvParser(), DocxParser(), PdfParser()]).parse(source)
     classification = default_profiles().classify(parsed)
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "generic": GenericChunker()})
+    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "medical_book": MedicalChunker(), "generic": GenericChunker()})
     chunks = chunkers.chunk(classification.kind, parsed, source)
     print(f"文件: {path}")
     print(f"解析器: {parsed.parser}")
