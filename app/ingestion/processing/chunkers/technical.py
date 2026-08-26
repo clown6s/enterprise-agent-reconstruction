@@ -34,7 +34,7 @@ class TechnicalChunker:
         start_page = 1
 
         def flush():
-            nonlocal paragraphs
+            nonlocal paragraphs, start_page
             text = " ".join(paragraphs).strip()
             if text:
                 for index, part in enumerate(_split_long(text, self.max_chars)):
@@ -54,6 +54,7 @@ class TechnicalChunker:
                 continue
             marker = _PAGE.fullmatch(line)
             if marker:
+                flush()
                 page = int(marker.group(1))
                 continue
             if _CHAPTER.fullmatch(line):
