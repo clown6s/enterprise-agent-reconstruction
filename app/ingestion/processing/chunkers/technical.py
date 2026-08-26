@@ -32,6 +32,9 @@ class TechnicalChunker:
         paragraphs: list[str] = []
         page = 1
         start_page = 1
+        in_code = False
+        code_lines: list[str] = []
+        code_start_page = 1
 
         def flush():
             nonlocal paragraphs, start_page
@@ -49,6 +52,25 @@ class TechnicalChunker:
 
         for raw in document.text.splitlines():
             line = raw.strip()
+            if line.startswith("```"):
+                if not in_code:
+                    flush()
+                    in_code = True
+                    code_lines = [raw]
+                    code_start_page = page
+                else:
+                    code_lines.append(raw)
+                    result.append(ChunkRecord(
+                        text="\n".join(code_lines), kind="code", page=code_start_page,
+                        page_end=page, section_path=tuple(section),
+                        metadata={"content_type": "code"},
+                    ))
+                    code_lines = []
+                    in_code = False
+                continue
+            if in_code:
+                code_lines.append(raw)
+                continue
             if not line:
                 flush()
                 continue

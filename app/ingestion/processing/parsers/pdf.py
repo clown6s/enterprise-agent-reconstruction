@@ -42,6 +42,7 @@ class PdfParser:
             if page.page_number in toc_pages:
                 continue
             lines = text.splitlines()
+            lines, _ = self._remove_inline_toc(lines)
             lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
             removed_headers += removed
             lines, removed = self._remove_margin_lines(lines, repeated_footers, top=False)
@@ -79,12 +80,66 @@ class PdfParser:
         return result, removed
 
     @staticmethod
+    def _remove_inline_toc(lines: list[str]) -> tuple[list[str], int]:
+        """从页面内部移除与正文混排的目录块。
+
+        当一页中同时出现“目录”标题、若干裸章标题（第X章…）以及真正的条文时，
+        把“目录”到正文开始前的目录片段删掉，避免目录内容被向量化。
+        """
+        start = next((i for i, ln in enumerate(lines)
+                      if ln.strip() in ("目录", "目 录")), None)
+        if start is None:
+            return lines, 0
+        # 收集目录标题之后、正文开始前的裸章节标题行
+        end = start + 1
+        body_start = None
+        for i in range(start + 1, len(lines)):
+            ln = lines[i].strip()
+            if re.fullmatch(r"第\s*[0-9一二三四五六七八九十百千万]+\s*章.*", ln):
+                end = i + 1
+                continue
+            if re.match(r"^\s*第\s*[0-9一二三四五六七八九十百千万]+\s*条", ln) or len(ln) > 15:
+                body_start = i
+                break
+        if body_start is None or end <= start + 1:
+            return lines, 0
+        removed = lines[start:end]
+        return lines[:start] + lines[body_start:], len(removed)
+
+    @staticmethod
     def _is_toc_page(text: str) -> bool:
+        """判断一页是否为目录页。
+
+        不依赖固定前几行，而是结合目录标题与“标题 + 页码”密度信号。
+        """
         lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if not lines or not any(line == "目录" or line.lower() == "contents" for line in lines[:3]):
+        if not lines:
             return False
-        entries = sum(bool(re.search(r"(?:\.{2,}|…{2,}|\s)\d{1,3}$", line)) for line in lines[1:])
-        return entries >= 3
+
+        def norm(line: str) -> str:
+            # 规范化全角空白、全角标点与数字，便于统一匹配。
+            for src, dst in (("　", " "), ("．", "."), ("·", "."),
+                             ("，", ","), ("：", ":")):
+                line = line.replace(src, dst)
+            line = re.sub(r"[．·…]", ".", line)
+            return re.sub(r"[０-９]", lambda m: str(int(m.group(0)) - 65248), line)
+
+        # 目录标题（可在较靠前的位置出现）
+        title_idx = next((i for i, ln in enumerate(lines[:15])
+                          if norm(ln).strip().lower() in ("目录", "contents", "目 录")), None)
+
+        # 统计“标题 + 尾页码”样式的条目（点线/省略号/空白分隔，结尾为 1~3 位数字）
+        entry_re = re.compile(r"(?:\.{2,}|…{2,}|\s)\s*([0-9]{1,3})\s*$")
+        entries = sum(bool(entry_re.search(norm(ln))) for ln in lines)
+
+        # 密集页码信号：页面约一半以上行以数字结尾
+        page_dense = (entries / max(1, len(lines))) >= 0.4 if lines else False
+
+        if title_idx is not None:
+            # 有目录标题：只要存在一定数量的目录条目即判定
+            return entries >= 2 and entries / max(1, len(lines)) >= 0.15
+        # 无目录标题：但页码密集且条目绝对数量足够，也判定为目录页
+        return page_dense and entries >= 5
 
     @staticmethod
     def _extract_with_pdfplumber(data: bytes) -> list[PageContent]:

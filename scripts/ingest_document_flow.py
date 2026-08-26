@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.bootstrap.container import build_ingestion
 from app.ingestion.domain.models import DocumentSource
 
-DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+DOCUMENT_PATH = r"D:\datum\家庭教育促进法.pdf"
 
 
 
