@@ -11,7 +11,7 @@ from app.ingestion.processing.profiles import default_profiles
 
 
 # 只改这一行，填入要测试的文档完整路径。
-DOCUMENT_PATH = r"D:\datum\内科学.pdf"
+DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
 
 
 def main() -> int:

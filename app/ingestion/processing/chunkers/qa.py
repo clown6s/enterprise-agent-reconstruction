@@ -43,9 +43,12 @@ class QaChunker:
         current: list[str] = []
         section = ""
         number = None
+        page = 1
+        start_page = 1
 
         def flush():
-            nonlocal current, number
+            nonlocal current, number, start_page
+
             body = " ".join(line.strip() for line in current if line.strip())
             if body:
                 paired = any(_ANSWER.match(line.strip()) for line in current)
@@ -55,7 +58,8 @@ class QaChunker:
                 for part_index, part in enumerate(parts):
                     if part:
                         units.append(ChunkRecord(
-                            text=part, kind="qa", section_path=(section,) if section else (),
+                            text=part, kind="qa", page=start_page, page_end=page,
+                            section_path=(section,) if section else (),
                             continuation=part_index > 0,
                             continuation_of=f"qa:{number}" if number is not None else None,
                             continuation_index=part_index, metadata=metadata))
@@ -66,12 +70,15 @@ class QaChunker:
             line = raw.strip()
             if not line:
                 continue
-            if re.fullmatch(r"\[\[page:(\d+)\]\]", line):
+            marker = re.fullmatch(r"\[\[page:(\d+)\]\]", line)
+            if marker:
+                flush()
+                page = int(marker.group(1))
                 continue
             if _SECTION.match(line) and not _QUESTION.match(line):
                 flush(); section = line; continue
             if _QUESTION.match(line):
-                flush(); number = int(_QUESTION.match(line).group(1)); current.append(line); continue
+                flush(); number = int(_QUESTION.match(line).group(1)); start_page = page; current.append(line); continue
             if current:
                 current.append(line)
             else:

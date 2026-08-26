@@ -5,6 +5,8 @@ from ...domain.models import DocumentSource, ParsedDocument, ChunkRecord
 
 _CATEGORY = re.compile(r"^\d+[．.、]\s*(\S+)$")
 _ENTRY = re.compile(r"^([^：:]{1,30})[：:]\s*(.+)$")
+_SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
+_PAGE_MARK = re.compile(r"^\[\[page:\d+\]\]$")
 
 
 def _split_long(text: str, limit: int):
@@ -37,7 +39,7 @@ class GenericChunker:
                 entries.append((category, current_name, " ".join(current_body)))
 
         for line in lines:
-            if not line:
+            if not line or _SEPARATOR.fullmatch(line) or _PAGE_MARK.fullmatch(line):
                 continue
             category_match = _CATEGORY.fullmatch(line)
             if category_match:

@@ -6,7 +6,7 @@ from ...domain.models import ChunkRecord, ParsedDocument
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _CHAPTER = re.compile(r"^第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+$")
 _SECTION = re.compile(r"^\d+(?:\.\d+){1,3}\s+.+$")
-_SPECIAL = re.compile(r"^(?:实验\s*\S+|思考题|本章小结|图\s*\S+).+$")
+_SPECIAL = re.compile(r"^(?:实验\s*[0-9一二三四五六七八九十]+(?:[-—][0-9一二三四五六七八九十]+)?|思考题|本章小结)(?:\s*[:：].*)?$")
 
 
 def _split_long(text: str, limit: int):
@@ -64,8 +64,9 @@ class TechnicalChunker:
                 continue
             if _SECTION.fullmatch(line) or _SPECIAL.fullmatch(line):
                 flush()
-                level = line.split(" ", 1)[0].count(".") + 1 if _SECTION.fullmatch(line) else len(section) + 1
-                section = section[:max(0, level - 1)] + [line]
+                if _SECTION.fullmatch(line):
+                    level = line.split(" ", 1)[0].count(".") + 1
+                    section = section[:max(0, level - 1)] + [line]
                 start_page = page
                 continue
             if not paragraphs:
