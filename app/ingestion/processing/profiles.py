@@ -26,7 +26,7 @@ def _technical(document):
 
 
 def _qa(document):
-    from .qa import qa_confidence
+    from .chunkers.qa import qa_confidence
     info = qa_confidence(document)
     return Classification("qa", info["confidence"], ("question_answer_pairs",)) if info["kind"] == "qa" else Classification("qa", 0)
 

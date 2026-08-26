@@ -10,13 +10,17 @@ from app.ingestion.processing.chunker_registry import ChunkerRegistry
 from app.ingestion.processing.parsers.docx import DocxParser
 from app.ingestion.processing.parsers.pdf import PdfParser
 from app.ingestion.processing.profiles import default_profiles
-from app.ingestion.processing.qa import QaChunker
-from app.ingestion.processing.legal import LegalChunker
-from app.ingestion.processing.text import CsvParser, GenericChunker, ParserRegistry, TextParser
+from app.ingestion.processing.chunkers.qa import QaChunker
+from app.ingestion.processing.chunkers.legal import LegalChunker
+from app.ingestion.processing.chunkers.generic import GenericChunker
+from app.ingestion.processing.chunkers.technical import TechnicalChunker
+from app.ingestion.processing.parsers.csv import CsvParser
+from app.ingestion.processing.parsers.registry import ParserRegistry
+from app.ingestion.processing.parsers.text import TextParser
 
 
 # 只改这一行，填入要测试的文档完整路径。
-DOCUMENT_PATH = r"D:\datum\导游面试问答.docx"
+DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
 
 
 def main() -> int:
@@ -30,7 +34,7 @@ def main() -> int:
     source = DocumentSource(path.name, path.read_bytes())
     parsed = ParserRegistry([TextParser(), CsvParser(), DocxParser(), PdfParser()]).parse(source)
     classification = default_profiles().classify(parsed)
-    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "generic": GenericChunker()})
+    chunkers = ChunkerRegistry({"qa": QaChunker(), "legal": LegalChunker(), "technical_book": TechnicalChunker(), "generic": GenericChunker()})
     chunks = chunkers.chunk(classification.kind, parsed, source)
     print(f"文件: {path}")
     print(f"解析器: {parsed.parser}")

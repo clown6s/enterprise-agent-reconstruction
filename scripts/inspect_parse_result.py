@@ -8,9 +8,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.ingestion.domain.models import DocumentSource
 from app.ingestion.processing.parsers.docx import DocxParser
-from app.ingestion.processing.parsers.pdf import PdfParser
 from app.ingestion.bootstrap.container import build_parser
-from app.ingestion.processing.text import CsvParser, ParserRegistry, TextParser
 
 
 # 只改这一行，填入要测试的文档完整路径。
