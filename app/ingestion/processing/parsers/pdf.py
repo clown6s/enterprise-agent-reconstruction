@@ -42,6 +42,7 @@ class PdfParser:
             if page.page_number in toc_pages:
                 continue
             lines = text.splitlines()
+            lines = self._remove_inline_page_number(lines, page.page_number)
             lines, _ = self._remove_inline_toc(lines)
             lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
             removed_headers += removed
@@ -78,6 +79,15 @@ class PdfParser:
                   if not (index in indexes and line.strip() in candidates)]
         removed = len(lines) - len(result)
         return result, removed
+
+    @staticmethod
+    def _remove_inline_page_number(lines: list[str], page_number: int) -> list[str]:
+        """删除与 PDF 物理页码相同的行尾页脚数字。"""
+        result = []
+        for line in lines:
+            cleaned = re.sub(rf"\s+{page_number}\s*$", "", line)
+            result.append(cleaned)
+        return result
 
     @staticmethod
     def _remove_inline_toc(lines: list[str]) -> tuple[list[str], int]:

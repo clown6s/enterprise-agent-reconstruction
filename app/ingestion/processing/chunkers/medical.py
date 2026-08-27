@@ -4,8 +4,19 @@ import re
 from ...domain.models import ChunkRecord, ParsedDocument
 
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
-_NUMBERED_ITEM = re.compile(r"^\d+[、.．]\s*\S+")
+_NUMBERED_ITEM = re.compile(r"^[1-9]\d*[、.．]\s*\S+")
+# 只在行首或空白后识别编号，避免把 10、识别成 1 + 0、，也避免拆开小数/日期。
+_INLINE_ITEM = re.compile(r"(?<!\S)(?=[1-9]\d{0,2}[、.．]\s*\S+)")
 _HEADING = re.compile(r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*[章节篇]|[一二三四五六七八九十]+[、.．])\s*\S+")
+
+
+def _split_numbered_line(line: str) -> list[str]:
+    """拆分行内条目，但不拆分条目编号中的数字。"""
+    matches = list(re.finditer(r"(?<!\S)([1-9]\d*)[、.．](?=\s*\S)", line))
+    if len(matches) <= 1:
+        return [line]
+    return [line[matches[i].start():matches[i + 1].start() if i + 1 < len(matches) else len(line)]
+            for i in range(len(matches))]
 
 
 def _split_long(text: str, limit: int):
@@ -47,7 +58,9 @@ class MedicalChunker:
                     ))
             current = []
 
-        for raw in document.text.splitlines():
+        lines = (part.strip() for raw in document.text.splitlines()
+                 for part in _split_numbered_line(raw) if part.strip())
+        for raw in lines:
             line = raw.strip()
             if not line:
                 continue
