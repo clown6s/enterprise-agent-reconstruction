@@ -33,7 +33,7 @@ class PdfParser:
         page_number_lines = {str(page.page_number) for page in pages}
         repeated_footers.update(page_number_lines)
         toc_pages = {page.page_number for page, text in zip(pages, cleaned)
-                     if self._is_toc_page(text)}
+                     if self._is_toc_page(text) or self._is_front_matter_toc(text, page.page_number)}
 
         blocks = []
         parts = []
@@ -51,7 +51,11 @@ class PdfParser:
             text = "\n".join(lines).strip()
             if text:
                 parts.extend((f"[[page:{page.page_number}]]", text))
-                blocks.append(LayoutBlock(text=text, kind="paragraph", page=page.page_number))
+                for block_text, kind, metadata in self._classify_blocks(lines):
+                    blocks.append(LayoutBlock(
+                        text=block_text, kind=kind, page=page.page_number,
+                        metadata=metadata,
+                    ))
         diagnostics = {
             "pages": len(pages), "pages_with_text": len(blocks), "parser": parser_name,
             "toc_pages": sorted(toc_pages), "removed_headers": removed_headers,
@@ -119,6 +123,14 @@ class PdfParser:
         return lines[:start] + [actual_heading] + lines[body_start:], len(removed) - 1
 
     @staticmethod
+    def _is_front_matter_toc(text: str, page_number: int) -> bool:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if page_number > 20 or len(lines) < 4:
+            return False
+        headings = sum(bool(re.match(r"^(?:第\s*[一二三四五六七八九十百千万0-9]+\s*章|\d+(?:\.\d+){1,3})", line)) for line in lines)
+        return headings >= 3 and any("图 0-" in line or "全书结构" in line for line in lines)
+
+    @staticmethod
     def _is_toc_page(text: str) -> bool:
         """判断一页是否为目录页。
 
@@ -173,7 +185,7 @@ class PdfParser:
 
     @staticmethod
     def _clean_page(text: str, page_number: int) -> str:
-        lines = [line.strip() for line in (text or "").replace("\\n", "\n").splitlines()]
+        lines = [PdfParser._normalize_line(line) for line in (text or "").replace("\\n", "\n").splitlines()]
         while lines and not lines[-1]:
             lines.pop()
         if lines and re.fullmatch(r"(?:page\s*)?\d+", lines[-1], re.I):
@@ -181,3 +193,89 @@ class PdfParser:
                 return "\n".join(lines)
             lines.pop()
         return "\n".join(line for line in lines if line)
+
+    @staticmethod
+    def _normalize_line(line: str) -> str:
+        line = line.replace("　", " ")
+        line = re.sub(r"[ \t]+", " ", line).strip()
+        # PDF extraction often inserts spaces inside ASCII identifiers.
+        line = re.sub(r"(?<=[A-Za-z])\s+(?=[A-Za-z])", " ", line)
+        line = re.sub(r"(?<=[一-鿿])(?=[A-Za-z0-9])", " ", line)
+        line = re.sub(r"(?<=[A-Za-z0-9])(?=[一-鿿])", " ", line)
+        return line
+
+    @staticmethod
+    def _classify_blocks(lines: list[str]) -> list[tuple[str, str, dict]]:
+        blocks = []
+        current = []
+        boundary = re.compile(
+            r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|"
+            r"\d+(?:\.\d+){1,3})\s+.+$")
+        for line in lines:
+            stripped = line.strip()
+            # pdfplumber may concatenate a heading with the following text.
+            heading_match = re.match(r"^(第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+?)(?=\s+(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|\d+(?:\.\d+){1,3}\s+)|$)", stripped)
+            if heading_match and heading_match.group(1) != stripped:
+                if current:
+                    blocks.append(PdfParser._classify_block(current)); current = []
+                blocks.append((heading_match.group(1), "heading", {"content_type": "heading"}))
+                stripped = stripped[len(heading_match.group(1)):].strip()
+                if not stripped: continue
+            if not stripped:
+                if current:
+                    blocks.append(PdfParser._classify_block(current))
+                    current = []
+                continue
+            # Extracted tables may follow prose without a blank line. Split at
+            # stable column-header signatures so the table remains searchable.
+            if stripped in {"直觉理解 实现组件 学术概念（可选） 含义", "直觉理解 实现组件 学术概念(可选) 含义"}:
+                if current:
+                    blocks.append(PdfParser._classify_block(current)); current = []
+                current.append("表格 " + stripped)
+                continue
+            if current and current[0].startswith("表格 "):
+                current.append(stripped)
+                continue
+            # Headings and labelled figures/tables are hard boundaries even
+            # when pdfplumber omitted paragraph spacing.
+            labelled = re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+", stripped, re.I)
+            if not labelled:
+                labelled = re.search(r"(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+", stripped, re.I)
+            if boundary.fullmatch(stripped) or labelled:
+                if labelled and labelled.start() == 0 and not re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+\s+\S+", stripped, re.I):
+                    labelled = None
+                if current:
+                    blocks.append(PdfParser._classify_block(current))
+                    current = []
+                kind = "heading" if boundary.fullmatch(stripped) else None
+                if labelled and labelled.start() > 0:
+                    prefix, stripped = stripped[:labelled.start()].strip(), stripped[labelled.start():]
+                    if prefix:
+                        blocks.append((prefix, "paragraph", {"content_type": "text"}))
+                classified = PdfParser._classify_block([stripped])
+                blocks.append((stripped, kind or classified[1],
+                              {"content_type": "heading"} if kind else classified[2]))
+            else:
+                current.append(stripped)
+        if current:
+            blocks.append(PdfParser._classify_block(current))
+        return blocks
+
+    @staticmethod
+    def _classify_block(lines: list[str]) -> tuple[str, str, dict]:
+        text = "\n".join(lines).strip()
+        first = lines[0].strip()
+        figure = re.match(r"^(图|Figure|Fig\.?|图表)\s*([0-9一二三四五六七八九十.-]+)", first, re.I)
+        table = re.match(r"^(表|表格|Table)\s*([0-9一二三四五六七八九十.-]+)?", first, re.I)
+        footnote = re.match(r"^(?:[0-9]{1,2}|[*†‡])\\s*(?:[A-Za-z]|[一-鿿])", first)
+        diagram = "·" in text and len(text) <= 180 and len(lines) <= 3
+        if figure or diagram:
+            metadata = {"content_type": "figure"}
+            if figure:
+                metadata["figure_number"] = figure.group(2)
+            return text, "figure", metadata
+        if table:
+            return text, "table", {"content_type": "table", "table_number": table.group(2)}
+        if footnote and len(first) < 180:
+            return text, "footnote", {"content_type": "footnote"}
+        return text, "paragraph", {"content_type": "text"}
