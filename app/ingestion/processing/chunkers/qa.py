@@ -3,7 +3,7 @@ import re
 
 from ...domain.models import ChunkRecord, ParsedDocument
 
-_QUESTION = re.compile(r"^\s*(\d+)[、.．]\s*(.+)$")
+_QUESTION = re.compile(r"^\s*(\d+)(?:[、.．]|(?=[“\"「『]))\s*(.+)$")
 _ANSWER = re.compile(r"^\s*(?:答|答案|解析)\s*[:：]\s*(.*)$")
 _SECTION = re.compile(r"^\s*(?:第?[一二三四五六七八九十百千万]+[、.．]|##\s*).+")
 
@@ -51,7 +51,8 @@ class QaChunker:
 
             body = " ".join(line.strip() for line in current if line.strip())
             if body:
-                paired = any(_ANSWER.match(line.strip()) for line in current)
+                # 有答案标记，或问题后存在正文，都视为已配对；兼容无“答：”前缀的答案。
+                paired = any(_ANSWER.match(line.strip()) for line in current) or len(current) > 1
                 metadata = {"kind": "qa", "question_number": number,
                             "qa_status": "paired" if paired else "unknown"}
                 parts = _split_long(body, self.max_chars)
@@ -72,13 +73,15 @@ class QaChunker:
                 continue
             marker = re.fullmatch(r"\[\[page:(\d+)\]\]", line)
             if marker:
-                flush()
                 page = int(marker.group(1))
                 continue
             if _SECTION.match(line) and not _QUESTION.match(line):
                 flush(); section = line; continue
             if _QUESTION.match(line):
                 flush(); number = int(_QUESTION.match(line).group(1)); start_page = page; current.append(line); continue
+            if _ANSWER.match(line) and current and not current[-1].startswith("答"):
+                current.append(line)
+                continue
             if current:
                 current.append(line)
             else:

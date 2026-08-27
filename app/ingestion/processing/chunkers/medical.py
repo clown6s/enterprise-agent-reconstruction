@@ -50,11 +50,9 @@ class MedicalChunker:
         for raw in document.text.splitlines():
             line = raw.strip()
             if not line:
-                flush()
                 continue
             marker = _PAGE.fullmatch(line)
             if marker:
-                flush()
                 page = int(marker.group(1))
                 continue
             if _HEADING.fullmatch(line) and not _NUMBERED_ITEM.fullmatch(line):

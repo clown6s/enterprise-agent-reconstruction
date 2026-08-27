@@ -6,6 +6,9 @@ from ...domain.models import ChunkRecord, ParsedDocument
 _ARTICLE = re.compile(r"^\s*(第\s*[0-9零一二三四五六七八九十百千万]+\s*条(?:之\s*[0-9零一二三四五六七八九十百千万]+)?)")
 _LEVEL = re.compile(r"^\s*(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))")
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
+_TOC_TITLE = re.compile(r"^目\s*录$|^contents$", re.I)
+_SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
+_TOC_LINE = re.compile(r"^(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))\s+(?:第\s*[0-9零一二三四五六七八九十百千万]+\s*条)?.{0,40}\s*[0-9]{1,4}\s*$")
 
 
 def _split_long(text: str, limit: int):
@@ -45,7 +48,9 @@ class LegalChunker:
 
         for raw in document.text.splitlines():
             line = raw.strip()
-            if not line:
+            if not line or _SEPARATOR.fullmatch(line) or _TOC_TITLE.fullmatch(line):
+                continue
+            if _TOC_LINE.fullmatch(line):
                 continue
             marker = _PAGE.fullmatch(line)
             if marker:

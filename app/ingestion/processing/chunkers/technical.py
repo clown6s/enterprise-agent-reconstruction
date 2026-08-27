@@ -9,6 +9,23 @@ _SECTION = re.compile(r"^\d+(?:\.\d+){1,3}\s+.+$")
 _SPECIAL = re.compile(r"^(?:实验\s*[0-9一二三四五六七八九十]+(?:[-—][0-9一二三四五六七八九十]+)?|思考题|本章小结)(?:\s*[:：].*)?$")
 
 
+def _split_code(text: str, limit: int):
+    """代码块超长时优先按空行/行边界切，尽量避免在语句中间截断。"""
+    lines = text.splitlines()
+    parts = []
+    current = []
+    current_len = 0
+    for line in lines:
+        if current and current_len + len(line) + 1 > limit:
+            parts.append("\n".join(current))
+            current, current_len = [], 0
+        current.append(line)
+        current_len += len(line) + 1
+    if current:
+        parts.append("\n".join(current))
+    return parts or [text]
+
+
 def _split_long(text: str, limit: int):
     rest = text.strip()
     while len(rest) > limit:
@@ -41,6 +58,8 @@ class TechnicalChunker:
             text = " ".join(paragraphs).strip()
             if text:
                 for index, part in enumerate(_split_long(text, self.max_chars)):
+                    if len(part) < 8 and index == 0:
+                        continue
                     result.append(ChunkRecord(
                         text=part, kind="technical", page=start_page,
                         page_end=page, section_path=tuple(section),
@@ -60,11 +79,20 @@ class TechnicalChunker:
                     code_start_page = page
                 else:
                     code_lines.append(raw)
-                    result.append(ChunkRecord(
-                        text="\n".join(code_lines), kind="code", page=code_start_page,
-                        page_end=page, section_path=tuple(section),
-                        metadata={"content_type": "code"},
-                    ))
+                    code_text = "\n".join(code_lines)
+                    if len(code_text) <= self.max_chars:
+                        code_parts = [code_text]
+                    else:
+                        code_parts = list(_split_code(code_text, self.max_chars))
+                    for code_index, code_part in enumerate(code_parts):
+                        result.append(ChunkRecord(
+                            text=code_part, kind="code", page=code_start_page,
+                            page_end=page, section_path=tuple(section),
+                            continuation=code_index > 0,
+                            continuation_of=f"code:{len(result)}" if code_index == 0 else f"code:{len(result) - code_index}",
+                            continuation_index=code_index,
+                            metadata={"content_type": "code"},
+                        ))
                     code_lines = []
                     in_code = False
                 continue
