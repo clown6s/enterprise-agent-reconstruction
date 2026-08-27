@@ -46,7 +46,8 @@ class _NoopMetadata:
         return None
     def record(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None:
         return None
-    def claim(self, digest: str, document_id: str, source: DocumentSource) -> bool:
+    def claim(self, digest: str, document_id: str, source: DocumentSource,
+              stale_after: int = 1800) -> bool:
         return True
     def delete_by_document_id(self, document_id: str) -> int:
         return 0

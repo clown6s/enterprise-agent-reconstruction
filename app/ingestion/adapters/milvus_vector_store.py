@@ -36,6 +36,9 @@ class MilvusVectorStore:
         else:
             schema = self._client.describe_collection(self._collection)
             fields = {field.get("name"): field for field in schema.get("fields", [])}
+            for required in ("chunk_id", "document_id", "text", "dense"):
+                if required not in fields:
+                    raise ValueError(f"Milvus collection 缺少必要字段: {required}")
             dense = fields.get("dense")
             if not dense or dense.get("type") not in (DataType.FLOAT_VECTOR, 101):
                 raise ValueError("Milvus collection 缺少 dense 向量字段")
@@ -48,12 +51,23 @@ class MilvusVectorStore:
         self._ensure_index()
         self._client.load_collection(self._collection)
 
+    def _index_matches(self, field: str, index_name: str) -> bool:
+        info = self._client.describe_index(self._collection, index_name)
+        expected_type = "SPARSE_INVERTED_INDEX" if field == "sparse" else "AUTOINDEX"
+        expected_metric = "IP" if field == "sparse" else "COSINE"
+        return (info.get("index_type") == expected_type and
+                info.get("metric_type") == expected_metric)
+
     def _ensure_index(self) -> None:
         fields = ["dense"] + (["sparse"] if self._hybrid else [])
         missing = []
         for field in fields:
-            if not self._client.list_indexes(self._collection, field_name=field):
+            indexes = self._client.list_indexes(self._collection, field_name=field)
+            if not indexes:
                 missing.append(field)
+                continue
+            if not self._index_matches(field, indexes[0]):
+                raise ValueError(f"Milvus {field} 索引参数不匹配")
         if not missing:
             return
         index_params = self._client.prepare_index_params()
@@ -96,6 +110,14 @@ class MilvusVectorStore:
                       *, top_k: int = 10, filter: str = "") -> list[dict]:
         if not self._hybrid:
             raise ValueError("当前 Milvus 适配器未启用混合 collection")
+        if not sparse_vector:
+            raise ValueError("稀疏查询向量不能为空")
+        if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
+            raise ValueError("top_k 必须是 1 到 100 之间的整数")
+        if filter and not _valid_filter(filter):
+            raise ValueError("非法 Milvus 过滤条件")
+        if not self._hybrid:
+            raise ValueError("当前 Milvus 适配器未启用混合 collection")
         req_dense = AnnSearchRequest(data=[dense_vector], anns_field="dense",
                                      param={"metric_type": "COSINE"}, limit=top_k, expr=filter or None)
         req_sparse = AnnSearchRequest(data=[sparse_vector], anns_field="sparse",
@@ -109,6 +131,12 @@ class MilvusVectorStore:
 def _valid_document_id(value: str) -> bool:
     import re
     return bool(re.fullmatch(r"[A-Fa-f0-9]{32,64}", value))
+
+
+def _valid_filter(value: str) -> bool:
+    import re
+    return bool(re.fullmatch(
+        r'document_id\s*==\s*"[A-Fa-f0-9]{32,64}"', value))
 
 
 def _escape(value: str) -> str:

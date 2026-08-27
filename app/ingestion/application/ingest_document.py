@@ -31,6 +31,8 @@ class IngestDocument:
             if callable(claim) and not claim(digest, digest[:32], source):
                 existing = self.metadata.find_by_sha(digest)
                 if existing:
+                    if existing.get("status") == "processing":
+                        return IngestionResult(IngestionStatus.PENDING, filename, source.size, existing.get("docId"), existing.get("chunks", 0), message="文档正在由其他实例处理")
                     self.originals.archive(digest, source)
                     return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing.get("docId"), existing.get("chunks", 0))
             existing = self.metadata.find_by_sha(digest)
@@ -73,18 +75,21 @@ class IngestDocument:
                 if not self.vectors.insert(rows):
                     raise RuntimeError("向量库写入失败")
                 self.metadata.record(digest, document_id, source, len(chunks))
-            except Exception:
+            except Exception as exc:
                 if inserted:
+                    cleanup_errors = []
                     try:
                         self.vectors.delete(document_id)
-                    except Exception:
-                        pass
+                    except Exception as cleanup_exc:
+                        cleanup_errors.append(f"向量补偿删除失败:{type(cleanup_exc).__name__}")
                     try:
                         mark_failed = getattr(self.metadata, "mark_failed", None)
                         if callable(mark_failed):
                             mark_failed(digest, document_id)
-                    except Exception:
-                        pass
+                    except Exception as status_exc:
+                        cleanup_errors.append(f"失败状态记录失败:{type(status_exc).__name__}")
+                    if cleanup_errors:
+                        raise RuntimeError("；".join(cleanup_errors)) from exc
                 raise
             self.originals.archive(digest, source)
             if self.events:

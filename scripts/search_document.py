@@ -12,8 +12,8 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.application.retrieve import RetrieveDocuments
 from app.ingestion.bootstrap.container import build_ingestion
 
-QUERY = "古诗里柳象征什么？"
-TOP_K = 5
+QUERY = "家庭是什么？"
+TOP_K = 26
 FILTER = ""
 SEARCH_MODE = "hybrid"  # "dense" 或 "hybrid"
 

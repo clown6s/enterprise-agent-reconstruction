@@ -129,7 +129,7 @@ class MySQLMetadataStore:
             self._create_table_if_missing(conn)
             with conn.cursor() as cursor:
                 cursor.execute(
-                    f"SELECT document_id AS docId, chunk_count AS chunks "
+                    f"SELECT document_id AS docId, chunk_count AS chunks, status "
                     f"FROM `{self._table}` WHERE sha256 = %s LIMIT 1",
                     (digest,),
                 )
@@ -138,22 +138,33 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
-    def claim(self, digest: str, document_id: str, source: DocumentSource) -> bool:
+    def claim(self, digest: str, document_id: str, source: DocumentSource,
+              stale_after: int = 1800) -> bool:
+        """原子认领摘要；失败或超时的 processing 记录可被重新认领。"""
         conn = self._acquire()
         try:
             self._create_table_if_missing(conn)
             with conn.cursor() as cursor:
-                cursor.execute(
-                    f"INSERT INTO `{self._table}` (document_id, sha256, filename, title, content_type, file_size, status) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, 'processing')",
-                    (document_id, digest, source.filename, source.title,
-                     source.content_type or "", source.size),
-                )
-            conn.commit()
-            return True
-        except pymysql.err.IntegrityError:
-            conn.rollback()
-            return False
+                try:
+                    cursor.execute(
+                        f"INSERT INTO `{self._table}` (document_id, sha256, filename, title, content_type, file_size, status) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, 'processing')",
+                        (document_id, digest, source.filename, source.title,
+                         source.content_type or "", source.size),
+                    )
+                    conn.commit()
+                    return True
+                except pymysql.err.IntegrityError:
+                    conn.rollback()
+                    cursor.execute(
+                        f"UPDATE `{self._table}` SET document_id=%s, status='processing', updated_at=CURRENT_TIMESTAMP "
+                        f"WHERE sha256=%s AND status IN ('failed','processing') "
+                        f"AND (status='failed' OR updated_at < DATE_SUB(NOW(), INTERVAL %s SECOND))",
+                        (document_id, digest, int(stale_after)),
+                    )
+                    claimed = cursor.rowcount == 1
+                    conn.commit()
+                    return claimed
         except Exception:
             conn.rollback()
             raise
@@ -166,9 +177,11 @@ class MySQLMetadataStore:
             self._create_table_if_missing(conn)
             with conn.cursor() as cursor:
                 cursor.execute(
-                    f"UPDATE `{self._table}` SET status='ingested', chunk_count=%s WHERE sha256=%s AND document_id=%s",
+                    f"UPDATE `{self._table}` SET status='ingested', chunk_count=%s WHERE sha256=%s AND document_id=%s AND status='processing'",
                     (chunks, digest, document_id),
                 )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("文档状态更新失败：不存在对应的 processing 记录")
             conn.commit()
         except Exception:
             conn.rollback()

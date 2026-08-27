@@ -18,7 +18,12 @@ class _FakeMilvusClient:
         return self._existing
 
     def describe_collection(self, collection_name):
-        return {"fields": [{"name": "dense", "type": 101, "params": {"dim": self._existing_dim}}]}
+        return {"fields": [
+            {"name": "chunk_id", "type": 21, "params": {}},
+            {"name": "document_id", "type": 21, "params": {}},
+            {"name": "text", "type": 21, "params": {}},
+            {"name": "dense", "type": 101, "params": {"dim": self._existing_dim}},
+        ]}
 
     def create_collection(self, collection_name, schema):
         pass

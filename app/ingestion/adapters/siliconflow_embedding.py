@@ -3,6 +3,7 @@ from collections.abc import Sequence
 
 import math
 import numbers
+import time
 
 import httpx
 
@@ -21,12 +22,16 @@ class SiliconFlowEmbedder:
     """
 
     def __init__(self, api_key: str, *, base_url: str, model: str,
-                 embedding_dim: int, timeout: float = 60.0):
+                 embedding_dim: int, timeout: float = 60.0,
+                 max_retries: int = 3, http_client: httpx.Client | None = None):
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._dim = int(embedding_dim)
         self._timeout = timeout
+        self._max_retries = max(0, int(max_retries))
+        self._client = http_client or httpx.Client(timeout=timeout)
+        self._owns_client = http_client is None
 
     def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
@@ -42,15 +47,33 @@ class SiliconFlowEmbedder:
             "input": [text or "" for text in texts],
             "encoding_format": "float",
         }
-        try:
-            response = httpx.post(
-                f"{self._base_url}/embeddings",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json=body,
-                timeout=self._timeout,
-            )
-        except httpx.HTTPError as exc:
-            raise SiliconFlowError(f"请求 SiliconFlow 失败: {type(exc).__name__}") from exc
+        response = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = self._client.post(
+                    f"{self._base_url}/embeddings",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=body,
+                    timeout=self._timeout,
+                )
+            except httpx.HTTPError as exc:
+                if attempt >= self._max_retries:
+                    raise SiliconFlowError(f"请求 SiliconFlow 失败: {type(exc).__name__}") from exc
+                time.sleep(min(2 ** attempt, 8))
+                continue
+            if 200 <= response.status_code < 300:
+                break
+            if response.status_code not in (408, 429) and response.status_code < 500:
+                break
+            if attempt < self._max_retries:
+                retry_after = response.headers.get("retry-after", "")
+                try:
+                    delay = min(float(retry_after), 30.0) if retry_after else min(2 ** attempt, 8)
+                except ValueError:
+                    delay = min(2 ** attempt, 8)
+                time.sleep(delay)
+        if response is None:
+            raise SiliconFlowError("SiliconFlow 未返回响应")
         if not 200 <= response.status_code < 300:
             raise SiliconFlowError(
                 f"SiliconFlow 返回错误状态 {response.status_code}: {response.text[:200]}")
@@ -87,3 +110,7 @@ class SiliconFlowEmbedder:
                 raise SiliconFlowError(
                     f"SiliconFlow 返回向量维度 {len(vector)}，期望 {self._dim}")
         return [list(vector) for vector in ordered]
+
+    def close(self) -> None:
+        if self._owns_client:
+            self._client.close()
