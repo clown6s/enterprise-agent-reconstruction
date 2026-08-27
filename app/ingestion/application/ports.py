@@ -1,6 +1,6 @@
 """Ports used by ingestion use cases; implementations live outside application."""
 from typing import Protocol, Sequence
-from ..domain.models import ChunkRecord, DocumentSource, IngestionResult, OcrTask, ParsedDocument
+from ..domain.models import ChunkRecord, DocumentSource, OcrTask, ParsedDocument
 
 
 class Parser(Protocol):
@@ -55,15 +55,12 @@ class SparseEmbedder(Protocol):
 
 class MetadataStore(Protocol):
     def find_by_sha(self, digest: str) -> dict | None: ...
+    def find_by_document_id(self, document_id: str) -> dict | None: ...
     def record(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None: ...
     def claim(self, digest: str, document_id: str, source: DocumentSource,
               stale_after: int = 1800) -> bool: ...
     def delete_by_document_id(self, document_id: str) -> int: ...
     def mark_failed(self, digest: str, document_id: str) -> None: ...
-
-
-class OriginalFileStore(Protocol):
-    def archive(self, digest: str, source: DocumentSource) -> None: ...
 
 
 class EventPublisher(Protocol):

@@ -56,9 +56,12 @@ class MySQLMetadataStore:
                 self._close(conn)
                 with self._lock:
                     self._created = max(0, self._created - 1)
-                conn = self._connect()
-                with self._lock:
-                    self._created += 1
+                try:
+                    conn = self._connect()
+                except Exception:
+                    with self._lock:
+                        self._created += 1
+                    raise
             with self._lock:
                 self._active += 1
             return conn
@@ -122,6 +125,15 @@ class MySQLMetadataStore:
         with conn.cursor() as cursor:
             cursor.execute(sql)
         conn.commit()
+
+    def find_by_document_id(self, document_id: str) -> dict | None:
+        conn = self._acquire()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(f"SELECT sha256, filename FROM `{self._table}` WHERE document_id=%s LIMIT 1", (document_id,))
+                return cursor.fetchone() or None
+        finally:
+            self._release(conn)
 
     def find_by_sha(self, digest: str) -> dict | None:
         conn = self._acquire()

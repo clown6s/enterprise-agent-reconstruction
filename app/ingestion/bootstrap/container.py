@@ -4,8 +4,6 @@ from collections.abc import Sequence
 
 from dotenv import load_dotenv
 
-from ..domain.models import DocumentSource
-
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
@@ -44,20 +42,17 @@ class _NoopVectors:
 class _NoopMetadata:
     def find_by_sha(self, digest: str) -> dict | None:
         return None
-    def record(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None:
+    def find_by_document_id(self, document_id: str) -> dict | None:
         return None
-    def claim(self, digest: str, document_id: str, source: DocumentSource,
+    def record(self, digest: str, document_id: str, source, chunks: int) -> None:
+        return None
+    def claim(self, digest: str, document_id: str, source,
               stale_after: int = 1800) -> bool:
         return True
     def delete_by_document_id(self, document_id: str) -> int:
         return 0
     def mark_failed(self, digest: str, document_id: str) -> None:
         return None
-class _NoopOriginals:
-    def archive(self, digest: str, source: DocumentSource) -> None:
-        return None
-
-
 def _load_env() -> None:
     """从项目根目录显式加载环境变量，避免依赖调用栈推断路径。"""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -117,5 +112,5 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         parser=parser, classifier=classifier, chunker=chunkers,
         embedder=embedder or _NoopEmbedder(), sparse_embedder=LocalSparseEmbedder(),
         vectors=vectors or _NoopVectors(),
-        metadata=metadata or _NoopMetadata(), originals=originals or _NoopOriginals(),
+        metadata=metadata or _NoopMetadata(),
     )

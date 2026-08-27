@@ -4,18 +4,18 @@ import threading
 
 from ..domain.models import DocumentSource, IngestionResult, IngestionStatus, OcrStatus
 from ..domain.policies import document_title, sha256, validate_size
-from .ports import Classifier, ChunkerSelector, Embedder, EventPublisher, MetadataStore, OriginalFileStore, OcrProvider, Parser, VectorStore
+from .ports import Classifier, ChunkerSelector, Embedder, EventPublisher, MetadataStore, OcrProvider, Parser, VectorStore
 
 
 class IngestDocument:
     def __init__(self, parser: Parser, classifier: Classifier, chunker: ChunkerSelector,
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
-                 originals: OriginalFileStore, sparse_embedder=None, ocr: OcrProvider | None = None,
+                 sparse_embedder=None, ocr: OcrProvider | None = None,
                  events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024):
         self.parser, self.classifier, self.chunker = parser, classifier, chunker
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
         self.sparse_embedder = sparse_embedder
-        self.originals, self.ocr, self.events = originals, ocr, events
+        self.ocr, self.events = ocr, events
         self.max_file_bytes = max_file_bytes
         self._claims_lock = threading.Lock()
 
@@ -33,13 +33,11 @@ class IngestDocument:
                 if existing:
                     if existing.get("status") == "processing":
                         return IngestionResult(IngestionStatus.PENDING, filename, source.size, existing.get("docId"), existing.get("chunks", 0), message="文档正在由其他实例处理")
-                    self.originals.archive(digest, source)
                     return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing.get("docId"), existing.get("chunks", 0))
             existing = self.metadata.find_by_sha(digest)
             existing_document_id = existing.get("docId") if existing else None
             if existing_document_id and self.vectors.has_document(existing_document_id):
-                self.originals.archive(digest, source)
-                return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing_document_id, existing.get("chunks", 0))
+                    return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing_document_id, existing.get("chunks", 0))
         try:
             parsed = self.parser.parse(source)
             kind = self.classifier.classify(parsed, source)
@@ -91,7 +89,6 @@ class IngestDocument:
                     if cleanup_errors:
                         raise RuntimeError("；".join(cleanup_errors)) from exc
                 raise
-            self.originals.archive(digest, source)
             if self.events:
                 self.events.publish({"type": "DocumentIngested", "document_id": document_id, "sha256": digest, "filename": filename})
             return IngestionResult(IngestionStatus.INGESTED, filename, source.size, document_id, len(chunks), diagnostics=parsed.diagnostics)

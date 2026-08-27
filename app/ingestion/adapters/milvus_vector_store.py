@@ -94,8 +94,9 @@ class MilvusVectorStore:
                 raise ValueError("非法 document_id")
             item["section_path"] = json.dumps(item.get("section_path", []), ensure_ascii=False)
             payload.append(item)
-        result = self._client.insert(self._collection, payload)
-        return result.get("insert_count", 0) == len(payload)
+        # 使用 upsert 保证同一 document_id/index 重试时幂等，不产生重复主键。
+        result = self._client.upsert(self._collection, payload)
+        return result.get("upsert_count", len(payload)) == len(payload)
 
     def delete(self, document_id: str) -> int:
         result = self._client.delete(self._collection, filter=f'document_id == "{_escape(document_id)}"')

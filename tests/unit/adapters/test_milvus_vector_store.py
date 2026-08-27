@@ -43,10 +43,10 @@ class _FakeMilvusClient:
     def load_collection(self, collection_name):
         pass
 
-    def insert(self, collection_name, data):
+    def upsert(self, collection_name, data):
         for row in data:
             self._rows[row["chunk_id"]] = row
-        return {"insert_count": len(data)}
+        return {"upsert_count": len(data)}
 
     def query(self, collection_name, filter="", output_fields=None, limit=10):
         return [r for r in self._rows.values()][:limit]

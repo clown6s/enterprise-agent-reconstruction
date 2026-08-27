@@ -55,7 +55,6 @@ def main(argv: list[str]) -> int:
         print(f"MySQL 元数据删除数量: {metadata_count}")
     else:
         print(f"当前 MetadataStore({type(metadata).__name__}) 不支持删除元数据")
-
     confirmed = _wait_for_deletion(vectors, document_id, DELETE_POLL_TIMEOUT)
     print(f"删除确认: {'已不可见' if confirmed else '超时仍未确认（最终一致性未达到）'}")
     return 0 if confirmed else 1
