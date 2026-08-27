@@ -9,6 +9,12 @@ _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _TOC_TITLE = re.compile(r"^目\s*录$|^contents$", re.I)
 _SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
 _TOC_LINE = re.compile(r"^(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))\s+(?:第\s*[0-9零一二三四五六七八九十百千万]+\s*条)?.{0,40}\s*[0-9]{1,4}\s*$")
+_INLINE_LEVEL = re.compile(r"(?=第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))")
+
+
+def _split_inline_levels(line: str) -> list[str]:
+    parts = [part.strip() for part in _INLINE_LEVEL.split(line) if part.strip()]
+    return parts or [line]
 
 
 def _split_long(text: str, limit: int):
@@ -59,7 +65,8 @@ class LegalChunker:
                 ))
             current = None
 
-        for raw in document.text.splitlines():
+        lines = (part for raw in document.text.splitlines() for part in _split_inline_levels(raw))
+        for raw in lines:
             line = raw.strip()
             if not line or _SEPARATOR.fullmatch(line) or _TOC_TITLE.fullmatch(line):
                 continue
@@ -73,12 +80,12 @@ class LegalChunker:
                 flush()
                 level_label = level.group(1).strip()
                 label = line
-                # 同级章节替换旧章节：编/篇为一级，章为二级，节为三级。
-                rank = {"编": 1, "篇": 1, "章": 2, "节": 3}.get(level_label[-1], 2)
+                # 同级章节替换旧章节；有编/篇时章为二级，否则章为一级。
+                kind = level_label[-1]
+                has_book = bool(section and re.search(
+                    r"第\s*[0-9零一二三四五六七八九十百千万]+\s*[编篇]", section[0]))
+                rank = 1 if kind in "编篇" else (2 if kind == "章" and has_book else 1 if kind == "章" else 3 if has_book else 2)
                 section = section[:rank - 1] + [label]
-                remainder = line[level.end():].strip()
-                if remainder:
-                    self._start_article(remainder, page, section, units, lambda value: None)
                 continue
             match = _ARTICLE.match(line)
             if match:
