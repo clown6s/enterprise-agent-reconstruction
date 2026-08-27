@@ -12,15 +12,20 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.application.retrieve import RetrieveDocuments
 from app.ingestion.bootstrap.container import build_ingestion
 
-QUERY = "少女"
+QUERY = "古诗里柳象征什么？"
 TOP_K = 5
 FILTER = ""
+SEARCH_MODE = "hybrid"  # "dense" 或 "hybrid"
 
 
 def main() -> int:
     service = build_ingestion()
-    retriever = RetrieveDocuments(service.embedder, service.vectors)
-    results = retriever.execute(QUERY, top_k=TOP_K, filter=FILTER)
+    retriever = RetrieveDocuments(service.embedder, service.vectors,
+                                  sparse_embedder=service.sparse_embedder)
+    if SEARCH_MODE == "hybrid":
+        results = retriever.execute_hybrid(QUERY, top_k=TOP_K, filter=FILTER)
+    else:
+        results = retriever.execute(QUERY, top_k=TOP_K, filter=FILTER)
     print(f"问题: {QUERY}")
     print(f"召回数量: {len(results)}")
     print("=" * 80)

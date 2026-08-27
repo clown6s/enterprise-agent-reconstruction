@@ -1,6 +1,9 @@
 """SiliconFlow 向量 Embedding 适配器（实现 Embedder 端口）。"""
 from collections.abc import Sequence
 
+import math
+import numbers
+
 import httpx
 
 from ..application.ports import Embedder
@@ -48,24 +51,34 @@ class SiliconFlowEmbedder:
             )
         except httpx.HTTPError as exc:
             raise SiliconFlowError(f"请求 SiliconFlow 失败: {type(exc).__name__}") from exc
-        if response.status_code != 200:
+        if not 200 <= response.status_code < 300:
             raise SiliconFlowError(
                 f"SiliconFlow 返回错误状态 {response.status_code}: {response.text[:200]}")
         try:
             data = response.json()
             items = data["data"]
+            if not isinstance(items, list):
+                raise TypeError("data 不是列表")
         except (ValueError, KeyError, TypeError) as exc:
             raise SiliconFlowError("SiliconFlow 响应结构无效") from exc
 
         # 服务端可能乱序返回向量，按 index 恢复顺序。
         ordered = [None] * len(texts)
+        seen_indexes = set()
         for item in items:
+            if not isinstance(item, dict):
+                raise SiliconFlowError("SiliconFlow 返回了无效数据项")
             index = item.get("index")
             vector = item.get("embedding")
-            if not isinstance(index, int) or not 0 <= index < len(ordered):
-                continue
+            if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(ordered):
+                raise SiliconFlowError("SiliconFlow 返回了无效 index")
+            if index in seen_indexes:
+                raise SiliconFlowError(f"SiliconFlow 返回了重复 index: {index}")
+            seen_indexes.add(index)
             if not isinstance(vector, list):
                 raise SiliconFlowError(f"SiliconFlow 返回了无效向量(index={index})")
+            if not all(isinstance(value, numbers.Real) and math.isfinite(value) for value in vector):
+                raise SiliconFlowError(f"SiliconFlow 向量包含无效数值(index={index})")
             ordered[index] = vector
         if any(vector is None for vector in ordered):
             raise SiliconFlowError("SiliconFlow 返回向量数量与请求不一致")

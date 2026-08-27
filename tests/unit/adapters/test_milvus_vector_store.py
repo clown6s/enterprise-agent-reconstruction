@@ -18,10 +18,13 @@ class _FakeMilvusClient:
         return self._existing
 
     def describe_collection(self, collection_name):
-        return {"fields": [{"name": "dense", "params": {"dim": self._existing_dim}}]}
+        return {"fields": [{"name": "dense", "type": 101, "params": {"dim": self._existing_dim}}]}
 
     def create_collection(self, collection_name, schema):
         pass
+
+    def list_indexes(self, collection_name, field_name=""):
+        return []
 
     def prepare_index_params(self):
         return self
@@ -65,7 +68,7 @@ def _make_store():
 def test_insert_maps_rows_and_defaults_chunk_id(monkeypatch):
     monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient", lambda **kw: _FakeMilvusClient())
     store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
-    ok = store.insert([{"document_id": "doc1", "text": "hello", "dense": [0.1] * 4096,
+    ok = store.insert([{"document_id": "0123456789abcdef0123456789abcdef", "text": "hello", "dense": [0.1] * 4096,
                         "section_path": ["第 1 章"]}])
     assert ok is True
     stored = next(v for v in store._client._rows.values())
@@ -75,8 +78,8 @@ def test_insert_maps_rows_and_defaults_chunk_id(monkeypatch):
 def test_has_document(monkeypatch):
     monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient", lambda **kw: _FakeMilvusClient())
     store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
-    store.insert([{"document_id": "doc1", "text": "x", "dense": [0.1] * 4096}])
-    assert store.has_document("doc1") is True
+    store.insert([{"document_id": "0123456789abcdef0123456789abcdef", "text": "x", "dense": [0.1] * 4096}])
+    assert store.has_document("0123456789abcdef0123456789abcdef") is True
     assert store.has_document("doc2") is False
 
 

@@ -1,23 +1,36 @@
-"""按 document_id 删除已入库文档的 Milvus 向量。
+"""按 document_id 删除已入库文档的 Milvus 向量和 MySQL 元数据。
 
 用法:
     .venv/Scripts/python.exe scripts/delete_document.py <document_id>
 
 说明:
-    - 只删除 Milvus 中的向量数据；MySQL 元数据记录仍保留（现有
-      MetadataStore 没有删除接口），如需完整删除请另行扩展。
-    - 复用 build_ingestion() 装配的同一 MilvusVectorStore，不重复拼接连接逻辑。
+    - 删除 Milvus 中的向量数据，并同步删除 MySQL 元数据记录。
+    - 删除后轮询等待 Milvus 最终一致性，最多等待 DELETE_POLL_TIMEOUT 秒。
+    - 复用 build_ingestion() 装配的同一组件，不重复拼接连接逻辑。
 """
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 # 填入要删除的 document_id；也可以在运行时传入命令行参数。
-DOCUMENT_ID = ""
+DOCUMENT_ID = "12d6e7a8610fbdcc85f358317cf3e511"
+DELETE_POLL_TIMEOUT = 30
+DELETE_POLL_INTERVAL = 2
 
 from app.ingestion.bootstrap.container import build_ingestion
+
+
+def _wait_for_deletion(vectors, document_id: str, timeout: float) -> bool:
+    """轮询等待 Milvus 删除可见，返回是否最终不可见。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not vectors.has_document(document_id):
+            return True
+        time.sleep(DELETE_POLL_INTERVAL)
+    return not vectors.has_document(document_id)
 
 
 def main(argv: list[str]) -> int:
@@ -34,9 +47,18 @@ def main(argv: list[str]) -> int:
 
     print(f"删除前 has_document: {vectors.has_document(document_id)}")
     count = vectors.delete(document_id)
-    print(f"删除数量: {count}")
-    print(f"删除后 has_document: {vectors.has_document(document_id)}")
-    return 0
+    print(f"Milvus 删除数量: {count}")
+
+    metadata = service.metadata
+    if hasattr(metadata, "delete_by_document_id"):
+        metadata_count = metadata.delete_by_document_id(document_id)
+        print(f"MySQL 元数据删除数量: {metadata_count}")
+    else:
+        print(f"当前 MetadataStore({type(metadata).__name__}) 不支持删除元数据")
+
+    confirmed = _wait_for_deletion(vectors, document_id, DELETE_POLL_TIMEOUT)
+    print(f"删除确认: {'已不可见' if confirmed else '超时仍未确认（最终一致性未达到）'}")
+    return 0 if confirmed else 1
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from ..domain.models import DocumentSource
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
+from ..adapters.sparse_embedding import LocalSparseEmbedder
 
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
@@ -26,6 +27,10 @@ from ..processing.parsers.docx import DocxParser
 from ..processing.parsers.pdf import PdfParser
 
 
+class ConfigurationError(RuntimeError):
+    """生产依赖配置不完整或互相矛盾。"""
+
+
 class _NoopEmbedder:
     def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
         return [[0.0] for _ in texts]
@@ -40,6 +45,12 @@ class _NoopMetadata:
     def find_by_sha(self, digest: str) -> dict | None:
         return None
     def record(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None:
+        return None
+    def claim(self, digest: str, document_id: str, source: DocumentSource) -> bool:
+        return True
+    def delete_by_document_id(self, document_id: str) -> int:
+        return 0
+    def mark_failed(self, digest: str, document_id: str) -> None:
         return None
 class _NoopOriginals:
     def archive(self, digest: str, source: DocumentSource) -> None:
@@ -71,8 +82,13 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
     parser = build_parser()
     classifier = RegistryClassifier(default_profiles())
     chunkers = build_chunkers()
+    # 生产配置必须成组出现，避免“看似成功但数据没有保存”。
+    has_key = bool(os.getenv("SILICONFLOW_API_KEY"))
+    has_milvus = bool(os.getenv("MILVUS_HOST"))
+    if (has_key or has_milvus) and has_key != has_milvus and embedder is None and vectors is None:
+        raise ConfigurationError("SILICONFLOW_API_KEY 与 MILVUS_HOST 必须同时配置")
     # 配置了 SiliconFlow Key 时启用真实 Embedding，否则回退到占位实现。
-    if embedder is None and os.getenv("SILICONFLOW_API_KEY"):
+    if embedder is None and has_key:
         embedder = SiliconFlowEmbedder(
             os.environ["SILICONFLOW_API_KEY"],
             base_url=os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
@@ -85,7 +101,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             host=os.environ["MILVUS_HOST"], port=int(os.getenv("MILVUS_PORT", "19530")),
             database=os.getenv("MILVUS_DB", "default"),
             collection=os.getenv("MILVUS_COLLECTION", "document_chunks_4096"),
-            embedding_dim=int(os.getenv("EMBEDDING_DIM", "4096")),
+            embedding_dim=int(os.getenv("EMBEDDING_DIM", "4096")), hybrid=True,
         )
     if metadata is None and os.getenv("MYSQL_HOST"):
         metadata = MySQLMetadataStore(
@@ -98,6 +114,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         )
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
-        embedder=embedder or _NoopEmbedder(), vectors=vectors or _NoopVectors(),
+        embedder=embedder or _NoopEmbedder(), sparse_embedder=LocalSparseEmbedder(),
+        vectors=vectors or _NoopVectors(),
         metadata=metadata or _NoopMetadata(), originals=originals or _NoopOriginals(),
     )
