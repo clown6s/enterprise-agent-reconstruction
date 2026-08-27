@@ -29,6 +29,7 @@ class MilvusVectorStore:
             schema.add_field("chunk_id", DataType.VARCHAR, max_length=256, is_primary=True)
             schema.add_field("document_id", DataType.VARCHAR, max_length=128)
             schema.add_field("text", DataType.VARCHAR, max_length=65535)
+            schema.add_field("search_text", DataType.VARCHAR, max_length=65535)
             schema.add_field("dense", DataType.FLOAT_VECTOR, dim=self._dim)
             if self._hybrid:
                 schema.add_field("sparse", DataType.SPARSE_FLOAT_VECTOR)

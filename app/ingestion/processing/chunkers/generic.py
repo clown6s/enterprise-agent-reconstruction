@@ -64,5 +64,8 @@ class GenericChunker:
             prefix = f"类别：{category}\n" if category else ""
             prefix += f"条目：{name}\n" if name else ""
             for part in _split_long(prefix + body, self.max_chars):
-                result.append(ChunkRecord(part))
+                result.append(ChunkRecord(
+                    part,
+                    metadata={"category": category, "entry": name} if category or name else {},
+                ))
         return result

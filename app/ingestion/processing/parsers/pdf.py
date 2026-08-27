@@ -104,7 +104,9 @@ class PdfParser:
         if body_start is None or end <= start + 1:
             return lines, 0
         removed = lines[start:end]
-        return lines[:start] + lines[body_start:], len(removed)
+        # 保留正文开始前第一个章节标题；其余章节行属于目录条目。
+        actual_heading = lines[start + 1]
+        return lines[:start] + [actual_heading] + lines[body_start:], len(removed) - 1
 
     @staticmethod
     def _is_toc_page(text: str) -> bool:

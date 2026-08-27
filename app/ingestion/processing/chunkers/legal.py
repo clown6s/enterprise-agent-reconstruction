@@ -4,7 +4,7 @@ import re
 from ...domain.models import ChunkRecord, ParsedDocument
 
 _ARTICLE = re.compile(r"^\s*(第\s*[0-9零一二三四五六七八九十百千万]+\s*条(?:之\s*[0-9零一二三四五六七八九十百千万]+)?)")
-_LEVEL = re.compile(r"^\s*(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))")
+_LEVEL = re.compile(r"^\s*(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))\s*")
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _TOC_TITLE = re.compile(r"^目\s*录$|^contents$", re.I)
 _SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
@@ -31,7 +31,20 @@ class LegalChunker:
         units = []
         section: list[str] = []
         current: dict | None = None
+        preamble: list[str] = []
         page = 1
+
+        def flush_preamble():
+            nonlocal preamble
+            text = " ".join(preamble).strip()
+            if text:
+                for part in _split_long(text, self.max_chars):
+                    units.append(ChunkRecord(
+                        text=part, kind="legal", page=1, page_end=page,
+                        section_path=(),
+                        metadata={"content_role": "preamble"},
+                    ))
+            preamble = []
 
         def flush():
             nonlocal current
@@ -39,7 +52,7 @@ class LegalChunker:
                 return
             for index, part in enumerate(_split_long(current["text"], self.max_chars)):
                 units.append(ChunkRecord(
-                    text=part, kind="legal", page=current["page"], page_end=page,
+                    text=part, kind="legal", page=current["page"], page_end=current["page_end"],
                     section_path=tuple(section), continuation=index > 0,
                     continuation_of=current["article"], continuation_index=index,
                     metadata={"article": current["article"]},
@@ -58,8 +71,10 @@ class LegalChunker:
             level = _LEVEL.match(line)
             if level:
                 flush()
-                label = level.group(1).strip()
-                rank = {"编": 1, "篇": 1, "章": 2, "节": 3}.get(label[-1], 2)
+                level_label = level.group(1).strip()
+                label = line
+                # 同级章节替换旧章节：编/篇为一级，章为二级，节为三级。
+                rank = {"编": 1, "篇": 1, "章": 2, "节": 3}.get(level_label[-1], 2)
                 section = section[:rank - 1] + [label]
                 remainder = line[level.end():].strip()
                 if remainder:
@@ -67,15 +82,15 @@ class LegalChunker:
                 continue
             match = _ARTICLE.match(line)
             if match:
+                flush_preamble()
                 flush()
-                current = {"text": line, "page": page,
+                current = {"text": line, "page": page, "page_end": page,
                            "article": re.sub(r"\s+", "", match.group(1))}
             elif current:
                 current["text"] += " " + line
             else:
-                units.extend(ChunkRecord(line, kind="legal", page=page,
-                                         section_path=tuple(section),
-                                         metadata={"quality_flag": "unclassified_legal_text"}) for _ in [0])
+                preamble.append(line)
+        flush_preamble()
         flush()
         return units
 

@@ -7,6 +7,17 @@ from ..domain.policies import document_title, sha256, validate_size
 from .ports import Classifier, ChunkerSelector, Embedder, EventPublisher, MetadataStore, OcrProvider, Parser, VectorStore
 
 
+def _search_text(chunk) -> str:
+    """为向量化补充章节/类别上下文，同时保留原始 chunk 文本。"""
+    context = " > ".join(chunk.section_path)
+    metadata = chunk.metadata
+    if metadata.get("category"):
+        context = f"{context} > {metadata['category']}" if context else metadata["category"]
+    if metadata.get("question_number") is not None:
+        context = f"{context} > 问题 {metadata['question_number']}" if context else f"问题 {metadata['question_number']}"
+    return f"上下文：{context}\n{chunk.text}" if context else chunk.text
+
+
 class IngestDocument:
     def __init__(self, parser: Parser, classifier: Classifier, chunker: ChunkerSelector,
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
@@ -54,15 +65,16 @@ class IngestDocument:
             chunks = self.chunker.chunk(kind, parsed, source)
             if not chunks:
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》切分后无内容")
-            vectors = self.embedder.embed_batch([chunk.text for chunk in chunks])
-            sparse_vectors = (self.sparse_embedder.embed_batch([chunk.text for chunk in chunks])
+            search_texts = [_search_text(chunk) for chunk in chunks]
+            vectors = self.embedder.embed_batch(search_texts)
+            sparse_vectors = (self.sparse_embedder.embed_batch(search_texts)
                               if self.sparse_embedder else None)
             # 文档 ID 由内容摘要确定，重试时保持幂等。
             document_id = digest[:32]
             title = document_title(source.title, filename)
             rows = []
             for index, chunk in enumerate(chunks):
-                row = {"text": chunk.text, "dense": vectors[index], "document_id": document_id, "title": title, "source": title, "page": chunk.page, "kind": chunk.kind, "section_path": list(chunk.section_path), "continuation": chunk.continuation, "continuation_of": chunk.continuation_of, "continuation_index": chunk.continuation_index}
+                row = {"text": chunk.text, "search_text": search_texts[index], "dense": vectors[index], "document_id": document_id, "title": title, "source": title, "page": chunk.page, "page_end": chunk.page_end, "kind": chunk.kind, "section_path": list(chunk.section_path), "chunk_role": chunk.metadata.get("chunk_role", chunk.kind), "continuation": chunk.continuation, "continuation_of": chunk.continuation_of, "continuation_index": chunk.continuation_index}
                 if sparse_vectors is not None:
                     row["sparse"] = sparse_vectors[index]
                 row.update(chunk.metadata)

@@ -10,11 +10,14 @@ from app.ingestion.bootstrap.container import build_parser, build_chunkers
 from app.ingestion.processing.profiles import default_profiles
 
 
-# 只改这一行，填入要测试的文档完整路径。
-# DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+# DOCUMENT_PATH = r"D:\datum\内科学.pdf"
+# DOCUMENT_PATH = r"D:\datum\家庭教育促进法.pdf"
+DOCUMENT_PATH = r"D:\datum\中华人工共和国刑法.pdf"
 # DOCUMENT_PATH = r"D:\datum\中华人民共和国治安管理处罚法_20250627.docx"
 # DOCUMENT_PATH = r"D:\datum\导游面试问答.docx"
-DOCUMENT_PATH = r"D:\datum\内科学.pdf"
+# DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+# DOCUMENT_PATH = r"D:\datum\古代诗歌常用意象.txt"
+
 
 
 def main() -> int:
