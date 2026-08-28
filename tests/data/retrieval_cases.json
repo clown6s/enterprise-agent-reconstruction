@@ -1,0 +1,831 @@
+[
+  {
+    "id": "review-9213813654842936007",
+    "query": "在古代诗歌中，\"草\"这个意象通常象征哪些含义？请列出至少三种",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:1",
+      "a6a02c4d93f0600b574cfe4c87e6d460:4",
+      "a6a02c4d93f0600b574cfe4c87e6d460:5",
+      "a6a02c4d93f0600b574cfe4c87e6d460:12",
+      "a6a02c4d93f0600b574cfe4c87e6d460:9"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:0",
+      "a6a02c4d93f0600b574cfe4c87e6d460:19",
+      "a6a02c4d93f0600b574cfe4c87e6d460:18",
+      "828a06ff9062836951147f4b6e6be32d:1192",
+      "828a06ff9062836951147f4b6e6be32d:59",
+      "a6a02c4d93f0600b574cfe4c87e6d460:6",
+      "828a06ff9062836951147f4b6e6be32d:521",
+      "a6a02c4d93f0600b574cfe4c87e6d460:35",
+      "f2ac959f4e0c375dc8b021b09a6527b4:146",
+      "828a06ff9062836951147f4b6e6be32d:1280",
+      "828a06ff9062836951147f4b6e6be32d:559",
+      "828a06ff9062836951147f4b6e6be32d:101",
+      "a6a02c4d93f0600b574cfe4c87e6d460:8",
+      "828a06ff9062836951147f4b6e6be32d:1073",
+      "a6a02c4d93f0600b574cfe4c87e6d460:51"
+    ]
+  },
+  {
+    "id": "smoke",
+    "query": "Agent如何工作",
+    "relevant_chunk_ids": [
+      "doc:1"
+    ],
+    "expected_sections": [
+      "第一章"
+    ],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3208095248613635991",
+    "query": "为什么\"黄叶\"象征\"凋零、别离\"，而\"绿叶\"象征\"生命力、希望\"？这种对比反映了什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:3",
+      "a6a02c4d93f0600b574cfe4c87e6d460:1",
+      "a6a02c4d93f0600b574cfe4c87e6d460:2",
+      "a6a02c4d93f0600b574cfe4c87e6d460:19",
+      "a6a02c4d93f0600b574cfe4c87e6d460:39",
+      "a6a02c4d93f0600b574cfe4c87e6d460:18",
+      "a6a02c4d93f0600b574cfe4c87e6d460:4"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:46",
+      "a6a02c4d93f0600b574cfe4c87e6d460:51",
+      "a6a02c4d93f0600b574cfe4c87e6d460:52",
+      "a6a02c4d93f0600b574cfe4c87e6d460:42",
+      "a6a02c4d93f0600b574cfe4c87e6d460:16",
+      "a6a02c4d93f0600b574cfe4c87e6d460:48",
+      "a6a02c4d93f0600b574cfe4c87e6d460:36",
+      "a6a02c4d93f0600b574cfe4c87e6d460:44",
+      "a6a02c4d93f0600b574cfe4c87e6d460:40",
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "828a06ff9062836951147f4b6e6be32d:257",
+      "828a06ff9062836951147f4b6e6be32d:470"
+    ]
+  },
+  {
+    "id": "review-365583768894649909",
+    "query": "\"红豆\"为什么被称为\"相思子\"？这个名称的来源是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:16",
+      "a6a02c4d93f0600b574cfe4c87e6d460:17",
+      "a6a02c4d93f0600b574cfe4c87e6d460:14",
+      "a6a02c4d93f0600b574cfe4c87e6d460:13",
+      "a6a02c4d93f0600b574cfe4c87e6d460:15",
+      "a6a02c4d93f0600b574cfe4c87e6d460:12"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:13",
+      "f2ac959f4e0c375dc8b021b09a6527b4:6",
+      "f2ac959f4e0c375dc8b021b09a6527b4:67",
+      "828a06ff9062836951147f4b6e6be32d:337",
+      "f2ac959f4e0c375dc8b021b09a6527b4:98",
+      "f2ac959f4e0c375dc8b021b09a6527b4:100",
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "a6a02c4d93f0600b574cfe4c87e6d460:33",
+      "828a06ff9062836951147f4b6e6be32d:146",
+      "828a06ff9062836951147f4b6e6be32d:489",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20",
+      "f2ac959f4e0c375dc8b021b09a6527b4:131",
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "a6a02c4d93f0600b574cfe4c87e6d460:34"
+    ]
+  },
+  {
+    "id": "review-613011757317716537",
+    "query": "为什么\"豆蔻\"被用来形容女子十三四岁的年纪？这个比喻的出处是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:17",
+      "a6a02c4d93f0600b574cfe4c87e6d460:16",
+      "a6a02c4d93f0600b574cfe4c87e6d460:0"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:337",
+      "f2ac959f4e0c375dc8b021b09a6527b4:131",
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "a6a02c4d93f0600b574cfe4c87e6d460:80",
+      "828a06ff9062836951147f4b6e6be32d:440",
+      "a6a02c4d93f0600b574cfe4c87e6d460:13",
+      "f2ac959f4e0c375dc8b021b09a6527b4:140",
+      "828a06ff9062836951147f4b6e6be32d:146",
+      "828a06ff9062836951147f4b6e6be32d:59",
+      "a6a02c4d93f0600b574cfe4c87e6d460:72",
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "a6a02c4d93f0600b574cfe4c87e6d460:14",
+      "828a06ff9062836951147f4b6e6be32d:559",
+      "a6a02c4d93f0600b574cfe4c87e6d460:46",
+      "828a06ff9062836951147f4b6e6be32d:767",
+      "84a4a23ca76838bce013257119a5eb61:264",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20"
+    ]
+  },
+  {
+    "id": "review-1212974667391111337",
+    "query": "岁寒三友\"指的是哪三种植物？它们分别象征什么品格？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:18"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:19",
+      "a6a02c4d93f0600b574cfe4c87e6d460:17",
+      "828a06ff9062836951147f4b6e6be32d:1043",
+      "a6a02c4d93f0600b574cfe4c87e6d460:75",
+      "828a06ff9062836951147f4b6e6be32d:1044",
+      "a6a02c4d93f0600b574cfe4c87e6d460:6",
+      "84a4a23ca76838bce013257119a5eb61:377",
+      "a6a02c4d93f0600b574cfe4c87e6d460:4",
+      "84a4a23ca76838bce013257119a5eb61:384",
+      "a6a02c4d93f0600b574cfe4c87e6d460:27",
+      "f2ac959f4e0c375dc8b021b09a6527b4:39",
+      "84a4a23ca76838bce013257119a5eb61:401",
+      "a6a02c4d93f0600b574cfe4c87e6d460:1",
+      "a6a02c4d93f0600b574cfe4c87e6d460:5",
+      "828a06ff9062836951147f4b6e6be32d:296",
+      "a6a02c4d93f0600b574cfe4c87e6d460:12",
+      "828a06ff9062836951147f4b6e6be32d:1035",
+      "a6a02c4d93f0600b574cfe4c87e6d460:14",
+      "a6a02c4d93f0600b574cfe4c87e6d460:9"
+    ]
+  },
+  {
+    "id": "review-4703885347707796734",
+    "query": "为什么\"杜鹃\"在诗歌中常与\"悲秋\"联系在一起？这种联想的来源是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:33"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:0",
+      "828a06ff9062836951147f4b6e6be32d:821",
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "a6a02c4d93f0600b574cfe4c87e6d460:4",
+      "828a06ff9062836951147f4b6e6be32d:559",
+      "a6a02c4d93f0600b574cfe4c87e6d460:27",
+      "828a06ff9062836951147f4b6e6be32d:767",
+      "a6a02c4d93f0600b574cfe4c87e6d460:43",
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "a6a02c4d93f0600b574cfe4c87e6d460:14",
+      "828a06ff9062836951147f4b6e6be32d:1192",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20",
+      "f2ac959f4e0c375dc8b021b09a6527b4:140",
+      "828a06ff9062836951147f4b6e6be32d:146",
+      "a6a02c4d93f0600b574cfe4c87e6d460:5",
+      "828a06ff9062836951147f4b6e6be32d:988",
+      "828a06ff9062836951147f4b6e6be32d:422",
+      "a6a02c4d93f0600b574cfe4c87e6d460:2",
+      "f2ac959f4e0c375dc8b021b09a6527b4:58"
+    ]
+  },
+  {
+    "id": "review-4163567381711036683",
+    "query": "\"鸿鹄\"为什么能成为\"志气高远\"的象征？这个比喻的典故是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:32"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "a6a02c4d93f0600b574cfe4c87e6d460:31",
+      "828a06ff9062836951147f4b6e6be32d:146",
+      "a6a02c4d93f0600b574cfe4c87e6d460:22",
+      "828a06ff9062836951147f4b6e6be32d:440",
+      "a6a02c4d93f0600b574cfe4c87e6d460:74",
+      "828a06ff9062836951147f4b6e6be32d:59",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20",
+      "a6a02c4d93f0600b574cfe4c87e6d460:27",
+      "f2ac959f4e0c375dc8b021b09a6527b4:34",
+      "3aaa76517ad0cee062f50ef609536647:2",
+      "a6a02c4d93f0600b574cfe4c87e6d460:55",
+      "828a06ff9062836951147f4b6e6be32d:559",
+      "a6a02c4d93f0600b574cfe4c87e6d460:30",
+      "828a06ff9062836951147f4b6e6be32d:767",
+      "a6a02c4d93f0600b574cfe4c87e6d460:34",
+      "828a06ff9062836951147f4b6e6be32d:189",
+      "a6a02c4d93f0600b574cfe4c87e6d460:24"
+    ]
+  },
+  {
+    "id": "review-1296136799925435546",
+    "query": "\"鸿鹄\"为什么能成为\"志气高远\"的象征？这个比喻的典故是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:32"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:1047",
+      "828a06ff9062836951147f4b6e6be32d:189"
+    ]
+  },
+  {
+    "id": "review-6672258489768035267",
+    "query": "\"比翼鸟\"在古典诗歌中通常用来比喻什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:34"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:0"
+    ]
+  },
+  {
+    "id": "review-6880272599149251918",
+    "query": "古人为什么误以为杜鹃鸟\"啼得满嘴流血\"？这种误解如何影响了诗歌意象？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:33"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:0",
+      "828a06ff9062836951147f4b6e6be32d:1137"
+    ]
+  },
+  {
+    "id": "review-6364314632572311563",
+    "query": "为什么\"江水\"象征\"时光流逝\"，而\"大海\"象征\"辽阔、深邃\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:37",
+      "a6a02c4d93f0600b574cfe4c87e6d460:36"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8559915045655748053",
+    "query": "为什么\"西风\"象征\"悲秋、落寞\"，而\"东风\"象征\"欢愉、希望\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:42",
+      "a6a02c4d93f0600b574cfe4c87e6d460:43"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2121451612078171617",
+    "query": "为什么\"夕阳\"象征\"迟暮、失落\"，而\"破晓\"象征\"希望\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:50",
+      "a6a02c4d93f0600b574cfe4c87e6d460:52"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8957386310633010697",
+    "query": "为什么\"霜\"和\"雪\"都象征\"环境恶劣、恶势力\"，但\"雪\"还象征\"纯洁、美好\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:45",
+      "a6a02c4d93f0600b574cfe4c87e6d460:44"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6116700874676603981",
+    "query": "\"露\"为什么象征\"人生短促、生命易逝\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:46"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6324584766172902679",
+    "query": "为什么\"古迹\"（如古营垒、旧楼台）能引发\"衰败、萧条、怀旧明志\"的情感？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:58"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6604238052918341782",
+    "query": "为什么\"仙境\"象征\"飘逸、忘尘厌俗\"，而\"都市\"象征\"市井繁荣、世俗名利\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:62",
+      "a6a02c4d93f0600b574cfe4c87e6d460:63"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8701392435298387814",
+    "query": "为什么\"酒\"在诗歌中能同时象征\"欢悦、得意、失意、愁苦\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:64"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:0"
+    ]
+  },
+  {
+    "id": "review-8107263911069567276",
+    "query": "为什么\"梨园\"会成为\"戏曲班社\"的代称？这个名称的来源是什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:67"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4273587632223188856",
+    "query": "为什么\"陶朱\"被用来称富商？这个典故与范蠡有什么关系？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:70"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5862985760209011740",
+    "query": "为什么诗人常常将\"柳\"（送别）与\"月\"（思乡）组合使用？这种组合如何增强情感表达？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:80",
+      "a6a02c4d93f0600b574cfe4c87e6d460:51",
+      "a6a02c4d93f0600b574cfe4c87e6d460:6"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6487000967097469618",
+    "query": "如果一位现代诗人想用古代意象表达当代情感，应该如何选择和改造这些传统意象？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:51",
+      "a6a02c4d93f0600b574cfe4c87e6d460:37",
+      "a6a02c4d93f0600b574cfe4c87e6d460:38"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8570257873005456565",
+    "query": "为什么同一个意象（如\"月亮\"）在不同诗人笔下会有多种含义？这种多样性反映了什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:51",
+      "a6a02c4d93f0600b574cfe4c87e6d460:80"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1326346563022123556",
+    "query": "为什么\"乌鸦\"和\"小人\"在诗歌中常被联系在一起？这种联想反映了什么社会态度？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:23",
+      "a6a02c4d93f0600b574cfe4c87e6d460:57"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8675390359131356990",
+    "query": "在\"岁寒三友\"中，\"松\"象征什么品格？\"竹\"象征什么？\"梅\"象征什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:18"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5346046366276455933",
+    "query": "\"小雨\"和\"暴雨\"分别象征什么？它们在情感表达上有何不同？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:39",
+      "a6a02c4d93f0600b574cfe4c87e6d460:40"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7859079913139787473",
+    "query": "\"问鼎\"这个典故出自《左传·宣公三年》，具体指什么事件？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:73",
+      "f2ac959f4e0c375dc8b021b09a6527b4:140"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3104933129954457594",
+    "query": "古人为什么将杜鹃鸟的口腔上皮和舌部误认为\"啼得满嘴流血\"？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:33"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2865768140384081181",
+    "query": "《家庭教育促进法》的立法目的是什么？该法旨在解决哪些社会问题？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:2"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1017495002798184067",
+    "query": "父母或其他监护人在家庭教育中的法定责任是什么？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:14",
+      "3aaa76517ad0cee062f50ef609536647:2"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8851294784761117363",
+    "query": "您为什么选择成为一名导游？对导游职业的理解是什么？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:159",
+      "f2ac959f4e0c375dc8b021b09a6527b4:161",
+      "f2ac959f4e0c375dc8b021b09a6527b4:166",
+      "f2ac959f4e0c375dc8b021b09a6527b4:155",
+      "f2ac959f4e0c375dc8b021b09a6527b4:152",
+      "f2ac959f4e0c375dc8b021b09a6527b4:160"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4579837835684507147",
+    "query": "作为导游，您认为最重要的素质是什么？为什么？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:162"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3970183026088930641",
+    "query": "您如何处理导游工作中的突发状况？请举例说明。",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:254",
+      "f2ac959f4e0c375dc8b021b09a6527b4:225",
+      "f2ac959f4e0c375dc8b021b09a6527b4:249",
+      "f2ac959f4e0c375dc8b021b09a6527b4:207",
+      "f2ac959f4e0c375dc8b021b09a6527b4:229",
+      "f2ac959f4e0c375dc8b021b09a6527b4:221",
+      "f2ac959f4e0c375dc8b021b09a6527b4:214",
+      "f2ac959f4e0c375dc8b021b09a6527b4:247",
+      "f2ac959f4e0c375dc8b021b09a6527b4:213",
+      "f2ac959f4e0c375dc8b021b09a6527b4:253",
+      "f2ac959f4e0c375dc8b021b09a6527b4:212",
+      "f2ac959f4e0c375dc8b021b09a6527b4:244",
+      "f2ac959f4e0c375dc8b021b09a6527b4:164",
+      "f2ac959f4e0c375dc8b021b09a6527b4:217",
+      "f2ac959f4e0c375dc8b021b09a6527b4:215"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3375857010436430779",
+    "query": "您熟悉哪些旅游景点的历史文化背景？请举例说明。",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:52",
+      "f2ac959f4e0c375dc8b021b09a6527b4:89",
+      "f2ac959f4e0c375dc8b021b09a6527b4:61",
+      "f2ac959f4e0c375dc8b021b09a6527b4:118",
+      "f2ac959f4e0c375dc8b021b09a6527b4:114",
+      "f2ac959f4e0c375dc8b021b09a6527b4:10",
+      "f2ac959f4e0c375dc8b021b09a6527b4:90",
+      "f2ac959f4e0c375dc8b021b09a6527b4:1",
+      "f2ac959f4e0c375dc8b021b09a6527b4:42",
+      "f2ac959f4e0c375dc8b021b09a6527b4:113"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2750338555305578440",
+    "query": "您如何向游客介绍景点的历史文化和特色？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:173"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5156230730423272349",
+    "query": "您如何确保旅游团队的安全？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:249",
+      "f2ac959f4e0c375dc8b021b09a6527b4:236"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1059624785780062817",
+    "query": "您如何组织和管理旅游团队的活动？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:221"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-933993893984830824",
+    "query": "导游服务的原则是什么？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:157"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3805966684059154867",
+    "query": "黄河的泥沙主要来自什么地方？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:43"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3158867661711199607",
+    "query": "讲讲成语\"鸡鸣狗盗\"的来历",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:60"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3139917571933354686",
+    "query": "红旗渠从开始建渠到竣工共用了多长时间？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:65"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-844785815343476323",
+    "query": "嵩阳书院位于哪里？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:86"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7760072026296359661",
+    "query": "龙门石窟开凿于什么年代？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:95"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7656421652250243927",
+    "query": "中共中央组织部命名的\"建国以来在群众中享有崇高威望的共产党员优秀代表\"有哪五位？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8995933243147671790",
+    "query": "现代Agent的核心组成公式是什么？它由哪三个要素构成",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3134587112687480318",
+    "query": "书中把LLM比作Agent的什么器官？上下文和工具又分别对应什么器官",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "828a06ff9062836951147f4b6e6be32d:1416",
+      "828a06ff9062836951147f4b6e6be32d:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1266945766888023814",
+    "query": "ReAct循环的\"思考→行动→观察\"迭代机制具体是如何运作的？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:51",
+      "828a06ff9062836951147f4b6e6be32d:399"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8883210981024436345",
+    "query": "什么是\"Harness工程\"？它与传统的提示工程（Prompt Engineering）有什么本质区别？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:185",
+      "828a06ff9062836951147f4b6e6be32d:72",
+      "828a06ff9062836951147f4b6e6be32d:1071"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1021249060148969126",
+    "query": "大模型推理过程中复用历史计算结果的缓存机制叫什么？它的英文缩写是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:143",
+      "828a06ff9062836951147f4b6e6be32d:177"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3287223437928225289",
+    "query": "什么是\"提示注入\"（Prompt Injection）？它为什么被视为上下文安全的核心威胁？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:200",
+      "828a06ff9062836951147f4b6e6be32d:94",
+      "828a06ff9062836951147f4b6e6be32d:203",
+      "828a06ff9062836951147f4b6e6be32d:204"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-258650308633784349",
+    "query": "书中提到的\"Agent状态栏\"技术主要解决什么问题？状态更新的两种实现方式分别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:249",
+      "828a06ff9062836951147f4b6e6be32d:236",
+      "828a06ff9062836951147f4b6e6be32d:237",
+      "828a06ff9062836951147f4b6e6be32d:235"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8418899550434181996",
+    "query": "上下文压缩的核心理念是什么？为什么书中说\"隔离优于压缩\"？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:276",
+      "828a06ff9062836951147f4b6e6be32d:264"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4653620238324997923",
+    "query": "这部法律希望实现什么样的根本教育目标？其中提到要培养什么样的人",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:16",
+      "3aaa76517ad0cee062f50ef609536647:3"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-671108510600005372",
+    "query": "法律对\"家庭教育\"这个概念是如何界定的？它涵盖了对孩子哪些方面的培养？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:2",
+      "3aaa76517ad0cee062f50ef609536647:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-377062007387430601",
+    "query": "父母离婚后，双方在家庭教育方面应该怎么做？法律对此有什么具体要求？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:34",
+      "3aaa76517ad0cee062f50ef609536647:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7653946428475610562",
+    "query": "家长如果把孩子委托给其他人（如祖辈、保姆）照看，法律要求他们履行什么义务？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:51",
+      "3aaa76517ad0cee062f50ef609536647:21",
+      "3aaa76517ad0cee062f50ef609536647:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2651871313211160174",
+    "query": "法律禁止家长对孩子实施哪些行为？请列举法律明令禁止的做法。",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:53",
+      "5d5ed17776944dd9e742ff55354e6a72:73",
+      "3aaa76517ad0cee062f50ef609536647:20",
+      "3aaa76517ad0cee062f50ef609536647:23"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4462477995425126313",
+    "query": "政府要为那些父母不在身边、生活困难的孩子提供什么帮助？具体通过什么方式？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:30",
+      "3aaa76517ad0cee062f50ef609536647:29"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4551433528113360598",
+    "query": "家庭教育的\"根本任务\"是什么？法律用哪四个字概括？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:2"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2274015761568506803",
+    "query": "全国家庭教育宣传周定在哪一周？它是围绕哪个国际节日设立的？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:13"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3415791069352008915",
+    "query": "法律中\"第一个课堂\"和\"第一任老师\"分别指的是什么？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:14"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8025726243784977685",
+    "query": "法律要求政府为留守儿童和困境儿童家庭建立什么制度？（具体用词）",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:8"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6060117526580214803",
+    "query": "公安机关、人民检察院、人民法院在办案中发现监护人不正确实施家庭教育时，可以采取什么措施？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:49"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8427111412240695345",
+    "query": "家长教育孩子时，法律建议采用哪些方式方法？其中\"言传身教\"对应的是哪一条规定？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1905574670990336975",
+    "query": "中小学校和幼儿园在家庭教育中承担什么责任？它们可以设立什么机构来开展家庭教育指导？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:42"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3151370433815675856",
+    "query": "家庭教育指导机构开展活动时有什么禁止性规定？为什么不允许这样做？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:31"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6046594391353558074",
+    "query": "哪些单位在发现父母不履行家庭教育责任时，应当予以\"批评教育、劝诫制止\"？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:48"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  }
+]

@@ -84,19 +84,6 @@ class MilvusVectorStore:
         rows = self._client.query(self._collection, filter=f'document_id == "{_escape(document_id)}"', output_fields=["chunk_id", "document_id"], limit=1)
         return any(row.get("document_id") == document_id for row in rows)
 
-    def list_chunks(self, document_id: str, *, limit: int = 10) -> list[dict]:
-        """只读获取指定文档的 chunk，供评测/审核工具使用。"""
-        if not _valid_document_id(document_id):
-            raise ValueError("非法 document_id")
-        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 10000:
-            raise ValueError("limit 必须是 1 到 10000 之间的整数")
-        return [dict(row) for row in self._client.query(
-            self._collection,
-            filter=f'document_id == "{_escape(document_id)}"',
-            output_fields=["chunk_id", "document_id", "text", "kind", "section_path", "page", "page_end"],
-            limit=limit,
-        )]
-
     def insert(self, rows: list[dict]) -> bool:
         if not rows:
             return True
