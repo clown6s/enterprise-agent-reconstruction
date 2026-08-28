@@ -9,8 +9,12 @@ _SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
 _PAGE_MARK = re.compile(r"^\[\[page:\d+\]\]$")
 
 
-def _split_long(text: str, limit: int):
+def _split_long(text: str, limit: int | None):
     rest = text.strip()
+    if limit is None:
+        if rest:
+            yield rest
+        return
     while len(rest) > limit:
         cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
         cut = cut + 1 if cut >= limit // 2 else limit
@@ -21,7 +25,7 @@ def _split_long(text: str, limit: int):
 
 
 class GenericChunker:
-    def __init__(self, max_chars: int = 600):
+    def __init__(self, max_chars: int | None = None):
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source: DocumentSource) -> list[ChunkRecord]:

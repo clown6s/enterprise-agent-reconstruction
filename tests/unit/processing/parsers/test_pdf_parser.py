@@ -26,3 +26,15 @@ def test_keeps_one_off_heading():
     parser._extract_with_pdfplumber = lambda data: pages
     result = parser.parse(DocumentSource("book.pdf", b"x"))
     assert "独有标题" in result.text
+
+
+def test_removes_running_heading_repeated_in_page_body():
+    pages = [PageContent(1, "4.3 工具生态：MCP 与工具选择的挑战\n"
+                         "第三代优化的共同背景是工具数量的快速增长。\n"
+                         "4.3 工具生态：MCP 与工具选择的挑战\n"
+                         "在实际构建 Agent 工具集时，挑战是工具格式不一。")]
+    parser = PdfParser()
+    parser._extract_with_pdfplumber = lambda data: pages
+    result = parser.parse(DocumentSource("book.pdf", b"x"))
+    assert result.text.count("4.3 工具生态：MCP 与工具选择的挑战") == 1
+    assert result.text.startswith("[[page:1]]\n第三代优化")

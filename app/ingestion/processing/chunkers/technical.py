@@ -5,8 +5,35 @@ from ...domain.models import ChunkRecord, ParsedDocument
 
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _CHAPTER = re.compile(r"^第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+$")
-_SECTION = re.compile(r"^\d+(?:\.\d+){1,3}\s+.+$")
+_SECTION = re.compile(r"^[1-9]\d*(?:\.\d+){1,3}\s+.+$")
 _SPECIAL = re.compile(r"^(?:实验\s*[0-9一二三四五六七八九十]+(?:[-—][0-9一二三四五六七八九十]+)?|思考题|本章小结)(?:\s*[:：].*)?$")
+_INTRO = {"引言", "全书结构", "如何阅读本书", "前置知识", "致谢"}
+_AFTERWORD = re.compile(r"^(?:后记(?:\s*[:：].*)?|两朵乌云|模型与 Agent 的共同演进)$")
+
+
+def _heading_level(text: str) -> int | None:
+    if text in _INTRO:
+        return 1 if text == "引言" else 2
+    if _AFTERWORD.fullmatch(text):
+        return 1 if text.startswith("后记") else 2
+    if _CHAPTER.fullmatch(text):
+        return 1
+    if _SECTION.fullmatch(text) and len(text) <= 80 and not re.search(r"[。！？!?；;]", text):
+        number, _, title = text.partition(" ")
+        # 正文可能以“7.1 节已经……”开头；“节/本节/这一节”是叙述词，不是标题。
+        if re.match(r"(?:节|本节|这一节|已经|讲透了)", title):
+            return None
+        return number.count(".") + 1
+    if _SPECIAL.fullmatch(text):
+        return 2
+    return None
+
+
+def _update_section(section: list[str], heading: str) -> list[str]:
+    level = _heading_level(heading)
+    if level is None:
+        return section
+    return section[:level - 1] + [heading]
 
 
 def _split_code(text: str, limit: int):
@@ -19,8 +46,12 @@ def _split_code(text: str, limit: int):
     return parts or [text]
 
 
-def _split_long(text: str, limit: int):
+def _split_long(text: str, limit: int | None):
     rest = text.strip()
+    if limit is None:
+        if rest:
+            yield rest
+        return
     while len(rest) > limit:
         cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
         cut = cut + 1 if cut >= limit // 2 else limit
@@ -30,30 +61,62 @@ def _split_long(text: str, limit: int):
 
 class TechnicalChunker:
     """按章节标题和自然段切分技术类文档，并保留页码。"""
-    def __init__(self, max_chars: int = 600): self.max_chars = max_chars
+    def __init__(self, max_chars: int | None = None): self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:
-        # Layout-aware behavior is opt-in for the technical-book profile. Other
-        # profiles keep their established text-based contract even for PDFs.
+        # 仅技术书 profile 使用版面感知切分，其他 profile 继续使用原有文本路径。
         if document.profile == "technical_book" and document.layout_blocks:
             return self._chunk_layout(document.layout_blocks)
         return self._chunk_text(document.text)
 
     def _chunk_layout(self, blocks):
-        result, section = [], []
+        result, section, paragraphs = [], [], []
+        start_page = page = 1
+        unit = 0
+        has_content = False
+
+        def flush():
+            nonlocal paragraphs, unit, has_content
+            text = "\n\n".join(paragraphs).strip()
+            if not text:
+                return
+            unit += 1
+            # 技术书小节是原子检索单元，不按长度、表格、图示或代码拆分。
+            result.append(ChunkRecord(
+                text=text, kind="technical", page=start_page, page_end=page,
+                section_path=tuple(section), continuation=False,
+                continuation_of=f"technical:{unit}", continuation_index=0,
+                metadata={"content_type": "section"},
+            ))
+            paragraphs = []
+            has_content = False
+
         for block in blocks:
             text = block.text.strip()
             if not text: continue
             if block.kind == "heading":
-                section = [text]; continue
-            kind = block.kind if block.kind in {"table", "figure", "caption", "footnote"} else "technical"
-            for index, part in enumerate(_split_long(text, self.max_chars)):
-                base = len(result)
-                result.append(ChunkRecord(text=part, kind=kind, page=block.page or 1,
-                    page_end=block.page, section_path=tuple(section), continuation=index > 0,
-                    continuation_of=f"{kind}:{base}" if index == 0 else result[-1].continuation_of,
-                    continuation_index=index,
-                    metadata={**block.metadata, "content_type": block.kind or "text"}))
+                # 连续标题本身没有正文，保留在同一检索单元，直到遇到实际内容。
+                if has_content:
+                    flush()
+                section = _update_section(section, text)
+                if not paragraphs:
+                    paragraphs = [text]
+                    start_page = page = block.page or page
+                else:
+                    paragraphs.append(text)
+                continue
+            if block.kind in {"table", "figure", "caption", "footnote"}:
+                # 表格、图示等版面内容仍归入当前小节。
+                if not paragraphs: start_page = block.page or page
+                page = block.page or page
+                paragraphs.append(text)
+                has_content = True
+                continue
+            if not paragraphs: start_page = block.page or page
+            page = block.page or page
+            paragraphs.append(text)
+            has_content = True
+        flush()
         return result
 
     def _chunk_text(self, text):
@@ -88,12 +151,10 @@ class TechnicalChunker:
             if not line: flush(); continue
             marker = _PAGE.fullmatch(line)
             if marker: flush(); page = int(marker.group(1)); continue
-            if _CHAPTER.fullmatch(line): flush(); section = [line]; start_page = page; continue
-            if _SECTION.fullmatch(line) or _SPECIAL.fullmatch(line):
+            level = _heading_level(line)
+            if level is not None:
                 flush()
-                if _SECTION.fullmatch(line):
-                    level = line.split(" ", 1)[0].count(".") + 1
-                    section = section[:max(0, level - 1)] + [line]
+                section = _update_section(section, line)
                 start_page = page; continue
             if not paragraphs: start_page = page
             paragraphs.append(line)

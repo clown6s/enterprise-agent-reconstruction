@@ -56,7 +56,7 @@ class ParserRegistry:
 
 
 class GenericChunker:
-    def __init__(self, max_chars: int = 600):
+    def __init__(self, max_chars: int | None = None):
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source: DocumentSource) -> list[ChunkRecord]:
@@ -66,6 +66,9 @@ class GenericChunker:
         result = []
         for paragraph in (part.strip() for part in text.split("\n\n")):
             if not paragraph:
+                continue
+            if self.max_chars is None:
+                result.append(ChunkRecord(paragraph))
                 continue
             while len(paragraph) > self.max_chars:
                 cut = max((paragraph.rfind(mark, 0, self.max_chars)

@@ -19,8 +19,12 @@ def _split_numbered_line(line: str) -> list[str]:
             for i in range(len(matches))]
 
 
-def _split_long(text: str, limit: int):
+def _split_long(text: str, limit: int | None):
     rest = text.strip()
+    if limit is None:
+        if rest:
+            yield rest
+        return
     while len(rest) > limit:
         cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
         cut = cut + 1 if cut >= limit // 2 else limit
@@ -33,7 +37,7 @@ def _split_long(text: str, limit: int):
 class MedicalChunker:
     """按医学主题和编号条目切分，并保留页码与章节路径。"""
 
-    def __init__(self, max_chars: int = 600):
+    def __init__(self, max_chars: int | None = None):
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:

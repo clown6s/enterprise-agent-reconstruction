@@ -52,6 +52,10 @@ class IngestDocument:
         try:
             parsed = self.parser.parse(source)
             kind = self.classifier.classify(parsed, source)
+            profile_parser = getattr(self.parser, "for_profile", lambda profile: self.parser)(kind)
+            if profile_parser is not self.parser:
+                parsed = profile_parser.parse(source)
+                kind = self.classifier.classify(parsed, source)
             parsed = replace(parsed, profile=kind)
             if self.ocr and kind == "technical_book":
                 task = self.ocr.create_or_get(source)

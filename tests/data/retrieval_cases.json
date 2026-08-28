@@ -856,5 +856,448 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3008429502147292718",
+    "query": "急性心肌梗死引起的心力衰竭，医学上称为什么？其Killip分级分为几级？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:125"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4092043593856698943",
+    "query": "诊断急性胰腺炎最重要的两个血清学标志物是什么？它们升高超过正常值多少倍才能确诊？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:156"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1353095349128792379",
+    "query": "肺癌中，发生在肺尖部、容易压迫颈部交感神经并引起\"瞳孔缩小、眼睑下垂、眼球内陷\"的肿瘤叫什么？这一组症状统称为什么综合征？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:13"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7171946648431953789",
+    "query": "消化性溃疡最危险的并发症是出血，那么判断上消化道出血\"是否还在继续\"有哪些指征？（提示：不能只看黑便）",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:139"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9016558577635098801",
+    "query": "支气管哮喘和心源性哮喘（急性左心衰）如何鉴别？哪个检查指标（BNP）的临界值是多少？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:98"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7271754228916167440",
+    "query": "肝性脑病分为几期？其中\"扑翼样震颤\"最早出现在哪一期？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:153",
+      "d7523401e7a5d4614c0361d4381a6c61:87"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3816492134970074288",
+    "query": "稳定型心绞痛的胸痛有什么典型特点？从部位、性质、诱因、持续时间和缓解方式五个方面说明",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:121"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1951688642601450899",
+    "query": "结核病的化学治疗要遵循哪五个原则？为什么强调\"联合\"用药？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:105"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4926725174470206843",
+    "query": "急性胰腺炎患者为什么\"禁用吗啡\"止痛？应该选用什么药物代替？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:157"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-93855825055334552",
+    "query": "面对正在进行的行凶、杀人、抢劫、强奸等严重暴力犯罪，防卫人造成不法侵害人伤亡的，法律如何认定？这种防卫行为需要负刑事责任吗？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:21"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7542003378364275482",
+    "query": "一个不满16周岁的未成年人实施了盗窃，法律会如何处理？为什么法律对未成年人采取这样的态度？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:24"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8073672135827483379",
+    "query": "两人以上基于共同的犯罪故意一起实施犯罪，刑法上称为什么？如果只是共同过失犯罪，是否也按此处理？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:26"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7984553125168956678",
+    "query": "犯罪分子在犯罪过程中，因为自己害怕被抓住而主动放弃了继续犯罪，这种情况刑法上叫什么？与\"因意志以外原因没得逞\"有什么区别？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:25",
+      "84a4a23ca76838bce013257119a5eb61:24"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2473375537421898119",
+    "query": "公职人员利用手中的职权，把单位或国家的财物据为己有，这种行为构成什么罪？法律对其最严重的处罚是什么？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:433"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5875589668996354293",
+    "query": "一个人犯罪后主动到公安机关投案，并如实交代了自己的罪行，法律上这种行为称为什么？对他有什么好处？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:69"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-313817177485869453",
+    "query": "刑法第3条确立的\"法律明文规定为犯罪行为的，依照法律定罪处刑；法律没有明文规定为犯罪行为的，不得定罪处刑\"，这条原则叫什么？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:1"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6348398018821546961",
+    "query": "已满多少周岁的人犯罪，应当负完全刑事责任？已满14周岁不满16周岁的人，只对哪8种特定犯罪负刑事责任？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7075999775077688426",
+    "query": "醉酒驾驶机动车构成的犯罪叫什么罪？它规定在刑法第几条？法定刑是什么？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:143"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7146620336208495285",
+    "query": "抢劫罪的8种加重情节分别是什么？（提示：其中包含\"入户抢劫\"\"持枪抢劫\"等）",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:296"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6441303130703860516",
+    "query": "被判处有期徒刑以上刑罚的犯罪分子，在刑罚执行完毕或赦免后多少年内再犯应当判处有期徒刑以上刑罚之罪的，构成累犯？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:67"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3531276774278648534",
+    "query": "贪污罪和受贿罪的犯罪主体有什么共同特征？这两个罪名规定在刑法第几条？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:434",
+      "84a4a23ca76838bce013257119a5eb61:437",
+      "84a4a23ca76838bce013257119a5eb61:433"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1011934384683970493",
+    "query": "\"正当防卫\"和\"紧急避险\"都是法律允许的免责事由，两者的核心区别是什么？其中紧急避险不适用于哪些人？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:22"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5220819799984889734",
+    "query": "犯罪未遂和犯罪中止在法律后果上有什么不同？为什么法律对\"自动放弃\"的处罚更轻？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:25",
+      "84a4a23ca76838bce013257119a5eb61:24"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1085043402785389348",
+    "query": "交通肇事罪和危险驾驶罪有什么区别？如果交通肇事后逃逸致人死亡，法定刑如何加重？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:142"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1669361359161763592",
+    "query": "刑法对\"死刑\"的适用有哪些限制？哪些人不能适用死刑？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:51"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5757087152870747510",
+    "query": "缓刑适用于什么样的犯罪分子？被判缓刑的人在缓刑考验期内需要遵守哪些规定？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:74",
+      "84a4a23ca76838bce013257119a5eb61:78"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3195141739366553183",
+    "query": "追诉时效是如何规定的？犯罪经过多长时间就不再追诉？法定最高刑为无期徒刑、死刑的，追诉期限是多久？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:90",
+      "84a4a23ca76838bce013257119a5eb61:91"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2972631852701986753",
+    "query": "对行驶中的公交车司机\"抢夺方向盘\"的行为，刑法规定了什么罪名？这类行为为什么会被单独定罪？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:144"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4876242455161896411",
+    "query": "治安管理处罚有哪几种类型？对外国人违反治安管理的，还可以额外采取什么措施？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:10"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1091873405056693346",
+    "query": "一个人同时实施了多个违反治安管理的行为（比如既打架又偷东西），处罚如何计算？行政拘留合并执行最多能关多久？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6569673647100077986",
+    "query": "面对正在进行的不法侵害，当事人采取制止行为造成损害的，法律如何认定？什么情况下才需要承担责任？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:19"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5693349828526304140",
+    "query": "哪些人即使被依法处以行政拘留，也可以不实际关押？法律列举了哪几类特殊情形？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:24"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-741133587797123194",
+    "query": "从楼上往下扔东西，可能砸到路人或车辆，这种行为治安管理处罚法如何处罚？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:8"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7815569085177698597",
+    "query": "治安管理处罚法规定的处罚种类中，最轻的处罚是什么？（两个字）",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:10"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4161195236244574110",
+    "query": "已满多少周岁不满多少周岁的人违反治安管理，应当从轻或者减轻处罚？不满多少周岁的人不予处罚？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:12"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2245246479907508645",
+    "query": "违反治安管理行为在几个月内没有被公安机关发现的，不再处罚？（具体数字）",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:25"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-629254523463349721",
+    "query": "2025年修订新增的\"学生欺凌\"条款规定，以殴打、侮辱、恐吓等方式实施学生欺凌的，公安机关应当依据哪些法律处理？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:60"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-164366997280520068",
+    "query": "在公共交通工具上\"抢控驾驶操纵装置、拉扯、殴打驾驶人员\"干扰正常行驶的，处什么处罚？这与刑法中的什么罪名相衔接？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:144"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8608611675405494584",
+    "query": "醉酒的人违反治安管理，是否要处罚？对醉酒状态下可能危害他人安全的人，公安机关可以采取什么措施？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:15"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-517273009435176481",
+    "query": "\"寻衅滋事\"包括哪些具体行为？其中\"结伙斗殴、追逐拦截、强拿硬要\"分别对应什么处罚？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:30"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9017361036099596492",
+    "query": "组织考试作弊、为作弊提供器材、出售试题答案、代替他人考试，这些行为在治安管理处罚法中如何处罚？与刑法的\"组织考试作弊罪\"如何衔接？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:27",
+      "84a4a23ca76838bce013257119a5eb61:321"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3753650062955686107",
+    "query": "侵犯他人隐私权的行为（偷窥、偷拍、窃听、散布他人隐私）如何处罚？对于\"滋扰、纠缠、跟踪\"他人正常生活的，法律还规定了什么特别措施？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:50"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5174337203439852834",
+    "query": "虐待家庭成员和遗弃没有独立生活能力的被扶养人，分别如何处罚？两者在\"谁来报案\"这一要件上有什么区别？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:292",
+      "5d5ed17776944dd9e742ff55354e6a72:53"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1237918845102348199",
+    "query": "侵害英雄烈士名誉的行为（侮辱、诽谤、亵渎、美化侵略战争），治安管理处罚法如何规定？这类行为体现了什么立法导向？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:35"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8329231773335311623",
+    "query": "强迫他人劳动、组织未成年人有偿陪侍、胁迫诱骗他人乞讨，这三种行为分别处什么处罚？它们共同侵害了什么权益？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:294"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9075114926108280272",
+    "query": "非法获取、出售、提供公民个人信息，治安管理处罚法如何处罚？这与刑法中的\"侵犯公民个人信息罪\"是什么关系？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:138",
+      "84a4a23ca76838bce013257119a5eb61:283"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5564224104524206309",
+    "query": "阻碍人民警察依法执行职务，与阻碍其他国家机关工作人员执行职务，在处罚上有什么不同？为什么会有这种区别？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:311",
+      "84a4a23ca76838bce013257119a5eb61:419"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6082388295446143299",
+    "query": "我被人打了要怎么办",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:51"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]

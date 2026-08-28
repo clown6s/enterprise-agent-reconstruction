@@ -11,14 +11,22 @@ class PageContent:
     """保存单页文本和页码。"""
     page_number: int
     text: str
+    lines: tuple[tuple[str, float], ...] = ()
+    height: float | None = None
 
 
 class PdfParser:
     """使用 pdfplumber 提取文字，并通过可注入接口处理内嵌图片。"""
     extensions = frozenset(("pdf",))
 
-    def __init__(self):
-        pass
+    def __init__(self, *, remove_positioned_headers: bool = False):
+        # 页眉清理是可选策略，默认关闭，避免改变普通 PDF 的解析结果。
+        self.remove_positioned_headers = remove_positioned_headers
+
+    def for_profile(self, profile: str | None):
+        if profile == "technical_book":
+            return PdfParser(remove_positioned_headers=True)
+        return self
 
     def parse(self, source: DocumentSource) -> ParsedDocument:
         pages = self._extract_with_pdfplumber(source.content)
@@ -42,8 +50,12 @@ class PdfParser:
             if page.page_number in toc_pages:
                 continue
             lines = text.splitlines()
+            if self.remove_positioned_headers:
+                lines = self._remove_positioned_header(lines, page.lines, page.height)
             lines = self._remove_inline_page_number(lines, page.page_number)
             lines, _ = self._remove_inline_toc(lines)
+            lines, removed = self._remove_duplicate_heading_header(lines)
+            removed_headers += removed
             lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
             removed_headers += removed
             lines, removed = self._remove_margin_lines(lines, repeated_footers, top=False)
@@ -73,6 +85,50 @@ class PdfParser:
             for line in set(margin):
                 counts[line] = counts.get(line, 0) + 1
         return {line for line, count in counts.items() if count >= 3 and len(line) <= 120}
+
+    @staticmethod
+    def _is_running_header(line: str, texts: list[str]) -> bool:
+        count = sum(line in [x.strip() for x in text.splitlines()[:2]] for text in texts)
+        return count >= 2
+
+    @staticmethod
+    def _running_heading_headers(texts: list[str]) -> set[str]:
+        candidates = set()
+        for text in texts:
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if len(lines) < 2: continue
+            first = lines[0]
+            if re.match(r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3})\s+", first):
+                candidates.add(first)
+        return candidates
+
+    @staticmethod
+    def _remove_positioned_header(lines, positioned_lines, height):
+        if not positioned_lines or not height:
+            return lines
+        top_limit = height * 0.15
+        candidates = {text.strip() for text, top in positioned_lines if top <= top_limit}
+        if not candidates:
+            return lines
+        # 只有同页正文区域再次出现时，才确认顶部同名行是页眉。
+        for candidate in candidates:
+            if candidate in {line.strip() for line in lines[1:]}:
+                for index, line in enumerate(lines[:3]):
+                    if line.strip() == candidate:
+                        return lines[:index] + lines[index + 1:]
+        return lines
+
+    @staticmethod
+    def _remove_duplicate_heading_header(lines: list[str]) -> tuple[list[str], int]:
+        """删除页面顶部重复出现、且正文中再次出现的章节页眉。"""
+        if len(lines) < 3:
+            return lines, 0
+        first = lines[0].strip()
+        if not re.match(r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3})\s+.+$", first):
+            return lines, 0
+        if first not in [line.strip() for line in lines[1:]]:
+            return lines, 0
+        return lines[1:], 1
 
     @staticmethod
     def _remove_margin_lines(lines: list[str], candidates: set[str], *, top: bool):
@@ -127,7 +183,7 @@ class PdfParser:
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if page_number > 20 or len(lines) < 4:
             return False
-        headings = sum(bool(re.match(r"^(?:第\s*[一二三四五六七八九十百千万0-9]+\s*章|\d+(?:\.\d+){1,3})", line)) for line in lines)
+        headings = sum(bool(re.match(r"^(?:第\s*[一二三四五六七八九十百千万0-9]+\s*章|[1-9]\d*(?:\.\d+){1,3})", line)) for line in lines)
         return headings >= 3 and any("图 0-" in line or "全书结构" in line for line in lines)
 
     @staticmethod
@@ -170,7 +226,18 @@ class PdfParser:
         try:
             import pdfplumber
             with pdfplumber.open(io.BytesIO(data)) as pdf:
-                return [PageContent(i, page.extract_text() or "") for i, page in enumerate(pdf.pages, 1)]
+                pages = []
+                for i, page in enumerate(pdf.pages, 1):
+                    text = page.extract_text() or ""
+                    words = page.extract_words(use_text_flow=False, keep_blank_chars=False)
+                    rows = {}
+                    for word in words:
+                        key = round(float(word["top"]), 1)
+                        rows.setdefault(key, []).append(word)
+                    lines = tuple((" ".join(w["text"] for w in sorted(row, key=lambda w: w["x0"])), top)
+                                  for top, row in sorted(rows.items()))
+                    pages.append(PageContent(i, text, lines, float(page.height)))
+                return pages
         except Exception:
             return []
 
@@ -198,7 +265,7 @@ class PdfParser:
     def _normalize_line(line: str) -> str:
         line = line.replace("　", " ")
         line = re.sub(r"[ \t]+", " ", line).strip()
-        # PDF extraction often inserts spaces inside ASCII identifiers.
+        # PDF 提取经常会在英文标识符内部错误插入空格。
         line = re.sub(r"(?<=[A-Za-z])\s+(?=[A-Za-z])", " ", line)
         line = re.sub(r"(?<=[一-鿿])(?=[A-Za-z0-9])", " ", line)
         line = re.sub(r"(?<=[A-Za-z0-9])(?=[一-鿿])", " ", line)
@@ -210,11 +277,11 @@ class PdfParser:
         current = []
         boundary = re.compile(
             r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|"
-            r"\d+(?:\.\d+){1,3})\s+.+$")
+            r"[1-9]\d*(?:\.\d+){1,3})\s+.+$")
         for line in lines:
             stripped = line.strip()
-            # pdfplumber may concatenate a heading with the following text.
-            heading_match = re.match(r"^(第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+?)(?=\s+(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|\d+(?:\.\d+){1,3}\s+)|$)", stripped)
+            # pdfplumber 可能会把标题和后续正文拼在同一行。
+            heading_match = re.match(r"^(第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+?)(?=\s+(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3}\s+)|$)", stripped)
             if heading_match and heading_match.group(1) != stripped:
                 if current:
                     blocks.append(PdfParser._classify_block(current)); current = []
@@ -226,8 +293,7 @@ class PdfParser:
                     blocks.append(PdfParser._classify_block(current))
                     current = []
                 continue
-            # Extracted tables may follow prose without a blank line. Split at
-            # stable column-header signatures so the table remains searchable.
+            # 表格可能紧跟正文，提取结果中没有空行；遇到稳定的表头特征时主动分界。
             if stripped in {"直觉理解 实现组件 学术概念（可选） 含义", "直觉理解 实现组件 学术概念(可选) 含义"}:
                 if current:
                     blocks.append(PdfParser._classify_block(current)); current = []
@@ -236,12 +302,17 @@ class PdfParser:
             if current and current[0].startswith("表格 "):
                 current.append(stripped)
                 continue
-            # Headings and labelled figures/tables are hard boundaries even
-            # when pdfplumber omitted paragraph spacing.
+            # 即使 pdfplumber 没有保留段落空行，标题和图表标签仍作为明确边界。
             labelled = re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+", stripped, re.I)
             if not labelled:
                 labelled = re.search(r"(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+", stripped, re.I)
-            if boundary.fullmatch(stripped) or labelled:
+            is_heading = (
+                boundary.fullmatch(stripped)
+                and len(stripped) <= 80
+                # “7.1 节已经……”是正文承接句，不是 7.1 小节标题。
+                and not re.match(r"^[1-9]\d*(?:\.\d+){1,3}\s+(?:节|本节|这一节|已经|讲透了)", stripped)
+            )
+            if is_heading or labelled:
                 if labelled and labelled.start() == 0 and not re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+\s+\S+", stripped, re.I):
                     labelled = None
                 if current:

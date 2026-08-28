@@ -17,8 +17,12 @@ def _split_inline_levels(line: str) -> list[str]:
     return parts or [line]
 
 
-def _split_long(text: str, limit: int):
+def _split_long(text: str, limit: int | None):
     rest = text.strip()
+    if limit is None:
+        if rest:
+            yield rest
+        return
     while len(rest) > limit:
         cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
         cut = cut + 1 if cut >= limit // 2 else limit
@@ -30,7 +34,7 @@ def _split_long(text: str, limit: int):
 
 class LegalChunker:
     """Keep each article together and retain section/continuation metadata."""
-    def __init__(self, max_chars: int = 600):
+    def __init__(self, max_chars: int | None = None):
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:
@@ -103,5 +107,5 @@ class LegalChunker:
 
     @staticmethod
     def _start_article(*args, **kwargs):
-        # Reserved hook for inline article headings; ordinary documents use line starts.
+        # 预留行内条款标题的扩展点；普通文档仍按行首识别。
         return None

@@ -8,8 +8,12 @@ _ANSWER = re.compile(r"^\s*(?:答|答案|解析)\s*[:：]\s*(.*)$")
 _SECTION = re.compile(r"^\s*(?:第?[一二三四五六七八九十百千万]+[、.．]|##\s*).+")
 
 
-def _split_long(text: str, limit: int):
+def _split_long(text: str, limit: int | None):
     rest = text.strip()
+    if limit is None:
+        if rest:
+            yield rest
+        return
     while len(rest) > limit:
         cut = max((rest.rfind(mark, 0, limit) for mark in "。！？!?；;"), default=-1)
         cut = cut + 1 if cut >= limit // 2 else limit
@@ -35,7 +39,7 @@ class QaClassifier:
 
 
 class QaChunker:
-    def __init__(self, max_chars: int = 600):
+    def __init__(self, max_chars: int | None = None):
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:
