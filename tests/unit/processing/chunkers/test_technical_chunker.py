@@ -53,3 +53,20 @@ def test_starts_new_chunk_after_previous_heading_has_body():
     assert chunks[0].text == "第 1 章 基础\n\n第一节正文。"
     assert chunks[1].text == "1.1 细节\n\n细节正文。"
     assert chunks[1].page == 2
+
+
+def test_experiment_labels_stay_in_the_section_chunk():
+    document = _document([
+        LayoutBlock("7.6 单轮强化学习：记忆与泛化的对照", "heading", 212),
+        LayoutBlock("实验 7-10 ★★：AdaptThink——学会何时不思考", "paragraph", 212),
+        LayoutBlock("实验 7-11 ★★：GeneralPoints——单轮 RL 的记忆与泛化对照", "paragraph", 212),
+        LayoutBlock("实验正文。", "paragraph", 213),
+        LayoutBlock("7.7 RLHF：从人类偏好到奖励模型", "heading", 214),
+        LayoutBlock("新节正文。", "paragraph", 214),
+    ])
+
+    chunks = TechnicalChunker().chunk(document)
+
+    assert len(chunks) == 2
+    assert "实验 7-11" in chunks[0].text
+    assert chunks[0].section_path == ("7.6 单轮强化学习：记忆与泛化的对照",)

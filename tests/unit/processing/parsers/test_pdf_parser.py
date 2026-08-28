@@ -38,3 +38,29 @@ def test_removes_running_heading_repeated_in_page_body():
     result = parser.parse(DocumentSource("book.pdf", b"x"))
     assert result.text.count("4.3 工具生态：MCP 与工具选择的挑战") == 1
     assert result.text.startswith("[[page:1]]\n第三代优化")
+
+
+def test_technical_book_removes_next_heading_used_as_continuation_header():
+    pages = [
+        PageContent(1, "7.5 何时选择 SFT，何时选择 RL\n7.5 正文。"),
+        PageContent(2, "7.6 单轮强化学习：记忆与泛化的对照\n7.5 后续正文。"),
+        PageContent(3, "7.6 单轮强化学习：记忆与泛化的对照\n7.6 正文。"),
+    ]
+    parser = PdfParser(remove_positioned_headers=True)
+    parser._extract_with_pdfplumber = lambda data: pages
+    result = parser.parse(DocumentSource("book.pdf", b"x"))
+    assert "7.5 后续正文。" in result.text
+    assert result.text.count("7.6 单轮强化学习：记忆与泛化的对照") == 1
+    assert any(block.text == "7.5 后续正文。" for block in result.layout_blocks)
+
+
+def test_technical_book_keeps_first_page_heading_and_removes_later_header():
+    pages = [
+        PageContent(1, "7.6 标题\n首节正文。"),
+        PageContent(2, "7.6 标题\n续页正文。"),
+    ]
+    parser = PdfParser(remove_positioned_headers=True)
+    parser._extract_with_pdfplumber = lambda data: pages
+    result = parser.parse(DocumentSource("book.pdf", b"x"))
+    assert result.text.count("7.6 标题") == 1
+    assert any(block.text == "续页正文。" for block in result.layout_blocks)

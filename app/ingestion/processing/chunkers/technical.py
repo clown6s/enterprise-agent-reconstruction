@@ -6,7 +6,6 @@ from ...domain.models import ChunkRecord, ParsedDocument
 _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _CHAPTER = re.compile(r"^第\s*[0-9一二三四五六七八九十百千万]+\s*章\s+.+$")
 _SECTION = re.compile(r"^[1-9]\d*(?:\.\d+){1,3}\s+.+$")
-_SPECIAL = re.compile(r"^(?:实验\s*[0-9一二三四五六七八九十]+(?:[-—][0-9一二三四五六七八九十]+)?|思考题|本章小结)(?:\s*[:：].*)?$")
 _INTRO = {"引言", "全书结构", "如何阅读本书", "前置知识", "致谢"}
 _AFTERWORD = re.compile(r"^(?:后记(?:\s*[:：].*)?|两朵乌云|模型与 Agent 的共同演进)$")
 
@@ -24,8 +23,6 @@ def _heading_level(text: str) -> int | None:
         if re.match(r"(?:节|本节|这一节|已经|讲透了)", title):
             return None
         return number.count(".") + 1
-    if _SPECIAL.fullmatch(text):
-        return 2
     return None
 
 
@@ -95,6 +92,10 @@ class TechnicalChunker:
             text = block.text.strip()
             if not text: continue
             if block.kind == "heading":
+                # 版面解析可能把续页页眉再次输出为 heading；它与当前
+                # section 相同，不是新节，直接丢弃，避免跨页重复切分。
+                if section and text == section[-1]:
+                    continue
                 # 连续标题本身没有正文，保留在同一检索单元，直到遇到实际内容。
                 if has_content:
                     flush()

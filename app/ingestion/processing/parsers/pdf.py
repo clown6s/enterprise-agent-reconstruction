@@ -54,10 +54,11 @@ class PdfParser:
                 lines = self._remove_positioned_header(lines, page.lines, page.height)
             lines = self._remove_inline_page_number(lines, page.page_number)
             lines, _ = self._remove_inline_toc(lines)
-            lines, removed = self._remove_duplicate_heading_header(lines)
-            removed_headers += removed
-            lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
-            removed_headers += removed
+            # 坐标策略已经精确删除顶部副本；不要再按纯文本前两行删除，
+            # 否则正文紧接页眉的真实标题会被第二次误删。
+            if not self.remove_positioned_headers:
+                lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
+                removed_headers += removed
             lines, removed = self._remove_margin_lines(lines, repeated_footers, top=False)
             removed_footers += removed
             text = "\n".join(lines).strip()
@@ -87,30 +88,29 @@ class PdfParser:
         return {line for line, count in counts.items() if count >= 3 and len(line) <= 120}
 
     @staticmethod
-    def _is_running_header(line: str, texts: list[str]) -> bool:
-        count = sum(line in [x.strip() for x in text.splitlines()[:2]] for text in texts)
-        return count >= 2
-
-    @staticmethod
-    def _running_heading_headers(texts: list[str]) -> set[str]:
-        candidates = set()
-        for text in texts:
-            lines = [line.strip() for line in text.splitlines() if line.strip()]
-            if len(lines) < 2: continue
-            first = lines[0]
-            if re.match(r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3})\s+", first):
-                candidates.add(first)
-        return candidates
-
-    @staticmethod
     def _remove_positioned_header(lines, positioned_lines, height):
         if not positioned_lines or not height:
             return lines
-        top_limit = height * 0.15
+        # 页眉位于页面顶部坐标带；正文标题通常位于其下方。
+        # 使用坐标而不是纯文本首行，避免把正文标题误判成页眉。
+        top_limit = height * 0.12
         candidates = {text.strip() for text, top in positioned_lines if top <= top_limit}
         if not candidates:
             return lines
-        # 只有同页正文区域再次出现时，才确认顶部同名行是页眉。
+        heading = re.compile(
+            r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|"
+            r"[1-9]\d*(?:\.\d+){1,3})\s+.+$"
+        )
+        # pdfplumber 会把页眉拆成多条坐标行，不能要求它与 extract_text
+        # 的整行完全相等；顶部坐标带含章节编号时，删除对应的文本首行。
+        top_text = " ".join(candidates)
+        has_section_number = bool(re.search(
+            r"(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3})",
+            top_text,
+        ))
+        if has_section_number and lines and heading.fullmatch(lines[0].strip()):
+            return lines[1:]
+        # 对非标题页眉保留旧的“正文重复确认”策略。
         for candidate in candidates:
             if candidate in {line.strip() for line in lines[1:]}:
                 for index, line in enumerate(lines[:3]):
@@ -277,7 +277,8 @@ class PdfParser:
         current = []
         boundary = re.compile(
             r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|"
-            r"[1-9]\d*(?:\.\d+){1,3})\s+.+$")
+            r"[1-9]\d*(?:\.\d+){1,3})\s+.+$|"
+            r"^后记(?:\s*[:：].*)?$")
         for line in lines:
             stripped = line.strip()
             # pdfplumber 可能会把标题和后续正文拼在同一行。
@@ -300,8 +301,19 @@ class PdfParser:
                 current.append("表格 " + stripped)
                 continue
             if current and current[0].startswith("表格 "):
-                current.append(stripped)
-                continue
+                # 表格后可能紧接真实小节标题；不能把标题吞进表格 block。
+                table_heading = re.match(
+                    r"^(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|"
+                    r"[1-9]\d*(?:\.\d+){1,3})\s+.+$|"
+                    r"^后记(?:\s*[:：].*)?$",
+                    stripped,
+                )
+                if table_heading and not re.search(r"(?:优:|缺:|综合:|视角\s*\d+|\d+/10|─{2,})", stripped):
+                    blocks.append(PdfParser._classify_block(current))
+                    current = []
+                else:
+                    current.append(stripped)
+                    continue
             # 即使 pdfplumber 没有保留段落空行，标题和图表标签仍作为明确边界。
             labelled = re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+", stripped, re.I)
             if not labelled:
@@ -311,6 +323,9 @@ class PdfParser:
                 and len(stripped) <= 80
                 # “7.1 节已经……”是正文承接句，不是 7.1 小节标题。
                 and not re.match(r"^[1-9]\d*(?:\.\d+){1,3}\s+(?:节|本节|这一节|已经|讲透了)", stripped)
+                # 表格/评分行中的“7.2 分”不是小节标题。
+                and not re.match(r"^[1-9]\d*(?:\.\d+){1,3}\s+分(?:\s|$)", stripped)
+                and not re.search(r"(?:优:|缺:|综合:|视角\s*\d+|\d+/10|─{2,})", stripped)
             )
             if is_heading or labelled:
                 if labelled and labelled.start() == 0 and not re.match(r"^(?:图|图表|Figure|Fig\.?|表|Table)\s*[0-9一二三四五六七八九十.-]+\s+\S+", stripped, re.I):
@@ -318,7 +333,7 @@ class PdfParser:
                 if current:
                     blocks.append(PdfParser._classify_block(current))
                     current = []
-                kind = "heading" if boundary.fullmatch(stripped) else None
+                kind = "heading" if is_heading else None
                 if labelled and labelled.start() > 0:
                     prefix, stripped = stripped[:labelled.start()].strip(), stripped[labelled.start():]
                     if prefix:

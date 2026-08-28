@@ -12,6 +12,12 @@ class ParserRegistry:
     def register(self, parser) -> None:
         self._parsers.append(parser)
 
+    def for_profile(self, profile: str | None):
+        selected = ParserRegistry()
+        selected._parsers = [getattr(parser, "for_profile", lambda _: parser)(profile)
+                             for parser in self._parsers]
+        return selected
+
     def parse(self, source: DocumentSource) -> ParsedDocument:
         ext = normalized_extension(source.filename)
         for parser in self._parsers:
