@@ -29,17 +29,6 @@
     ]
   },
   {
-    "id": "smoke",
-    "query": "Agent如何工作",
-    "relevant_chunk_ids": [
-      "doc:1"
-    ],
-    "expected_sections": [
-      "第一章"
-    ],
-    "forbidden_chunk_ids": []
-  },
-  {
     "id": "review-3208095248613635991",
     "query": "为什么\"黄叶\"象征\"凋零、别离\"，而\"绿叶\"象征\"生命力、希望\"？这种对比反映了什么？",
     "relevant_chunk_ids": [
@@ -600,91 +589,6 @@
     "forbidden_chunk_ids": []
   },
   {
-    "id": "review-8995933243147671790",
-    "query": "现代Agent的核心组成公式是什么？它由哪三个要素构成",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:20"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-3134587112687480318",
-    "query": "书中把LLM比作Agent的什么器官？上下文和工具又分别对应什么器官",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:22",
-      "828a06ff9062836951147f4b6e6be32d:1416",
-      "828a06ff9062836951147f4b6e6be32d:20"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-1266945766888023814",
-    "query": "ReAct循环的\"思考→行动→观察\"迭代机制具体是如何运作的？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:51",
-      "828a06ff9062836951147f4b6e6be32d:399"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-8883210981024436345",
-    "query": "什么是\"Harness工程\"？它与传统的提示工程（Prompt Engineering）有什么本质区别？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:185",
-      "828a06ff9062836951147f4b6e6be32d:72",
-      "828a06ff9062836951147f4b6e6be32d:1071"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-1021249060148969126",
-    "query": "大模型推理过程中复用历史计算结果的缓存机制叫什么？它的英文缩写是什么？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:143",
-      "828a06ff9062836951147f4b6e6be32d:177"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-3287223437928225289",
-    "query": "什么是\"提示注入\"（Prompt Injection）？它为什么被视为上下文安全的核心威胁？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:200",
-      "828a06ff9062836951147f4b6e6be32d:94",
-      "828a06ff9062836951147f4b6e6be32d:203",
-      "828a06ff9062836951147f4b6e6be32d:204"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-258650308633784349",
-    "query": "书中提到的\"Agent状态栏\"技术主要解决什么问题？状态更新的两种实现方式分别是什么？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:249",
-      "828a06ff9062836951147f4b6e6be32d:236",
-      "828a06ff9062836951147f4b6e6be32d:237",
-      "828a06ff9062836951147f4b6e6be32d:235"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
-    "id": "review-8418899550434181996",
-    "query": "上下文压缩的核心理念是什么？为什么书中说\"隔离优于压缩\"？",
-    "relevant_chunk_ids": [
-      "828a06ff9062836951147f4b6e6be32d:276",
-      "828a06ff9062836951147f4b6e6be32d:264"
-    ],
-    "expected_sections": [],
-    "forbidden_chunk_ids": []
-  },
-  {
     "id": "review-4653620238324997923",
     "query": "这部法律希望实现什么样的根本教育目标？其中提到要培养什么样的人",
     "relevant_chunk_ids": [
@@ -824,6 +728,131 @@
     "query": "哪些单位在发现父母不履行家庭教育责任时，应当予以\"批评教育、劝诫制止\"？",
     "relevant_chunk_ids": [
       "3aaa76517ad0cee062f50ef609536647:48"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9003565247690820193",
+    "query": "法律规定的家庭教育内容中，涉及安全教育的有哪些方面？\"防欺凌、防溺水、防诈骗\"等要求出自哪一条？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1453708309381179562",
+    "query": "政府部门如果在家庭教育工作中\"截留、挤占、挪用\"经费，会面临什么后果？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:50"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5652766501057050085",
+    "query": "婚姻登记机构、医疗保健机构、图书馆博物馆等机构，分别被要求提供什么家庭教育服务？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:32",
+      "3aaa76517ad0cee062f50ef609536647:44",
+      "3aaa76517ad0cee062f50ef609536647:33",
+      "3aaa76517ad0cee062f50ef609536647:46",
+      "3aaa76517ad0cee062f50ef609536647:29",
+      "3aaa76517ad0cee062f50ef609536647:36",
+      "3aaa76517ad0cee062f50ef609536647:38"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6735323515941672930",
+    "query": "如果家长在家庭教育中对孩子实施家庭暴力，法律会依据哪些法律追究责任？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:53"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8960148692011500685",
+    "query": "慢阻肺患者在病情突然加重时（咳嗽、咳痰、呼吸困难比平时更严重），临床上用什么术语来描述这种状态？它的判断依据是什么？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:3"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8540449353433186231",
+    "query": "有一种肺炎是在患者住院48小时后才发生的，医学上把它称为什么？它与\"社区获得性肺炎\"如何区分？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:6",
+      "d7523401e7a5d4614c0361d4381a6c61:102",
+      "d7523401e7a5d4614c0361d4381a6c61:7"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8422299624026606763",
+    "query": "医生在抢救急性心衰患者时，为什么要让病人采取\"坐位、双腿下垂\"的姿势？这种体位能起到什么作用？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:117"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8975645281317829436",
+    "query": "高血压患者中，哪些人需要把血压控制到更严格的目标（低于130/80mmHg）？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:131"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6348268698769388095",
+    "query": "肝硬化病人出现大量腹水，即使限制盐摄入、使用大剂量利尿剂也无法消退，这种情况医学上称为什么？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:82"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8266814097481332979",
+    "query": "哮喘最基本的病理生理特征是什么？医学上用什么英文缩写（三个字母）来表示\"气道高反应性\"？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:5"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4387846954677516371",
+    "query": "大量气胸时，在左心缘处听到的与心跳一致的气泡破裂音，医学上叫什么征？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:21"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1686829833300215132",
+    "query": "心包填塞的典型三联征（Beck三联征）包括哪三个表现？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:56"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1504926720554379639",
+    "query": "烧伤患者出现的应激性溃疡，医学上以哪位医生的名字命名？中枢神经系统病变导致的应激性溃疡又叫什么？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:62"
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
