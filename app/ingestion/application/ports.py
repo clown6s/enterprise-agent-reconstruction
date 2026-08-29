@@ -1,4 +1,4 @@
-"""Ports used by ingestion use cases; implementations live outside application."""
+"""数据摄取用例所使用的端口；实现位于应用程序外部."""
 from typing import Protocol, Sequence
 from ..domain.models import ChunkRecord, DocumentSource, OcrTask, ParsedDocument
 
@@ -51,6 +51,10 @@ class HybridSearcher(Protocol):
 
 class SparseEmbedder(Protocol):
     def embed_batch(self, texts: Sequence[str]) -> list[dict[int, float]]: ...
+
+
+class RetrievalRouter(Protocol):
+    def route(self, profile, requested_mode: str) -> str: ...
 
 
 class MetadataStore(Protocol):

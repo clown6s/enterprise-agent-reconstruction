@@ -1,10 +1,14 @@
-"""Upload use case. It has no framework or infrastructure imports."""
+"""文档摄入用例，不依赖框架或基础设施实现。"""
 from dataclasses import replace
 import threading
 
 from ..domain.models import DocumentSource, IngestionResult, IngestionStatus, OcrStatus
 from ..domain.policies import document_title, sha256, validate_size
 from .ports import Classifier, ChunkerSelector, Embedder, EventPublisher, MetadataStore, OcrProvider, Parser, VectorStore
+from .document_preparation import DocumentPreparation
+from .embedding_service import EmbeddingService
+from .ingestion_persistence import IngestionPersistence
+from .vector_row_factory import build_vector_rows
 
 
 def _search_text(chunk) -> str:
@@ -28,6 +32,9 @@ class IngestDocument:
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
         self.sparse_embedder = sparse_embedder
         self.ocr, self.events = ocr, events
+        self.preparation = DocumentPreparation(parser, classifier, ocr)
+        self.embedding_service = EmbeddingService(embedder, sparse_embedder, embedding_dim)
+        self.persistence = IngestionPersistence(vectors, metadata)
         if embedding_dim is not None and embedding_dim <= 0:
             raise ValueError("embedding_dim 必须为正数")
         self.max_file_bytes = max_file_bytes
@@ -54,73 +61,21 @@ class IngestDocument:
             if existing_document_id and self.vectors.has_document(existing_document_id):
                     return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing_document_id, existing.get("chunks", 0))
         try:
-            parsed = self.parser.parse(source)
-            kind = self.classifier.classify(parsed, source)
-            profile_parser = getattr(self.parser, "for_profile", lambda profile: self.parser)(kind)
-            if profile_parser is not self.parser:
-                parsed = profile_parser.parse(source)
-                kind = self.classifier.classify(parsed, source)
-            parsed = replace(parsed, profile=kind)
-            if self.ocr and kind == "technical_book":
-                task = self.ocr.create_or_get(source)
-                if task.status != OcrStatus.SUCCESS:
-                    return IngestionResult(IngestionStatus.PENDING, filename, source.size, task_id=task.task_id, ocr_status=task.status)
-                parsed = task.parsed or parsed
-                kind = self.classifier.classify(parsed, source)
-                parsed = replace(parsed, profile=kind)
+            parsed, kind, task = self.preparation.prepare(source)
+            if task is not None:
+                return IngestionResult(IngestionStatus.PENDING, filename, source.size, task_id=task.task_id, ocr_status=task.status)
             if not parsed.text.strip():
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"未从《{filename}》中解析出文本")
             chunks = self.chunker.chunk(kind, parsed, source)
             if not chunks:
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》切分后无内容")
-            search_texts = [_search_text(chunk) for chunk in chunks]
-            vectors = self.embedder.embed_batch(search_texts)
-            if not isinstance(vectors, list) or len(vectors) != len(chunks):
-                raise ValueError("dense embedding 数量必须与 chunk 数量一致")
-            if any(not isinstance(vector, (list, tuple)) or not vector for vector in vectors):
-                raise ValueError("dense embedding 向量格式无效")
-            if self.embedding_dim is not None and any(
-                len(vector) != self.embedding_dim for vector in vectors
-            ):
-                raise ValueError(f"dense embedding 维度必须为 {self.embedding_dim}")
-            sparse_vectors = (self.sparse_embedder.embed_batch(search_texts)
-                              if self.sparse_embedder else None)
-            if sparse_vectors is not None and (
-                not isinstance(sparse_vectors, list) or len(sparse_vectors) != len(chunks)
-            ):
-                raise ValueError("sparse embedding 数量必须与 chunk 数量一致")
+            search_texts, vectors, sparse_vectors = self.embedding_service.embed(chunks)
             # 文档 ID 由内容摘要确定，重试时保持幂等。
             document_id = digest[:32]
-            title = document_title(source.title, filename)
-            rows = []
-            for index, chunk in enumerate(chunks):
-                row = {"text": chunk.text, "search_text": search_texts[index], "dense": vectors[index], "document_id": document_id, "title": title, "source": title, "page": chunk.page, "page_end": chunk.page_end, "kind": chunk.kind, "section_path": list(chunk.section_path), "chunk_role": chunk.metadata.get("chunk_role", chunk.kind), "continuation": chunk.continuation, "continuation_of": chunk.continuation_of, "continuation_index": chunk.continuation_index}
-                if sparse_vectors is not None:
-                    row["sparse"] = sparse_vectors[index]
-                row.update(chunk.metadata)
-                rows.append(row)
-            inserted = False
-            try:
-                inserted = True
-                if not self.vectors.insert(rows):
-                    raise RuntimeError("向量库写入失败")
-                self.metadata.record(digest, document_id, source, len(chunks))
-            except Exception as exc:
-                if inserted:
-                    cleanup_errors = []
-                    try:
-                        self.vectors.delete(document_id)
-                    except Exception as cleanup_exc:
-                        cleanup_errors.append(f"向量补偿删除失败:{type(cleanup_exc).__name__}")
-                    try:
-                        mark_failed = getattr(self.metadata, "mark_failed", None)
-                        if callable(mark_failed):
-                            mark_failed(digest, document_id)
-                    except Exception as status_exc:
-                        cleanup_errors.append(f"失败状态记录失败:{type(status_exc).__name__}")
-                    if cleanup_errors:
-                        raise RuntimeError("；".join(cleanup_errors)) from exc
-                raise
+            rows = build_vector_rows(
+                chunks, search_texts, vectors, sparse_vectors, document_id, source
+            )
+            self.persistence.persist(rows, digest, document_id, source, len(chunks))
             if self.events:
                 try:
                     self.events.publish({"type": "DocumentIngested", "document_id": document_id, "sha256": digest, "filename": filename})

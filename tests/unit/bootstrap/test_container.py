@@ -7,7 +7,7 @@ def test_uses_noop_when_env_missing(monkeypatch):
     monkeypatch.setattr(container_module, "load_dotenv", lambda *a: None)
     for key in ("SILICONFLOW_API_KEY", "MILVUS_HOST"):
         monkeypatch.delenv(key, raising=False)
-    service = container_module.build_ingestion()
+    service = container_module.build_ingestion(mode="test")
     assert type(service.embedder).__name__ == "_NoopEmbedder"
     assert type(service.vectors).__name__ == "_NoopVectors"
 

@@ -11,7 +11,7 @@ class _FreshMetadata:
 
 
 def _service():
-    return build_ingestion(metadata=_FreshMetadata())
+    return build_ingestion(metadata=_FreshMetadata(), mode="test")
 
 
 def test_container_wires_parser_classifier_and_chunker_registry():

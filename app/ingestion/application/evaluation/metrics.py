@@ -1,5 +1,9 @@
 def result_id(result):
-    return (result.metadata or {}).get("chunk_id")
+    """读取检索合约中暴露的稳定身份."""
+    chunk_id = getattr(result, "chunk_id", None)
+    if chunk_id is not None:
+        return chunk_id
+    return (getattr(result, "metadata", None) or {}).get("chunk_id")
 
 
 def hit_rate_at_k(ids, relevant, k):

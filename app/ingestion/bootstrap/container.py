@@ -73,7 +73,10 @@ def build_chunkers():
     })
 
 
-def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None):
+def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None,
+                    mode: str = "production"):
+    if mode not in {"production", "test", "offline"}:
+        raise ConfigurationError("mode 必须是 production、test 或 offline")
     _load_env()
     parser = build_parser()
     classifier = RegistryClassifier(default_profiles())
@@ -84,6 +87,8 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
     # 真实依赖必须成组出现；禁止自定义依赖与 no-op 实现混用。
     effective_embedder = embedder is not None or has_key
     effective_vectors = vectors is not None or has_milvus
+    if mode == "production" and not (effective_embedder and effective_vectors):
+        raise ConfigurationError("生产模式必须配置真实 Embedding 与向量库")
     if effective_embedder != effective_vectors:
         raise ConfigurationError("Embedding 与向量库必须同时配置")
     if effective_embedder and not (metadata is not None or os.getenv("MYSQL_HOST")):
