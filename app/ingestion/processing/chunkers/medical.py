@@ -38,6 +38,8 @@ class MedicalChunker:
     """按医学主题和编号条目切分，并保留页码与章节路径。"""
 
     def __init__(self, max_chars: int | None = None):
+        if max_chars is not None and max_chars <= 0:
+            raise ValueError("max_chars 必须为正数")
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:

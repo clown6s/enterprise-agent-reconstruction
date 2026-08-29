@@ -58,7 +58,10 @@ def _split_long(text: str, limit: int | None):
 
 class TechnicalChunker:
     """按章节标题和自然段切分技术类文档，并保留页码。"""
-    def __init__(self, max_chars: int | None = None): self.max_chars = max_chars
+    def __init__(self, max_chars: int | None = None):
+        if max_chars is not None and max_chars <= 0:
+            raise ValueError("max_chars 必须为正数")
+        self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:
         # 仅技术书 profile 使用版面感知切分，其他 profile 继续使用原有文本路径。
@@ -158,5 +161,10 @@ class TechnicalChunker:
                 start_page = page; continue
             if not paragraphs: start_page = page
             paragraphs.append(line)
+        if in_code:
+            for i, part in enumerate(_split_code("\n".join(code_lines), self.max_chars)):
+                result.append(ChunkRecord(text=part, kind="code", page=code_page, page_end=page,
+                    section_path=tuple(section), continuation=i > 0, continuation_index=i,
+                    metadata={"content_type": "code"}))
         flush()
         return result

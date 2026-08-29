@@ -39,6 +39,8 @@ def _split_long(text: str, limit: int | None):
 class LegalChunker:
     """Keep each article together and retain section/continuation metadata."""
     def __init__(self, max_chars: int | None = None):
+        if max_chars is not None and max_chars <= 0:
+            raise ValueError("max_chars 必须为正数")
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source=None) -> list[ChunkRecord]:
@@ -82,7 +84,10 @@ class LegalChunker:
                 continue
             marker = _PAGE.fullmatch(line)
             if marker:
-                page = int(marker.group(1)); continue
+                page = int(marker.group(1))
+                if current:
+                    current["page_end"] = page
+                continue
             level = _LEVEL.match(line)
             if level:
                 flush()

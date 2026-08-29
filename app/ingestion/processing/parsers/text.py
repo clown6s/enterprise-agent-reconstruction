@@ -57,6 +57,8 @@ class ParserRegistry:
 
 class GenericChunker:
     def __init__(self, max_chars: int | None = None):
+        if max_chars is not None and max_chars <= 0:
+            raise ValueError("max_chars 必须为正数")
         self.max_chars = max_chars
 
     def chunk(self, document: ParsedDocument, source: DocumentSource) -> list[ChunkRecord]:

@@ -1299,5 +1299,430 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-898259273053204354",
+    "query": "现代Agent的核心公式是什么？书中用\"大脑、眼睛、手脚\"分别比喻哪三个组件？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:2",
+      "828a06ff9062836951147f4b6e6be32d:23"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2493941158869560387",
+    "query": "ReAct循环的全称是什么（英文单词）？它包含哪三个基本步骤？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:29",
+      "828a06ff9062836951147f4b6e6be32d:8"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2303622249187274143",
+    "query": "书中提到的\"Harness工程\"（harness engineering）与\"Loop工程\"（loop engineering）分别解决什么问题？为什么作者说\"实践在前，命名在后\"？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:22",
+      "828a06ff9062836951147f4b6e6be32d:10",
+      "828a06ff9062836951147f4b6e6be32d:9",
+      "828a06ff9062836951147f4b6e6be32d:11",
+      "828a06ff9062836951147f4b6e6be32d:126"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1596567745128256461",
+    "query": "从提示工程到Loop工程的范式演进，反映了Agent设计理念的什么变化？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:10"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3897245810489389587",
+    "query": "大模型推理时复用历史计算结果、避免重复计算的缓存机制叫什么？它的英文缩写是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:35",
+      "828a06ff9062836951147f4b6e6be32d:34"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5639776540887215724",
+    "query": "什么是\"提示注入\"（Prompt Injection）？为什么说它是上下文安全的核心威胁？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:20",
+      "828a06ff9062836951147f4b6e6be32d:45"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8503126976499838006",
+    "query": "书中提出的\"Agent状态栏\"技术主要解决什么问题？状态更新的两种实现方式分别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:50",
+      "828a06ff9062836951147f4b6e6be32d:54",
+      "828a06ff9062836951147f4b6e6be32d:51"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-801798556822153311",
+    "query": "为什么书中说\"隔离优于压缩\"？子Agent上下文隔离相比整体压缩有什么优势？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:64",
+      "828a06ff9062836951147f4b6e6be32d:57",
+      "828a06ff9062836951147f4b6e6be32d:60"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4836704834919419395",
+    "query": "Skills（技能）在书中被定义为什么？它与普通工具（Tool）的核心区别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:47",
+      "828a06ff9062836951147f4b6e6be32d:48",
+      "828a06ff9062836951147f4b6e6be32d:44",
+      "828a06ff9062836951147f4b6e6be32d:3",
+      "828a06ff9062836951147f4b6e6be32d:104",
+      "828a06ff9062836951147f4b6e6be32d:210",
+      "828a06ff9062836951147f4b6e6be32d:118",
+      "828a06ff9062836951147f4b6e6be32d:95",
+      "828a06ff9062836951147f4b6e6be32d:49"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6497686239167839137",
+    "query": "KV Cache和Prompt Cache是两个不同层级的缓存，它们分别缓存什么内容？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:35",
+      "828a06ff9062836951147f4b6e6be32d:34",
+      "828a06ff9062836951147f4b6e6be32d:32",
+      "828a06ff9062836951147f4b6e6be32d:37"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4036035385083231614",
+    "query": "稠密嵌入和稀疏嵌入各自的技术原理是什么？它们分别擅长解决什么检索场景？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:78",
+      "828a06ff9062836951147f4b6e6be32d:80"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3266514987478540152",
+    "query": "BM25相比TF-IDF的核心改进是什么？它的两个关键参数k1和b分别控制什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:80",
+      "828a06ff9062836951147f4b6e6be32d:81"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8853337360263848668",
+    "query": "混合检索流水线包含哪三个阶段？各阶段分别承担什么职责？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:82"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8403515805432799584",
+    "query": "倒数排名融合（RRF）的计算公式是什么？公式中的平滑常数k通常取什么值？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:82"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8028469583798184295",
+    "query": "双编码器（Bi-Encoder）和跨编码器（Cross-Encoder）架构的核心区别是什么？书中用\"猎头初筛\"和\"面试官深谈\"分别比喻哪一个？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:82"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1061305938418164161",
+    "query": "衡量检索质量的三个核心指标（recall@k、MRR、nDCG）分别回答什么问题？书中提到的\"检索失败率\"如何定义？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:82",
+      "828a06ff9062836951147f4b6e6be32d:152"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1263255734664494838",
+    "query": "什么是\"Agentic RAG\"？它与传统RAG（固定流程的检索增强生成）的核心区别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:91"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7574095353482058375",
+    "query": "书中引用Anthropic的数据：在RAG中加入BM25和重排序后，检索失败率分别下降了多少？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:82",
+      "828a06ff9062836951147f4b6e6be32d:92"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8130377643900064948",
+    "query": "MCP要解决的核心问题是什么？它与A2A协议在定位上有什么分工？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:104",
+      "828a06ff9062836951147f4b6e6be32d:264"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2066187417466633603",
+    "query": "书中把工具分为哪几大类？\"感知工具\"和\"执行工具\"的区别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:104",
+      "828a06ff9062836951147f4b6e6be32d:96",
+      "828a06ff9062836951147f4b6e6be32d:3",
+      "828a06ff9062836951147f4b6e6be32d:119",
+      "828a06ff9062836951147f4b6e6be32d:217"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7873880951454713897",
+    "query": "什么是\"Sidecar机制\"？它与\"提议者-审核者\"机制在执行时机和审查对象上有什么不同？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:105",
+      "828a06ff9062836951147f4b6e6be32d:134",
+      "828a06ff9062836951147f4b6e6be32d:261"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4944130712995833433",
+    "query": "什么是\"MCP-Zero\"？它代表的\"主动工具发现\"相比预定义工具集有什么优势？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:117"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8423558759656098895",
+    "query": "事件驱动的异步Agent架构要解决什么问题？同步模型如何支持异步打断？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:108",
+      "828a06ff9062836951147f4b6e6be32d:107",
+      "828a06ff9062836951147f4b6e6be32d:114"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8589280707310263537",
+    "query": "什么是\"Sessionless\"设计？它在Coding Agent中解决什么问题？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:123",
+      "828a06ff9062836951147f4b6e6be32d:124",
+      "828a06ff9062836951147f4b6e6be32d:125",
+      "828a06ff9062836951147f4b6e6be32d:120",
+      "828a06ff9062836951147f4b6e6be32d:121",
+      "828a06ff9062836951147f4b6e6be32d:128"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1638943656046312544",
+    "query": "书中为什么说\"代码是通用Agent的元能力\"？代码在Agent中扮演哪些角色（至少列举三种）？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:131",
+      "828a06ff9062836951147f4b6e6be32d:120"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2735397496515285064",
+    "query": "\"Agent自举\"（bootstrap）指的是什么？它与\"代码创造代码\"是什么关系？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:218"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1433929184412046376",
+    "query": "提议者-审核者机制在PPT生成、视频编辑等多媒体任务中如何用于质量迭代？\"最多5轮\"代表什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:134",
+      "828a06ff9062836951147f4b6e6be32d:261"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6028375579988908779",
+    "query": "评估环境的两种核心范式是什么？工具调用型和人机交互型评估分别适用于什么场景？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:142",
+      "828a06ff9062836951147f4b6e6be32d:143",
+      "828a06ff9062836951147f4b6e6be32d:141",
+      "828a06ff9062836951147f4b6e6be32d:144",
+      "828a06ff9062836951147f4b6e6be32d:174"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-369236798715817037",
+    "query": "\"LLM-as-a-Judge\"自动化评估的核心思想是什么？配对比较方法如何用于模型排名？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:154"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3837776420533977581",
+    "query": "什么是\"双层特性开关系统\"？它和AB测试在生产级Agent评估中各起什么作用？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:170"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8015520898650856554",
+    "query": "评估结果如何转化为系统改进？书中描述的从Benchmark报告到改进路线图的闭环包含哪些步骤？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:162"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2118355193693886957",
+    "query": "SFT（监督微调）和RL（强化学习）的本质区别是什么？书中用哪句话概括两者（\"SFT记忆、RL泛化\"）？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:187",
+      "828a06ff9062836951147f4b6e6be32d:181",
+      "828a06ff9062836951147f4b6e6be32d:180"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2043621259065035114",
+    "query": "为什么必须先SFT后RL？反过来为什么不行？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:181",
+      "828a06ff9062836951147f4b6e6be32d:187"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3142986238013061374",
+    "query": "什么是\"验证路径惩罚\"（RLVP）？它的核心思想\"奖励结果、约束过程\"指的是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:198"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2695718890011951369",
+    "query": "\"On-Policy Distillation\"（在轨蒸馏）相比单独使用SFT或RL有什么优势？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:201"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1693508015756051971",
+    "query": "为什么\"Agent不会自动学习\"？Agent自我进化与模型后训练（修改权重）的本质区别是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:177",
+      "828a06ff9062836951147f4b6e6be32d:204",
+      "828a06ff9062836951147f4b6e6be32d:202",
+      "828a06ff9062836951147f4b6e6be32d:220",
+      "828a06ff9062836951147f4b6e6be32d:205",
+      "828a06ff9062836951147f4b6e6be32d:212",
+      "828a06ff9062836951147f4b6e6be32d:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5434776598488465277",
+    "query": "\"睡眠学习\"指的是什么？它如何在用户记忆中实现自主进化？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:211",
+      "828a06ff9062836951147f4b6e6be32d:219",
+      "828a06ff9062836951147f4b6e6be32d:212"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-934420790492284072",
+    "query": "Voyager在Minecraft虚拟世界中如何通过\"课程生成器→迭代提示→技能库\"实现持续学习？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:219",
+      "828a06ff9062836951147f4b6e6be32d:220",
+      "828a06ff9062836951147f4b6e6be32d:208"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8312123775657736233",
+    "query": "语音Agent的三种架构范式（级联Cascading、端到端Omni、全双工Full-Duplex）各有什么特点？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:225",
+      "828a06ff9062836951147f4b6e6be32d:226",
+      "828a06ff9062836951147f4b6e6be32d:230",
+      "828a06ff9062836951147f4b6e6be32d:228",
+      "828a06ff9062836951147f4b6e6be32d:229"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5674759604481963185",
+    "query": "Computer Use Agent中\"视觉定位\"（Grounding）要解决的核心问题是什么？实时性为什么是尚未解决的核心挑战？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:239",
+      "828a06ff9062836951147f4b6e6be32d:134"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]
