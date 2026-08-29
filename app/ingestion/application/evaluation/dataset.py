@@ -9,11 +9,21 @@ def load_cases(path: str | Path) -> list[RetrievalCase]:
         raise ValueError("评测集必须是数组")
     cases = []
     for item in data:
-        if not isinstance(item, dict) or not item.get("id") or not item.get("query"):
-            raise ValueError("评测用例必须包含非空 id 和 query")
+        if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                or not item["id"].strip() or not isinstance(item.get("query"), str)
+                or not item["query"].strip()):
+            raise ValueError("评测用例必须包含非空字符串 id 和 query")
         ids = item.get("relevant_chunk_ids")
-        if not isinstance(ids, list) or not ids:
-            raise ValueError(f"用例 {item['id']} 必须包含 relevant_chunk_ids")
-        cases.append(RetrievalCase(item["id"], item["query"], frozenset(ids),
-            tuple(item.get("expected_sections", ())), frozenset(item.get("forbidden_chunk_ids", ()))))
+        if (not isinstance(ids, list) or not ids
+                or any(not isinstance(value, str) or not value.strip() for value in ids)):
+            raise ValueError(f"用例 {item['id']} 的 relevant_chunk_ids 必须是非空字符串列表")
+        sections = item.get("expected_sections", ())
+        forbidden = item.get("forbidden_chunk_ids", ())
+        if (not isinstance(sections, (list, tuple))
+                or any(not isinstance(value, str) or not value.strip() for value in sections)
+                or not isinstance(forbidden, (list, tuple, set))
+                or any(not isinstance(value, str) or not value.strip() for value in forbidden)):
+            raise ValueError(f"用例 {item['id']} 的 section/forbidden ID 格式无效")
+        cases.append(RetrievalCase(item["id"].strip(), item["query"].strip(), frozenset(ids),
+            tuple(sections), frozenset(forbidden)))
     return cases

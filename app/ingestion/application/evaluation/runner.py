@@ -17,14 +17,24 @@ class RetrievalEvaluationRunner:
         self.retriever = retriever
 
     def run(self, cases: list[RetrievalCase], *, ks=(5, 10)) -> dict:
-        ks = tuple(sorted(set(ks)))
-        if not ks or any(k < 1 for k in ks):
+        if not isinstance(ks, (list, tuple, set)):
+            raise ValueError("ks 必须是整数序列")
+        if (not ks or any(not isinstance(k, int) or isinstance(k, bool) or k < 1 for k in ks)):
             raise ValueError("ks 必须包含正整数")
+        ks = tuple(sorted(set(ks)))
         details = []
         for case in cases:
-            results = list(self.retriever.execute(case.query, top_k=max(ks)) or ())
-            ids = [result_id(result) for result in results]
-            item = {"case_id": case.case_id, "query": case.query, "returned_ids": ids}
+            try:
+                results = list(self.retriever.execute(case.query, top_k=max(ks)) or ())
+                ids = [result_id(result) for result in results]
+                if any(value is None for value in ids):
+                    raise ValueError("检索结果缺少 chunk_id")
+            except Exception as exc:
+                details.append({"case_id": case.case_id, "query": case.query,
+                                "status": "error", "error": type(exc).__name__,
+                                "message": str(exc)})
+                continue
+            item = {"case_id": case.case_id, "query": case.query, "status": "ok", "returned_ids": ids}
             for k in ks:
                 item.update({f"hit_rate@{k}": hit_rate_at_k(ids, case.relevant_chunk_ids, k),
                     f"recall@{k}": recall_at_k(ids, case.relevant_chunk_ids, k),
