@@ -21,7 +21,7 @@ class DocumentPreparation:
         parsed = replace(parsed, profile=kind)
         if self.structure_analyzer and parsed.layout_blocks:
             parsed = replace(parsed, layout_blocks=self.structure_analyzer.analyze(parsed.layout_blocks))
-        if self.ocr and kind == "technical_book":
+        if self.ocr:
             task = self.ocr.create_or_get(source)
             if task.status != OcrStatus.SUCCESS:
                 return None, kind, task
