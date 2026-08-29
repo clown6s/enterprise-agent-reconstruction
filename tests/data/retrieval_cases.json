@@ -907,5 +907,14 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8388273709458686421",
+    "query": "家庭教育促进法第六条规定了什么",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:6"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]
