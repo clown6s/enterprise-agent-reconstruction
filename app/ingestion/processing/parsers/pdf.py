@@ -36,6 +36,13 @@ class PdfParser:
 
         cleaned = [self._clean_page(page.text, page.page_number) for page in pages]
         repeated_headers = self._repeated_margin_lines(cleaned, top=True)
+        heading_counts = {}
+        for value in cleaned:
+            margin = [line.strip() for line in value.splitlines() if line.strip()][:2]
+            for line in set(margin):
+                if re.fullmatch(r"(?:第\s*[0-9一二三四五六七八九十百千万]+\s*章|[1-9]\d*(?:\.\d+){1,3})\s+.+", line):
+                    heading_counts[line] = heading_counts.get(line, 0) + 1
+        repeated_heading_headers = {line for line, count in heading_counts.items() if count >= 2}
         repeated_footers = self._repeated_margin_lines(cleaned, top=False)
         page_number_lines = {str(page.page_number) for page in pages}
         repeated_footers.update(page_number_lines)
@@ -45,19 +52,35 @@ class PdfParser:
         blocks = []
         parts = []
         removed_headers = removed_footers = 0
-        for page, text in zip(pages, cleaned):
+        seen_heading_headers = set()
+        for page_index, (page, text) in enumerate(zip(pages, cleaned)):
             if page.page_number in toc_pages:
                 continue
             lines = text.splitlines()
-            if self.remove_positioned_headers:
+            has_position_data = bool(page.lines and page.height)
+            if self.remove_positioned_headers and has_position_data:
                 lines = self._remove_positioned_header(lines, page.lines, page.height)
+            else:
+                # 无坐标时，跨页重复页眉只从首次出现之后删除；
+                # 页面内部重复标题则由专门的重复标题策略处理。
+                if page_index > 0:
+                    candidates = set(repeated_headers)
+                    top_lines = {line.strip() for line in lines[:2]}
+                    # 章节标题首次出现时保留，后续相同的顶部标题才是续页页眉。
+                    candidates.update(
+                        heading for heading in repeated_heading_headers.intersection(top_lines)
+                        if heading in seen_heading_headers
+                    )
+                    lines, removed = self._remove_margin_lines(lines, candidates, top=True)
+                    removed_headers += removed
+                top_lines = [line.strip() for line in lines[:2]]
+                seen_heading_headers.update(
+                    line for line in top_lines if line in repeated_heading_headers
+                )
+                lines, removed = self._remove_duplicate_heading_header(lines)
+                removed_headers += removed
             lines = self._remove_inline_page_number(lines, page.page_number)
             lines, _ = self._remove_inline_toc(lines)
-            # 坐标策略已经精确删除顶部副本；不要再按纯文本前两行删除，
-            # 否则正文紧接页眉的真实标题会被第二次误删。
-            if not self.remove_positioned_headers:
-                lines, removed = self._remove_margin_lines(lines, repeated_headers, top=True)
-                removed_headers += removed
             lines, removed = self._remove_margin_lines(lines, repeated_footers, top=False)
             removed_footers += removed
             text = "\n".join(lines).strip()

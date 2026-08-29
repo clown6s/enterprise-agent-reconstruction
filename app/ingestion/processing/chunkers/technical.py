@@ -33,7 +33,9 @@ def _update_section(section: list[str], heading: str) -> list[str]:
     return section[:level - 1] + [heading]
 
 
-def _split_code(text: str, limit: int):
+def _split_code(text: str, limit: int | None):
+    if limit is None:
+        return [text]
     lines, parts, current, length = text.splitlines(), [], [], 0
     for line in lines:
         if current and length + len(line) + 1 > limit:
