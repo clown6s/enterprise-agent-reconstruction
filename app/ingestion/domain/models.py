@@ -78,6 +78,8 @@ class VectorSearchRequest:
     document_id: str | None = None
     section: str | None = None
     article: str | None = None
+    # 服务端全文检索（如 BM25 Function）时直接传查询原文，分词与加权由向量库完成。
+    sparse_text: str | None = None
 
     def __post_init__(self):
         if isinstance(self.top_k, bool) or not isinstance(self.top_k, int) or self.top_k < 1:

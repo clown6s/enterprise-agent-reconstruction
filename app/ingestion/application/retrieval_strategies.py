@@ -29,14 +29,22 @@ class HybridRetrievalStrategy:
         self.multiplier = multiplier
 
     def retrieve(self, query: str, top_k: int, filter: str = ""):
-        if self.sparse_embedder is None:
-            raise ValueError("未配置稀疏向量生成器")
         search = getattr(self.vectors, "hybrid_search", None)
         if not callable(search):
             raise ValueError("向量库不支持混合检索")
         dense = self.embedder.embed_batch([query])[0]
-        sparse = self.sparse_embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
+        # 服务端全文检索（BM25）后端：稀疏腿直接传查询原文，
+        # 分词与加权由向量库完成，不经客户端稀疏生成器。
+        if getattr(self.vectors, "sparse_input", "vector") == "text":
+            request = VectorSearchRequest(tuple(dense), top_k=candidates, sparse_text=query)
+            search_request = getattr(self.vectors, "search_request", None)
+            if callable(search_request) and not filter:
+                return search_request(request)
+            return search(dense, query, top_k=candidates, filter=filter)
+        if self.sparse_embedder is None:
+            raise ValueError("未配置稀疏向量生成器")
+        sparse = self.sparse_embedder.embed_batch([query])[0]
         request = VectorSearchRequest(
             tuple(dense), tuple(sparse.items()), top_k=candidates
         )

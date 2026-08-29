@@ -120,12 +120,15 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             embedding_dim=embedding_dim,
         )
     # 配置了 Milvus 地址时启用真实向量库，否则回退到占位实现。
+    # 默认启用服务端 BM25 全文检索（MILVUS_BM25=false 可回退客户端稀疏向量）；
+    # 注意 BM25 集合的 sparse 由 Function 生成，与旧集合 schema 不兼容。
     if vectors is None and os.getenv("MILVUS_HOST"):
         vectors = MilvusVectorStore(
             host=os.environ["MILVUS_HOST"], port=int(os.getenv("MILVUS_PORT", "19530")),
             database=os.getenv("MILVUS_DB", "default"),
             collection=os.getenv("MILVUS_COLLECTION", "document_chunks_4096"),
             embedding_dim=embedding_dim, hybrid=True,
+            bm25=os.getenv("MILVUS_BM25", "true").strip().lower() not in ("0", "false", "no"),
         )
     if metadata is None and os.getenv("MYSQL_HOST"):
         metadata = MySQLMetadataStore(

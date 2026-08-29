@@ -3,19 +3,30 @@ import json
 from typing import Any
 
 from pymilvus import DataType, MilvusClient, MilvusClient as _MilvusClient, AnnSearchRequest, RRFRanker
+from pymilvus import Function, FunctionType
 
 from ..application.ports import VectorStore
 
 
 class MilvusVectorStore:
-    """把 chunk 行保存到注入/配置的 Milvus collection 中。"""
+    """把 chunk 行保存到注入/配置的 Milvus collection 中。
+
+    hybrid=True 时创建稀疏向量字段；bm25=True（要求 hybrid）时稀疏向量由
+    服务端 BM25 Function 根据 text 字段自动计算：写入时忽略行内 sparse 值，
+    检索时稀疏腿直接接收查询原文（sparse_input == "text"）。
+    """
 
     def __init__(self, *, host: str, port: int, database: str,
                  collection: str, embedding_dim: int, token: str | None = None,
-                 hybrid: bool = False):
+                 hybrid: bool = False, bm25: bool = False):
+        if bm25 and not hybrid:
+            raise ValueError("bm25 模式要求启用 hybrid")
         self._collection = collection
         self._dim = int(embedding_dim)
         self._hybrid = hybrid
+        self._bm25 = bm25
+        # 混合检索策略据此决定稀疏腿传原文（text）还是客户端稀疏向量（vector）。
+        self.sparse_input = "text" if bm25 else "vector"
         uri = f"http://{host}:{port}"
         kwargs: dict[str, Any] = {"uri": uri, "db_name": database}
         if token:
@@ -28,11 +39,21 @@ class MilvusVectorStore:
             schema = _MilvusClient.create_schema(auto_id=False, enable_dynamic_field=True)
             schema.add_field("chunk_id", DataType.VARCHAR, max_length=256, is_primary=True)
             schema.add_field("document_id", DataType.VARCHAR, max_length=128)
-            schema.add_field("text", DataType.VARCHAR, max_length=65535)
+            if self._bm25:
+                # 中文词级分词由服务端完成，BM25 权重随 collection 自动维护。
+                schema.add_field("text", DataType.VARCHAR, max_length=65535,
+                                 enable_analyzer=True,
+                                 analyzer_params={"type": "chinese"})
+            else:
+                schema.add_field("text", DataType.VARCHAR, max_length=65535)
             schema.add_field("search_text", DataType.VARCHAR, max_length=65535)
             schema.add_field("dense", DataType.FLOAT_VECTOR, dim=self._dim)
             if self._hybrid:
                 schema.add_field("sparse", DataType.SPARSE_FLOAT_VECTOR)
+            if self._bm25:
+                schema.add_function(Function(
+                    name="text_bm25", function_type=FunctionType.BM25,
+                    input_field_names=["text"], output_field_names=["sparse"]))
             self._client.create_collection(collection_name=self._collection, schema=schema)
         else:
             schema = self._client.describe_collection(self._collection)
@@ -55,7 +76,7 @@ class MilvusVectorStore:
     def _index_matches(self, field: str, index_name: str) -> bool:
         info = self._client.describe_index(self._collection, index_name)
         expected_type = "SPARSE_INVERTED_INDEX" if field == "sparse" else "AUTOINDEX"
-        expected_metric = "IP" if field == "sparse" else "COSINE"
+        expected_metric = ("BM25" if self._bm25 else "IP") if field == "sparse" else "COSINE"
         return (info.get("index_type") == expected_type and
                 info.get("metric_type") == expected_metric)
 
@@ -76,7 +97,7 @@ class MilvusVectorStore:
             index_params.add_index(
                 field_name=field,
                 index_type=("SPARSE_INVERTED_INDEX" if field == "sparse" else "AUTOINDEX"),
-                metric_type=("IP" if field == "sparse" else "COSINE"),
+                metric_type=(("BM25" if self._bm25 else "IP") if field == "sparse" else "COSINE"),
             )
         self._client.create_index(self._collection, index_params)
 
@@ -93,6 +114,9 @@ class MilvusVectorStore:
             item.setdefault("chunk_id", f"{row['document_id']}:{index}")
             if not _valid_document_id(str(item["document_id"])):
                 raise ValueError("非法 document_id")
+            if self._bm25:
+                # sparse 是 BM25 Function 的输出字段，由服务端计算，不允许写入。
+                item.pop("sparse", None)
             item["section_path"] = json.dumps(item.get("section_path", []), ensure_ascii=False)
             payload.append(item)
         # 使用 upsert 保证同一 document_id/index 重试时幂等，不产生重复主键。
@@ -117,6 +141,13 @@ class MilvusVectorStore:
             if not _valid_document_id(request.document_id):
                 raise ValueError("非法 document_id")
             filter_expr = f'document_id == "{_escape(request.document_id)}"'
+        if request.sparse_text is not None:
+            if not self._bm25:
+                raise ValueError("当前 Milvus 适配器未启用 BM25 全文检索")
+            return self.hybrid_search(
+                list(request.dense_vector), request.sparse_text,
+                top_k=request.top_k, filter=filter_expr,
+            )
         if request.sparse_vector:
             if not self._hybrid:
                 raise ValueError("当前 Milvus 适配器未启用混合 collection")
@@ -139,22 +170,24 @@ class MilvusVectorStore:
                                      filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
 
-    def hybrid_search(self, dense_vector: list[float], sparse_vector: dict[int, float],
+    def hybrid_search(self, dense_vector: list[float], sparse_vector: dict[int, float] | str,
                       *, top_k: int = 10, filter: str = "") -> list[dict]:
         if not self._hybrid:
             raise ValueError("当前 Milvus 适配器未启用混合 collection")
-        if not sparse_vector:
+        if self._bm25:
+            if not isinstance(sparse_vector, str) or not sparse_vector.strip():
+                raise ValueError("BM25 模式下稀疏查询必须是非空文本")
+        elif not sparse_vector:
             raise ValueError("稀疏查询向量不能为空")
         if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
             raise ValueError("top_k 必须是 1 到 100 之间的整数")
         if filter and not _valid_filter(filter):
             raise ValueError("非法 Milvus 过滤条件")
-        if not self._hybrid:
-            raise ValueError("当前 Milvus 适配器未启用混合 collection")
         req_dense = AnnSearchRequest(data=[dense_vector], anns_field="dense",
                                      param={"metric_type": "COSINE"}, limit=top_k, expr=filter or None)
         req_sparse = AnnSearchRequest(data=[sparse_vector], anns_field="sparse",
-                                      param={"metric_type": "IP"}, limit=top_k, expr=filter or None)
+                                      param={"metric_type": "BM25" if self._bm25 else "IP"},
+                                      limit=top_k, expr=filter or None)
         result = self._client.hybrid_search(
             self._collection, [req_dense, req_sparse], ranker=RRFRanker(k=60), limit=top_k,
             output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
