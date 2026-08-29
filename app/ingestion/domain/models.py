@@ -1,4 +1,4 @@
-"""Dependency-free ingestion domain models."""
+"""无外部依赖的文档摄取领域模型。"""
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -35,11 +35,16 @@ class DocumentSource:
 
 
 @dataclass(frozen=True)
-class LayoutBlock:
+class ContentBlock:
+    """解析后的内容及其版面事实；结构 metadata 不绑定任何存储实现。"""
     text: str
     kind: str | None = None
     page: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+# 兼容现有 parser/chunker 调用方；新代码优先使用 ContentBlock。
+LayoutBlock = ContentBlock
 
 
 @dataclass(frozen=True)
