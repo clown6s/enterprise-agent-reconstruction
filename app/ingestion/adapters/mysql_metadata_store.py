@@ -58,9 +58,9 @@ class MySQLMetadataStore:
                     self._created = max(0, self._created - 1)
                 try:
                     conn = self._connect()
-                except Exception:
                     with self._lock:
                         self._created += 1
+                except Exception:
                     raise
             with self._lock:
                 self._active += 1
@@ -129,6 +129,7 @@ class MySQLMetadataStore:
     def find_by_document_id(self, document_id: str) -> dict | None:
         conn = self._acquire()
         try:
+            self._create_table_if_missing(conn)
             with conn.cursor() as cursor:
                 cursor.execute(f"SELECT sha256, filename FROM `{self._table}` WHERE document_id=%s LIMIT 1", (document_id,))
                 return cursor.fetchone() or None

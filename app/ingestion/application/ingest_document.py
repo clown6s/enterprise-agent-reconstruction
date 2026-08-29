@@ -71,8 +71,16 @@ class IngestDocument:
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》切分后无内容")
             search_texts = [_search_text(chunk) for chunk in chunks]
             vectors = self.embedder.embed_batch(search_texts)
+            if not isinstance(vectors, list) or len(vectors) != len(chunks):
+                raise ValueError("dense embedding 数量必须与 chunk 数量一致")
+            if any(not isinstance(vector, (list, tuple)) or not vector for vector in vectors):
+                raise ValueError("dense embedding 向量格式无效")
             sparse_vectors = (self.sparse_embedder.embed_batch(search_texts)
                               if self.sparse_embedder else None)
+            if sparse_vectors is not None and (
+                not isinstance(sparse_vectors, list) or len(sparse_vectors) != len(chunks)
+            ):
+                raise ValueError("sparse embedding 数量必须与 chunk 数量一致")
             # 文档 ID 由内容摘要确定，重试时保持幂等。
             document_id = digest[:32]
             title = document_title(source.title, filename)
@@ -106,7 +114,11 @@ class IngestDocument:
                         raise RuntimeError("；".join(cleanup_errors)) from exc
                 raise
             if self.events:
-                self.events.publish({"type": "DocumentIngested", "document_id": document_id, "sha256": digest, "filename": filename})
+                try:
+                    self.events.publish({"type": "DocumentIngested", "document_id": document_id, "sha256": digest, "filename": filename})
+                except Exception:
+                    # 数据已持久化；事件失败不应把成功入库报告为失败。
+                    pass
             return IngestionResult(IngestionStatus.INGESTED, filename, source.size, document_id, len(chunks), diagnostics=parsed.diagnostics)
         except Exception as exc:
             return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》摄入失败：{type(exc).__name__}")

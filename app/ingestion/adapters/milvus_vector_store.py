@@ -67,7 +67,7 @@ class MilvusVectorStore:
             if not indexes:
                 missing.append(field)
                 continue
-            if not self._index_matches(field, indexes[0]):
+            if not any(self._index_matches(field, index_name) for index_name in indexes):
                 raise ValueError(f"Milvus {field} 索引参数不匹配")
         if not missing:
             return
@@ -100,10 +100,18 @@ class MilvusVectorStore:
         return result.get("upsert_count", len(payload)) == len(payload)
 
     def delete(self, document_id: str) -> int:
+        if not _valid_document_id(document_id):
+            raise ValueError("非法 document_id")
         result = self._client.delete(self._collection, filter=f'document_id == "{_escape(document_id)}"')
         return int(result.get("delete_count", 0))
 
     def search(self, vector: list[float], *, top_k: int = 10, filter: str = "") -> list[dict]:
+        if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
+            raise ValueError("top_k 必须是 1 到 100 之间的整数")
+        if not isinstance(vector, list) or len(vector) != self._dim:
+            raise ValueError(f"查询向量维度必须为 {self._dim}")
+        if filter and not _valid_filter(filter):
+            raise ValueError("非法 Milvus 过滤条件")
         result = self._client.search(self._collection, data=[vector], anns_field="dense", limit=top_k,
                                      filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]

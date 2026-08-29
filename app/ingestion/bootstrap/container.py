@@ -81,7 +81,14 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
     # 生产配置必须成组出现，避免“看似成功但数据没有保存”。
     has_key = bool(os.getenv("SILICONFLOW_API_KEY"))
     has_milvus = bool(os.getenv("MILVUS_HOST"))
-    if (has_key or has_milvus) and has_key != has_milvus and embedder is None and vectors is None:
+    # 真实依赖必须成组出现；禁止自定义依赖与 no-op 实现混用。
+    effective_embedder = embedder is not None or has_key
+    effective_vectors = vectors is not None or has_milvus
+    if effective_embedder != effective_vectors:
+        raise ConfigurationError("Embedding 与向量库必须同时配置")
+    if effective_embedder and not (metadata is not None or os.getenv("MYSQL_HOST")):
+        raise ConfigurationError("Embedding、向量库与元数据存储必须同时配置")
+    if (has_key or has_milvus) and has_key != has_milvus:
         raise ConfigurationError("SILICONFLOW_API_KEY 与 MILVUS_HOST 必须同时配置")
     # 配置了 SiliconFlow Key 时启用真实 Embedding，否则回退到占位实现。
     if embedder is None and has_key:
