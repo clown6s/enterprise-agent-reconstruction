@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
+from ..adapters.siliconflow_reranker import SiliconFlowReranker
 from ..adapters.sparse_embedding import LocalSparseEmbedder
 
 from ..application.ingest_document import IngestDocument
@@ -57,6 +58,18 @@ def _load_env() -> None:
     """从项目根目录显式加载环境变量，避免依赖调用栈推断路径。"""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     load_dotenv(os.path.join(project_root, ".env"))
+
+
+def build_reranker():
+    """按环境变量装配重排序器；未配置 API Key 时返回 None。"""
+    _load_env()
+    if not os.getenv("SILICONFLOW_API_KEY"):
+        return None
+    return SiliconFlowReranker(
+        os.environ["SILICONFLOW_API_KEY"],
+        base_url=os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
+        model=os.getenv("SILICONFLOW_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
+    )
 
 
 def build_parser():

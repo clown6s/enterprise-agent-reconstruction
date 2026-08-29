@@ -53,6 +53,12 @@ class SparseEmbedder(Protocol):
     def embed_batch(self, texts: Sequence[str]) -> list[dict[int, float]]: ...
 
 
+class Reranker(Protocol):
+    """cross-encoder 重排序：返回 (候选下标, 相关分)，按分数降序。"""
+    def rerank(self, query: str, texts: Sequence[str], *,
+               top_n: int) -> list[tuple[int, float]]: ...
+
+
 class RetrievalRouter(Protocol):
     def route(self, profile, requested_mode: str) -> str: ...
 
