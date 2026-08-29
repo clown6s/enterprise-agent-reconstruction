@@ -105,6 +105,29 @@ class MilvusVectorStore:
         result = self._client.delete(self._collection, filter=f'document_id == "{_escape(document_id)}"')
         return int(result.get("delete_count", 0))
 
+    def search_request(self, request):
+        """执行通用检索请求，并在适配器内生成安全过滤表达式。"""
+        from ..domain.models import VectorSearchRequest
+        if not isinstance(request, VectorSearchRequest):
+            raise TypeError("request 必须是 VectorSearchRequest")
+        if request.section or request.article:
+            raise ValueError("当前 Milvus 适配器暂不支持 section/article 过滤")
+        filter_expr = ""
+        if request.document_id:
+            if not _valid_document_id(request.document_id):
+                raise ValueError("非法 document_id")
+            filter_expr = f'document_id == "{_escape(request.document_id)}"'
+        if request.sparse_vector:
+            if not self._hybrid:
+                raise ValueError("当前 Milvus 适配器未启用混合 collection")
+            return self.hybrid_search(
+                list(request.dense_vector), dict(request.sparse_vector),
+                top_k=request.top_k, filter=filter_expr,
+            )
+        return self.search(
+            list(request.dense_vector), top_k=request.top_k, filter=filter_expr
+        )
+
     def search(self, vector: list[float], *, top_k: int = 10, filter: str = "") -> list[dict]:
         if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
             raise ValueError("top_k 必须是 1 到 100 之间的整数")

@@ -1,4 +1,5 @@
 """与后端无关的候选检索策略。"""
+from ..domain.models import VectorSearchRequest
 
 
 class DenseRetrievalStrategy:
@@ -11,6 +12,10 @@ class DenseRetrievalStrategy:
     def retrieve(self, query: str, top_k: int, filter: str = ""):
         vector = self.embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
+        request = VectorSearchRequest(tuple(vector), top_k=candidates)
+        search_request = getattr(self.vectors, "search_request", None)
+        if callable(search_request) and not filter:
+            return search_request(request)
         return self.vectors.search(vector, top_k=candidates, filter=filter)
 
 
@@ -32,4 +37,10 @@ class HybridRetrievalStrategy:
         dense = self.embedder.embed_batch([query])[0]
         sparse = self.sparse_embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
+        request = VectorSearchRequest(
+            tuple(dense), tuple(sparse.items()), top_k=candidates
+        )
+        search_request = getattr(self.vectors, "search_request", None)
+        if callable(search_request) and not filter:
+            return search_request(request)
         return search(dense, sparse, top_k=candidates, filter=filter)
