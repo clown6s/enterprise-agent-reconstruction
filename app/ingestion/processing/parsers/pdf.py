@@ -19,13 +19,12 @@ class PdfParser:
     """使用 pdfplumber 提取文字，并通过可注入接口处理内嵌图片。"""
     extensions = frozenset(("pdf",))
 
-    def __init__(self, *, remove_positioned_headers: bool = False):
-        # 页眉清理是可选策略，默认关闭，避免改变普通 PDF 的解析结果。
+    def __init__(self, *, remove_positioned_headers: bool = True):
+        # 页眉是页面噪声，所有 PDF 统一按跨页重复和坐标清理。
         self.remove_positioned_headers = remove_positioned_headers
 
     def for_profile(self, profile: str | None):
-        if profile == "technical_book":
-            return PdfParser(remove_positioned_headers=True)
+        # 页眉清理属于 PDF 通用能力，不因文档 profile 改变。
         return self
 
     def parse(self, source: DocumentSource) -> ParsedDocument:

@@ -17,7 +17,7 @@ def _heading_level(text: str) -> int | None:
         return 1 if text.startswith("后记") else 2
     if _CHAPTER.fullmatch(text):
         return 1
-    if _SECTION.fullmatch(text) and len(text) <= 80 and not re.search(r"[。！？!?；;]", text):
+    if _SECTION.fullmatch(text) and len(text) <= 80:
         number, _, title = text.partition(" ")
         # 正文可能以“7.1 节已经……”开头；“节/本节/这一节”是叙述词，不是标题。
         if re.match(r"(?:节|本节|这一节|已经|讲透了)", title):
@@ -96,15 +96,14 @@ class TechnicalChunker:
                 # section 相同，不是新节，直接丢弃，避免跨页重复切分。
                 if section and text == section[-1]:
                     continue
-                # 连续标题本身没有正文，保留在同一检索单元，直到遇到实际内容。
+                # 新标题必须与前一节正文分开；不能只依赖 has_content，
+                # 因为版面块状态可能在跨页时被重置。
                 if has_content:
                     flush()
                 section = _update_section(section, text)
                 if not paragraphs:
-                    paragraphs = [text]
                     start_page = page = block.page or page
-                else:
-                    paragraphs.append(text)
+                paragraphs.append(text)
                 continue
             if block.kind in {"table", "figure", "caption", "footnote"}:
                 # 表格、图示等版面内容仍归入当前小节。
