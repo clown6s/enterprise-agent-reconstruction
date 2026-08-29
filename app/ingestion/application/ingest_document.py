@@ -22,12 +22,16 @@ class IngestDocument:
     def __init__(self, parser: Parser, classifier: Classifier, chunker: ChunkerSelector,
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
                  sparse_embedder=None, ocr: OcrProvider | None = None,
-                 events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024):
+                 events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024,
+                 embedding_dim: int | None = None):
         self.parser, self.classifier, self.chunker = parser, classifier, chunker
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
         self.sparse_embedder = sparse_embedder
         self.ocr, self.events = ocr, events
+        if embedding_dim is not None and embedding_dim <= 0:
+            raise ValueError("embedding_dim 必须为正数")
         self.max_file_bytes = max_file_bytes
+        self.embedding_dim = embedding_dim
         self._claims_lock = threading.Lock()
 
     def execute(self, source: DocumentSource) -> IngestionResult:
@@ -75,6 +79,10 @@ class IngestDocument:
                 raise ValueError("dense embedding 数量必须与 chunk 数量一致")
             if any(not isinstance(vector, (list, tuple)) or not vector for vector in vectors):
                 raise ValueError("dense embedding 向量格式无效")
+            if self.embedding_dim is not None and any(
+                len(vector) != self.embedding_dim for vector in vectors
+            ):
+                raise ValueError(f"dense embedding 维度必须为 {self.embedding_dim}")
             sparse_vectors = (self.sparse_embedder.embed_batch(search_texts)
                               if self.sparse_embedder else None)
             if sparse_vectors is not None and (

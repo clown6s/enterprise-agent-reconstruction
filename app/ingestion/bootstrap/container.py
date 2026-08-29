@@ -90,13 +90,16 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         raise ConfigurationError("Embedding、向量库与元数据存储必须同时配置")
     if (has_key or has_milvus) and has_key != has_milvus:
         raise ConfigurationError("SILICONFLOW_API_KEY 与 MILVUS_HOST 必须同时配置")
+    embedding_dim = int(os.getenv("EMBEDDING_DIM", "4096"))
+    if embedding_dim <= 0:
+        raise ConfigurationError("EMBEDDING_DIM 必须为正数")
     # 配置了 SiliconFlow Key 时启用真实 Embedding，否则回退到占位实现。
     if embedder is None and has_key:
         embedder = SiliconFlowEmbedder(
             os.environ["SILICONFLOW_API_KEY"],
             base_url=os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
             model=os.getenv("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B"),
-            embedding_dim=int(os.getenv("EMBEDDING_DIM", "4096")),
+            embedding_dim=embedding_dim,
         )
     # 配置了 Milvus 地址时启用真实向量库，否则回退到占位实现。
     if vectors is None and os.getenv("MILVUS_HOST"):
@@ -104,7 +107,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             host=os.environ["MILVUS_HOST"], port=int(os.getenv("MILVUS_PORT", "19530")),
             database=os.getenv("MILVUS_DB", "default"),
             collection=os.getenv("MILVUS_COLLECTION", "document_chunks_4096"),
-            embedding_dim=int(os.getenv("EMBEDDING_DIM", "4096")), hybrid=True,
+            embedding_dim=embedding_dim, hybrid=True,
         )
     if metadata is None and os.getenv("MYSQL_HOST"):
         metadata = MySQLMetadataStore(
@@ -120,4 +123,5 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         embedder=embedder or _NoopEmbedder(), sparse_embedder=LocalSparseEmbedder(),
         vectors=vectors or _NoopVectors(),
         metadata=metadata or _NoopMetadata(),
+        embedding_dim=embedding_dim,
     )
