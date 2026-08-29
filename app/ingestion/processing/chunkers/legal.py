@@ -9,7 +9,11 @@ _PAGE = re.compile(r"^\[\[page:(\d+)\]\]$")
 _TOC_TITLE = re.compile(r"^目\s*录$|^contents$", re.I)
 _SEPARATOR = re.compile(r"^[╌─－—_—=~-]{2,}$")
 _TOC_LINE = re.compile(r"^(第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))\s+(?:第\s*[0-9零一二三四五六七八九十百千万]+\s*条)?.{0,40}\s*[0-9]{1,4}\s*$")
-_INLINE_LEVEL = re.compile(r"(?=第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))")
+# 仅在章节标题前有行首或空白边界时拆分；避免把“总则第四章第八节”
+# 等正文中的法律引用误判为文档层级标题。
+_INLINE_LEVEL = re.compile(
+    r"(?<!\S)(?=第\s*[0-9零一二三四五六七八九十百千万]+\s*(?:编|篇|章|节))"
+)
 
 
 def _split_inline_levels(line: str) -> list[str]:
