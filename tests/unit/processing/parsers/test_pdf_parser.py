@@ -64,3 +64,29 @@ def test_technical_book_keeps_first_page_heading_and_removes_later_header():
     result = parser.parse(DocumentSource("book.pdf", b"x"))
     assert result.text.count("7.6 标题") == 1
     assert any(block.text == "续页正文。" for block in result.layout_blocks)
+
+
+def test_keeps_article_start_at_page_top_during_positioned_header_cleanup():
+    article = "第六条 各级人民政府指导家庭教育工作，建立健全家庭学校社会协同育人机制。"
+    page = PageContent(
+        2, article + "\n县级以上人民政府负责家庭教育工作。",
+        lines=((article, 78.7), ("县级以上人民政府负责家庭教育工作。", 109.9)),
+        height=800,
+    )
+    cleaned = PdfParser._remove_positioned_header(
+        page.text.splitlines(), page.lines, page.height
+    )
+    assert cleaned[0] == article
+
+
+def test_article_start_at_page_top_survives_parse():
+    article = "第六条 各级人民政府指导家庭教育工作。"
+    pages = [PageContent(1, "第五条 其他规定。"), PageContent(
+        2, article + "\n县级以上人民政府做好家庭教育工作。",
+        lines=((article, 78.7), ("县级以上人民政府做好家庭教育工作。", 109.9)),
+        height=800,
+    )]
+    parser = PdfParser(remove_positioned_headers=True)
+    parser._extract_with_pdfplumber = lambda data: pages
+    result = parser.parse(DocumentSource("law.pdf", b"x"))
+    assert article in result.text

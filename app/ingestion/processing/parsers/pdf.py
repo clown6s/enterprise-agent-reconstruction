@@ -133,7 +133,13 @@ class PdfParser:
         if has_section_number and lines and heading.fullmatch(lines[0].strip()):
             return lines[1:]
         # 对非标题页眉保留旧的“正文重复确认”策略。
+        article_start = re.compile(
+            r"^\s*第\s*[0-9零一二三四五六七八九十百千万]+\s*条"
+        )
         for candidate in candidates:
+            # 法律正文可能恰好从页首开始；条款起始行不是页眉，不能删除。
+            if article_start.match(candidate):
+                continue
             if candidate in {line.strip() for line in lines[1:]}:
                 for index, line in enumerate(lines[:3]):
                     if line.strip() == candidate:
