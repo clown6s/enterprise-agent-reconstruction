@@ -33,13 +33,14 @@ class RetrieveDocuments:
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
                  dense_strategy=None, hybrid_strategy=None, lexical_strategy=None,
-                 router=None, lexical=None):
+                 router=None, lexical=None, lexical_weight=0.25):
         self.embedder = embedder
         self.vectors = vectors
         self.metrics = metrics
         self.dense_strategy = dense_strategy or DenseRetrievalStrategy(embedder, vectors)
         self.hybrid_strategy = hybrid_strategy or (
-            HybridRetrievalStrategy(embedder, vectors, lexical))
+            HybridRetrievalStrategy(embedder, vectors, lexical,
+                                    lexical_weight=lexical_weight))
         self.lexical_strategy = lexical_strategy or (
             LexicalRetrievalStrategy(lexical) if lexical is not None else None)
         self.router = router or DefaultRetrievalRouter()

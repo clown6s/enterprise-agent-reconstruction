@@ -916,5 +916,541 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2834832931552354500",
+    "query": "《家庭教育促进法》规定，家庭教育以什么为根本任务？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:3"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7535775870053082854",
+    "query": "全国家庭教育宣传周设在什么时间？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:13"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1013636251706108905",
+    "query": "治安管理处罚的种类有哪些？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:10"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5275637718477297645",
+    "query": "已满十四周岁不满十八周岁的人违反治安管理的，如何处罚？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:12"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2730054591810042690",
+    "query": "我国刑法规定的主刑种类有哪些？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:34"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3199579161758761309",
+    "query": "已满十六周岁的人犯罪，应否负刑事责任？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7990454113016791118",
+    "query": "慢阻肺（COPD）最核心的特征是什么？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:1"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7895215526174179117",
+    "query": "上消化道出血的四大病因是什么？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:62"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2785488657338511901",
+    "query": "竹林七贤指的是哪七个人？他们隐居在哪里？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:3"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2158820548985520207",
+    "query": "云台山著名的\"四大怀药\"是什么？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:4"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4178165552570729111",
+    "query": "古代诗歌中\"红豆\"常用来象征什么？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5927904871992871248",
+    "query": "\"豆蔻年华\"指女子多大的年纪？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-133681646856648274",
+    "query": "本书提出的核心公式是什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:275"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5206636421760223698",
+    "query": "在本书的比喻中，LLM、上下文、工具分别对应 Agent 的什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:2",
+      "828a06ff9062836951147f4b6e6be32d:4",
+      "828a06ff9062836951147f4b6e6be32d:3"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6662425274535016312",
+    "query": "在强化学习（RL）的形式化映射中，LLM、上下文、工具分别对应什么？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:184"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5098142901749501605",
+    "query": "这份\"古代诗歌常用意象\"是按哪几大类组织的？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:9",
+      "a6a02c4d93f0600b574cfe4c87e6d460:54",
+      "a6a02c4d93f0600b574cfe4c87e6d460:58",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8523854082035176472",
+    "query": "《治安管理处罚法》第三章第四节\"妨害社会管理的行为和处罚\"主要规范哪类行为？（举三类）",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:66",
+      "5d5ed17776944dd9e742ff55354e6a72:65"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-815873221407276001",
+    "query": "《刑法》总则\"第四章 刑罚的具体运用\"包含哪些节（制度）？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:64",
+      "84a4a23ca76838bce013257119a5eb61:76",
+      "84a4a23ca76838bce013257119a5eb61:78",
+      "84a4a23ca76838bce013257119a5eb61:65",
+      "84a4a23ca76838bce013257119a5eb61:73"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6020162710919624634",
+    "query": "内科学》\"消化性溃疡\"部分列举了哪些并发症？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:101"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5052338745111648280",
+    "query": "龙门石窟部分介绍了哪些代表性洞窟（分北魏与唐代）？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:109"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5215412301717357364",
+    "query": "第9章\"多模态与实时交互\"介绍了语音架构的哪三种范式？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:223",
+      "828a06ff9062836951147f4b6e6be32d:225"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-551234045262645197",
+    "query": "第10章\"多Agent协作\"按哪两个维度建立分类框架？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:251",
+      "828a06ff9062836951147f4b6e6be32d:253",
+      "828a06ff9062836951147f4b6e6be32d:250",
+      "828a06ff9062836951147f4b6e6be32d:252"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3824844998788703677",
+    "query": "古人表达离别、送别之情，常用哪些意象？请举例。",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:6",
+      "a6a02c4d93f0600b574cfe4c87e6d460:60",
+      "a6a02c4d93f0600b574cfe4c87e6d460:61",
+      "a6a02c4d93f0600b574cfe4c87e6d460:43",
+      "a6a02c4d93f0600b574cfe4c87e6d460:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4410755761845021434",
+    "query": "\"杜鹃啼血\"这个说法是如何来的？寄托了怎样的情感？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:33"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2493537276017742245",
+    "query": "\"梨园\"原本是什么？后世为什么用它代指戏曲？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:67"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9011800278042248533",
+    "query": "为什么法律要求父母在家庭教育中\"亲自养育、加强亲子陪伴\"？这与\"家庭是第一个课堂、家长是第一任老师\"是什么关系？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:14",
+      "3aaa76517ad0cee062f50ef609536647:17"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1789793262265735820",
+    "query": "父母分居或离异后，还能各自实施家庭教育吗？法律有何要求？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:20"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4805692683924816565",
+    "query": "家长能否因孩子成绩差、不听话就对其打骂？法律如何规定？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:53",
+      "3aaa76517ad0cee062f50ef609536647:23"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2379744029963804088",
+    "query": "醉酒的人违反治安管理，能否以\"喝醉了不知情\"为由免责？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:15"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4261946599296745295",
+    "query": "治安管理处罚为什么强调\"教育与处罚相结合\"？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:6"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3457897278103529609",
+    "query": "对因民间纠纷引起的打架斗殴，公安机关可以调解吗？调解成功与否后果有何不同？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:9"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5730938911798261923",
+    "query": "如何区分\"犯罪未遂\"与\"犯罪中止\"？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:24",
+      "84a4a23ca76838bce013257119a5eb61:25"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4262519392522135451",
+    "query": "什么是累犯？对累犯如何处罚？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:67"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1826590186955659879",
+    "query": "犯罪后主动投案并如实供述，法律上属于什么？有何从宽后果？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:69"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2952750264019792164",
+    "query": "对正在行凶、杀人、抢劫、强奸、绑架等暴力犯罪采取防卫行为，造成不法侵害人伤亡的，是否负刑事责任？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:21"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6991742975319001823",
+    "query": "如何用血气分析区分 I 型呼吸衰竭和 II 型呼吸衰竭？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:88",
+      "d7523401e7a5d4614c0361d4381a6c61:16"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-573742141161920036",
+    "query": "稳定型心绞痛的胸痛有什么特点？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:26"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6276010676394411495",
+    "query": "肝硬化门静脉高压有哪些典型表现？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:105"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6984077938734005209",
+    "query": "诊断急性胰腺炎为什么查血清淀粉酶和脂肪酶？二者升高有何规律？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:113"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2651321560721797051",
+    "query": "红旗渠为什么被称为\"人工天河\"？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:67"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-9002988692371859313",
+    "query": "甲骨文是如何被发现的？王懿荣有何贡献？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:137"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-63310417222071316",
+    "query": "为什么说安阳是中国\"第一古都\"？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:133"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8487032925784438612",
+    "query": "焦裕禄精神主要包括哪些内涵？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:29"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6504306304364164578",
+    "query": "为什么说\"上下文决定 Agent 能力的上限\"？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:25"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-8989881854363856659",
+    "query": "什么是 ReAct 循环？它与普通单轮问答有何不同？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:8"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4677402548415303102",
+    "query": "作者为什么强调\"实践在前，命名在后\"？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:0"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-7975964605114833916",
+    "query": "多Agent协作中\"不共享上下文\"的协作有哪几种典型模式？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:258"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6123978732649463750",
+    "query": "古人想家、思念亲人，诗里常写到天上哪个东西？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:51"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1599383364144899096",
+    "query": "形容两个人从小一块儿长大、感情特别好的成语是哪个？",
+    "relevant_chunk_ids": [
+      "a6a02c4d93f0600b574cfe4c87e6d460:72"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3071215951599059035",
+    "query": "孩子老抱着手机打游戏，家长有责任管吗？",
+    "relevant_chunk_ids": [
+      "3aaa76517ad0cee062f50ef609536647:22"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2888060720381967194",
+    "query": "喝多了在街上耍酒疯、闹事，警察能罚他吗？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:15"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4869093666664923990",
+    "query": "开车前喝酒，路上被查到，算不算犯罪？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:143"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5751012940429813667",
+    "query": "犯了事儿之后自己跑去派出所老实交代，能宽大处理吗？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:69"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-399591960255238381",
+    "query": "家里老人常年咳嗽、咳痰，冬天更厉害，可能是肺上什么毛病？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:65",
+      "d7523401e7a5d4614c0361d4381a6c61:1"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-5336022543234349884",
+    "query": "想去河南看大瀑布、红石峡谷，顺带避暑，去哪个景区？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:13"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-1408675751040675459",
+    "query": "安阳那个挖出甲骨文、还出土了\"司母戊鼎\"的老遗址叫什么？",
+    "relevant_chunk_ids": [
+      "f2ac959f4e0c375dc8b021b09a6527b4:135"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-88580444613656878",
+    "query": "想弄一个能自己上网查资料、自己调工具、自己把活儿干完的 AI，这玩意儿现在一般叫啥？",
+    "relevant_chunk_ids": [
+      "828a06ff9062836951147f4b6e6be32d:2"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]
