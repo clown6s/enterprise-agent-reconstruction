@@ -6,8 +6,12 @@ import numbers
 import time
 
 import httpx
+import structlog
 
 from ..application.ports import Embedder
+
+
+logger = structlog.get_logger(__name__)
 
 
 class SiliconFlowError(RuntimeError):
@@ -39,9 +43,22 @@ class SiliconFlowEmbedder:
         texts = list(texts)
         if len(texts) > 32:
             result = []
-            for start in range(0, len(texts), 32):
-                result.extend(self.embed_batch(texts[start:start + 32]))
+            total_batches = (len(texts) + 31) // 32
+            logger.info("embedding_batches_start", total_texts=len(texts),
+                        batch_size=32, total_batches=total_batches)
+            for batch_index, start in enumerate(range(0, len(texts), 32), 1):
+                result.extend(self._embed_single_batch(
+                    texts[start:start + 32], batch_index, total_batches))
+            logger.info("embedding_batches_done", total_texts=len(texts),
+                        total_batches=total_batches)
             return result
+        return self._embed_single_batch(texts, 1, 1)
+
+    def _embed_single_batch(self, texts: list[str], batch_index: int,
+                            total_batches: int) -> list[list[float]]:
+        started = time.perf_counter()
+        logger.info("embedding_batch_start", batch=batch_index,
+                    total_batches=total_batches, size=len(texts))
         body = {
             "model": self._model,
             "input": [text or "" for text in texts],
@@ -109,7 +126,12 @@ class SiliconFlowEmbedder:
             if len(vector) != self._dim:
                 raise SiliconFlowError(
                     f"SiliconFlow 返回向量维度 {len(vector)}，期望 {self._dim}")
-        return [list(vector) for vector in ordered]
+        vectors = [list(vector) for vector in ordered]
+        logger.info("embedding_batch_done", batch=batch_index,
+                    total_batches=total_batches, size=len(texts),
+                    elapsed_seconds=round(time.perf_counter() - started, 3),
+                    dimensions=self._dim)
+        return vectors
 
     def close(self) -> None:
         if self._owns_client:

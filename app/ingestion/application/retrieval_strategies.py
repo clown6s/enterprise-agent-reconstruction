@@ -1,4 +1,9 @@
 """与后端无关的候选检索策略。"""
+import time
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class DenseRetrievalStrategy:
@@ -9,9 +14,14 @@ class DenseRetrievalStrategy:
         self.multiplier = multiplier
 
     def retrieve(self, query: str, top_k: int, filter: str = ""):
+        started = time.perf_counter()
         vector = self.embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
-        return self.vectors.search(vector, top_k=candidates, filter=filter)
+        rows = self.vectors.search(vector, top_k=candidates, filter=filter)
+        logger.info("retrieve_dense_done", top_k=top_k, candidates=candidates,
+                    returned=len(rows),
+                    elapsed_seconds=round(time.perf_counter() - started, 3))
+        return rows
 
 
 class LexicalRetrievalStrategy:
@@ -21,8 +31,13 @@ class LexicalRetrievalStrategy:
         self.multiplier = multiplier
 
     def retrieve(self, query: str, top_k: int, filter: str = ""):
+        started = time.perf_counter()
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
-        return self.lexical.search(query, top_k=candidates, filter=filter)
+        rows = self.lexical.search(query, top_k=candidates, filter=filter)
+        logger.info("retrieve_lexical_done", top_k=top_k, candidates=candidates,
+                    returned=len(rows),
+                    elapsed_seconds=round(time.perf_counter() - started, 3))
+        return rows
 
 
 def _rrf(dense_rows, lexical_rows, rrf_k=60, lexical_weight=1.0):
@@ -56,6 +71,7 @@ class HybridRetrievalStrategy:
                  lexical_weight: float | None = None):
         if self.lexical is None:
             raise ValueError("未配置全文检索存储")
+        started = time.perf_counter()
         dense = self.embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
         dense_rows = self.vectors.search(dense, top_k=candidates, filter=filter)
@@ -63,4 +79,9 @@ class HybridRetrievalStrategy:
         weight = self.lexical_weight if lexical_weight is None else float(lexical_weight)
         if weight < 0:
             raise ValueError("lexical_weight 不能为负数")
-        return _rrf(dense_rows, lexical_rows, lexical_weight=weight)
+        fused = _rrf(dense_rows, lexical_rows, lexical_weight=weight)
+        logger.info("retrieve_hybrid_done", top_k=top_k, candidates=candidates,
+                    dense=len(dense_rows), lexical=len(lexical_rows),
+                    returned=len(fused),
+                    elapsed_seconds=round(time.perf_counter() - started, 3))
+        return fused

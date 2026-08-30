@@ -691,5 +691,14 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6bfd53504b1bd087",
+    "query": "气道对各种刺激（过敏原、冷空气、运动等）特别敏感，一碰到就过早、过强地收缩，这是哮喘的什么基本特征？",
+    "relevant_chunk_ids": [
+      "d7523401e7a5d4614c0361d4381a6c61:5"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]

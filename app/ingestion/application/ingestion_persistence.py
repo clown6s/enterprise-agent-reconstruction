@@ -1,4 +1,9 @@
 """持久化协调与尽力而为的补偿处理。"""
+import time
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class IngestionPersistence:
@@ -13,15 +18,28 @@ class IngestionPersistence:
         vector_written = False
         lexical_written = False
         try:
+            started = time.perf_counter()
+            logger.info("persist_milvus_start", document_id=document_id, row_count=len(rows))
             if not self.vectors.insert(rows):
                 raise RuntimeError("向量库写入失败")
             vector_written = True
+            logger.info("persist_milvus_done", document_id=document_id,
+                        row_count=len(rows),
+                        elapsed_seconds=round(time.perf_counter() - started, 3))
             if self.lexical is not None:
                 # 即使 bulk 部分失败才抛异常，也按已写入标记补偿删除。
                 lexical_written = True
+                started = time.perf_counter()
+                logger.info("persist_es_start", document_id=document_id, row_count=len(rows))
                 if not self.lexical.upsert(rows):
                     raise RuntimeError("全文库写入失败")
+                logger.info("persist_es_done", document_id=document_id,
+                            row_count=len(rows),
+                            elapsed_seconds=round(time.perf_counter() - started, 3))
+            started = time.perf_counter()
             self.metadata.record(digest, document_id, source, chunk_count)
+            logger.info("persist_metadata_done", document_id=document_id,
+                        elapsed_seconds=round(time.perf_counter() - started, 3))
         except Exception as exc:
             cleanup_errors = []
             if lexical_written:

@@ -1,6 +1,9 @@
 """文档摄入用例，不依赖框架或基础设施实现。"""
 from dataclasses import replace
 import threading
+import time
+
+import structlog
 
 from ..domain.models import DocumentSource, IngestionResult, IngestionStatus, OcrStatus
 from ..domain.policies import document_title, sha256, validate_size
@@ -9,6 +12,8 @@ from .document_preparation import DocumentPreparation
 from .embedding_service import EmbeddingService
 from .ingestion_persistence import IngestionPersistence
 from .vector_row_factory import build_vector_rows
+
+logger = structlog.get_logger(__name__)
 
 
 def _search_text(chunk) -> str:
@@ -62,21 +67,34 @@ class IngestDocument:
             if existing_document_id and self.vectors.has_document(existing_document_id):
                     return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing_document_id, existing.get("chunks", 0))
         try:
+            t0 = time.perf_counter()
             parsed, kind, task = self.preparation.prepare(source)
+            logger.info("ingest_stage_parse", filename=filename, kind=kind,
+                        elapsed_seconds=round(time.perf_counter() - t0, 3))
             if task is not None:
                 return IngestionResult(IngestionStatus.PENDING, filename, source.size, task_id=task.task_id, ocr_status=task.status)
             if not parsed.text.strip():
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"未从《{filename}》中解析出文本")
+            t0 = time.perf_counter()
             chunks = self.chunker.chunk(kind, parsed, source)
+            logger.info("ingest_stage_chunk", filename=filename, chunk_count=len(chunks),
+                        elapsed_seconds=round(time.perf_counter() - t0, 3))
             if not chunks:
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》切分后无内容")
+            t0 = time.perf_counter()
             search_texts, vectors = self.embedding_service.embed(chunks)
+            logger.info("ingest_stage_embedding", filename=filename, chunk_count=len(chunks),
+                        elapsed_seconds=round(time.perf_counter() - t0, 3))
             # 文档 ID 由内容摘要确定，重试时保持幂等。
             document_id = digest[:32]
             rows = build_vector_rows(
                 chunks, search_texts, vectors, document_id, source
             )
+            t0 = time.perf_counter()
             self.persistence.persist(rows, digest, document_id, source, len(chunks))
+            logger.info("ingest_stage_persist", filename=filename, document_id=document_id,
+                        chunk_count=len(chunks),
+                        elapsed_seconds=round(time.perf_counter() - t0, 3))
             if self.events:
                 try:
                     self.events.publish({"type": "DocumentIngested", "document_id": document_id, "sha256": digest, "filename": filename})
