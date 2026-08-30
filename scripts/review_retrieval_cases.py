@@ -38,7 +38,7 @@ def _ensure_retriever():
     if retriever is None:
         service = build_ingestion()
         retriever = RetrieveDocuments(service.embedder, service.vectors,
-            sparse_embedder=service.sparse_embedder)
+            lexical=service.lexical)
     return retriever
 
 @app.get("/", response_class=HTMLResponse)

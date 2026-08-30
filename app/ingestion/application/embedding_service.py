@@ -13,9 +13,8 @@ def build_search_text(chunk) -> str:
 
 
 class EmbeddingService:
-    def __init__(self, embedder, sparse_embedder=None, embedding_dim=None):
+    def __init__(self, embedder, embedding_dim=None):
         self.embedder = embedder
-        self.sparse_embedder = sparse_embedder
         self.embedding_dim = embedding_dim
 
     def embed(self, chunks):
@@ -29,9 +28,4 @@ class EmbeddingService:
             len(vector) != self.embedding_dim for vector in dense
         ):
             raise ValueError(f"dense embedding 维度必须为 {self.embedding_dim}")
-        sparse = None
-        if self.sparse_embedder:
-            sparse = self.sparse_embedder.embed_batch(texts)
-            if not isinstance(sparse, list) or len(sparse) != len(chunks):
-                raise ValueError("sparse embedding 数量必须与 chunk 数量一致")
-        return texts, dense, sparse
+        return texts, dense

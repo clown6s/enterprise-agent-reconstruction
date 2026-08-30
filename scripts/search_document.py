@@ -21,7 +21,7 @@ SEARCH_MODE = "hybrid"  # "dense" 或 "hybrid"
 def main() -> int:
     service = build_ingestion()
     retriever = RetrieveDocuments(service.embedder, service.vectors,
-                                  sparse_embedder=service.sparse_embedder)
+                                  lexical=service.lexical)
     if SEARCH_MODE == "hybrid":
         results = retriever.execute_hybrid(QUERY, top_k=TOP_K, filter=FILTER)
     else:

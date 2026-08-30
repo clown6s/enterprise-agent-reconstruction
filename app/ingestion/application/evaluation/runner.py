@@ -13,9 +13,7 @@ class Retriever(Protocol):
                 filter: str = "") -> Iterable[RetrievalResult]: ...
 
 
-# 评测模式到检索器方法的映射；rerank 由后续重排序改动提供 execute_reranked。
-_MODE_METHODS = {"dense": "execute", "hybrid": "execute_hybrid",
-                 "rerank": "execute_reranked"}
+_MODE_METHODS = {"dense": "execute", "hybrid": "execute_hybrid"}
 
 
 class RetrievalEvaluationRunner:

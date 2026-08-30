@@ -1,9 +1,8 @@
-"""Milvus 适配器（实现摄入存储相关端口）。"""
+"""Milvus 适配器（实现摄入存储相关端口），仅负责 dense 向量检索。"""
 import json
 from typing import Any
 
-from pymilvus import DataType, MilvusClient, MilvusClient as _MilvusClient, AnnSearchRequest, RRFRanker
-from pymilvus import Function, FunctionType
+from pymilvus import DataType, MilvusClient, MilvusClient as _MilvusClient
 
 from ..application.ports import VectorStore
 
@@ -11,26 +10,24 @@ from ..application.ports import VectorStore
 class MilvusVectorStore:
     """把 chunk 行保存到注入/配置的 Milvus collection 中。
 
-    hybrid=True 时创建稀疏向量字段；bm25=True（要求 hybrid）时稀疏向量由
-    服务端 BM25 Function 根据 text 字段自动计算：写入时忽略行内 sparse 值，
-    检索时稀疏腿直接接收查询原文（sparse_input == "text"）。
+    全文检索由独立 LexicalStore（Elasticsearch）承担，Milvus 只保留 dense
+    向量用于语义召回，不再写入或检索 sparse 向量。
     """
 
     def __init__(self, *, host: str, port: int, database: str,
-                 collection: str, embedding_dim: int, token: str | None = None,
-                 hybrid: bool = False, bm25: bool = False):
-        if bm25 and not hybrid:
-            raise ValueError("bm25 模式要求启用 hybrid")
+                 collection: str, embedding_dim: int, user: str = "",
+                 password: str = "", token: str | None = None):
         self._collection = collection
         self._dim = int(embedding_dim)
-        self._hybrid = hybrid
-        self._bm25 = bm25
-        # 混合检索策略据此决定稀疏腿传原文（text）还是客户端稀疏向量（vector）。
-        self.sparse_input = "text" if bm25 else "vector"
         uri = f"http://{host}:{port}"
         kwargs: dict[str, Any] = {"uri": uri, "db_name": database}
         if token:
             kwargs["token"] = token
+        if user or password:
+            if not user or not password:
+                raise ValueError("Milvus 用户名和密码必须同时配置")
+            kwargs["user"] = user
+            kwargs["password"] = password
         self._client = MilvusClient(**kwargs)
         self._ensure_collection()
 
@@ -39,21 +36,9 @@ class MilvusVectorStore:
             schema = _MilvusClient.create_schema(auto_id=False, enable_dynamic_field=True)
             schema.add_field("chunk_id", DataType.VARCHAR, max_length=256, is_primary=True)
             schema.add_field("document_id", DataType.VARCHAR, max_length=128)
-            if self._bm25:
-                # 中文词级分词由服务端完成，BM25 权重随 collection 自动维护。
-                schema.add_field("text", DataType.VARCHAR, max_length=65535,
-                                 enable_analyzer=True,
-                                 analyzer_params={"type": "chinese"})
-            else:
-                schema.add_field("text", DataType.VARCHAR, max_length=65535)
+            schema.add_field("text", DataType.VARCHAR, max_length=65535)
             schema.add_field("search_text", DataType.VARCHAR, max_length=65535)
             schema.add_field("dense", DataType.FLOAT_VECTOR, dim=self._dim)
-            if self._hybrid:
-                schema.add_field("sparse", DataType.SPARSE_FLOAT_VECTOR)
-            if self._bm25:
-                schema.add_function(Function(
-                    name="text_bm25", function_type=FunctionType.BM25,
-                    input_field_names=["text"], output_field_names=["sparse"]))
             self._client.create_collection(collection_name=self._collection, schema=schema)
         else:
             schema = self._client.describe_collection(self._collection)
@@ -66,39 +51,23 @@ class MilvusVectorStore:
                 raise ValueError("Milvus collection 缺少 dense 向量字段")
             if dense.get("params", {}).get("dim") != self._dim:
                 raise ValueError(f"Milvus collection 向量维度不匹配: {dense.get('params', {}).get('dim')} != {self._dim}")
-            if self._hybrid:
-                sparse = fields.get("sparse")
-                if not sparse or sparse.get("type") != DataType.SPARSE_FLOAT_VECTOR:
-                    raise ValueError("Milvus collection 缺少 sparse 向量字段，不能进行混合检索")
         self._ensure_index()
         self._client.load_collection(self._collection)
 
-    def _index_matches(self, field: str, index_name: str) -> bool:
+    def _index_matches(self, index_name: str) -> bool:
         info = self._client.describe_index(self._collection, index_name)
-        expected_type = "SPARSE_INVERTED_INDEX" if field == "sparse" else "AUTOINDEX"
-        expected_metric = ("BM25" if self._bm25 else "IP") if field == "sparse" else "COSINE"
-        return (info.get("index_type") == expected_type and
-                info.get("metric_type") == expected_metric)
+        return (info.get("index_type") == "AUTOINDEX" and
+                info.get("metric_type") == "COSINE")
 
     def _ensure_index(self) -> None:
-        fields = ["dense"] + (["sparse"] if self._hybrid else [])
-        missing = []
-        for field in fields:
-            indexes = self._client.list_indexes(self._collection, field_name=field)
-            if not indexes:
-                missing.append(field)
-                continue
-            if not any(self._index_matches(field, index_name) for index_name in indexes):
-                raise ValueError(f"Milvus {field} 索引参数不匹配")
-        if not missing:
+        indexes = self._client.list_indexes(self._collection, field_name="dense")
+        if indexes:
+            if not any(self._index_matches(index_name) for index_name in indexes):
+                raise ValueError("Milvus dense 索引参数不匹配")
             return
         index_params = self._client.prepare_index_params()
-        for field in missing:
-            index_params.add_index(
-                field_name=field,
-                index_type=("SPARSE_INVERTED_INDEX" if field == "sparse" else "AUTOINDEX"),
-                metric_type=(("BM25" if self._bm25 else "IP") if field == "sparse" else "COSINE"),
-            )
+        index_params.add_index(field_name="dense", index_type="AUTOINDEX",
+                               metric_type="COSINE")
         self._client.create_index(self._collection, index_params)
 
     def has_document(self, document_id: str) -> bool:
@@ -114,9 +83,6 @@ class MilvusVectorStore:
             item.setdefault("chunk_id", f"{row['document_id']}:{index}")
             if not _valid_document_id(str(item["document_id"])):
                 raise ValueError("非法 document_id")
-            if self._bm25:
-                # sparse 是 BM25 Function 的输出字段，由服务端计算，不允许写入。
-                item.pop("sparse", None)
             item["section_path"] = json.dumps(item.get("section_path", []), ensure_ascii=False)
             payload.append(item)
         # 使用 upsert 保证同一 document_id/index 重试时幂等，不产生重复主键。
@@ -129,36 +95,6 @@ class MilvusVectorStore:
         result = self._client.delete(self._collection, filter=f'document_id == "{_escape(document_id)}"')
         return int(result.get("delete_count", 0))
 
-    def search_request(self, request):
-        """执行通用检索请求，并在适配器内生成安全过滤表达式。"""
-        from ..domain.models import VectorSearchRequest
-        if not isinstance(request, VectorSearchRequest):
-            raise TypeError("request 必须是 VectorSearchRequest")
-        if request.section or request.article:
-            raise ValueError("当前 Milvus 适配器暂不支持 section/article 过滤")
-        filter_expr = ""
-        if request.document_id:
-            if not _valid_document_id(request.document_id):
-                raise ValueError("非法 document_id")
-            filter_expr = f'document_id == "{_escape(request.document_id)}"'
-        if request.sparse_text is not None:
-            if not self._bm25:
-                raise ValueError("当前 Milvus 适配器未启用 BM25 全文检索")
-            return self.hybrid_search(
-                list(request.dense_vector), request.sparse_text,
-                top_k=request.top_k, filter=filter_expr,
-            )
-        if request.sparse_vector:
-            if not self._hybrid:
-                raise ValueError("当前 Milvus 适配器未启用混合 collection")
-            return self.hybrid_search(
-                list(request.dense_vector), dict(request.sparse_vector),
-                top_k=request.top_k, filter=filter_expr,
-            )
-        return self.search(
-            list(request.dense_vector), top_k=request.top_k, filter=filter_expr
-        )
-
     def search(self, vector: list[float], *, top_k: int = 10, filter: str = "") -> list[dict]:
         if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
             raise ValueError("top_k 必须是 1 到 100 之间的整数")
@@ -168,29 +104,6 @@ class MilvusVectorStore:
             raise ValueError("非法 Milvus 过滤条件")
         result = self._client.search(self._collection, data=[vector], anns_field="dense", limit=top_k,
                                      filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
-        return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
-
-    def hybrid_search(self, dense_vector: list[float], sparse_vector: dict[int, float] | str,
-                      *, top_k: int = 10, filter: str = "") -> list[dict]:
-        if not self._hybrid:
-            raise ValueError("当前 Milvus 适配器未启用混合 collection")
-        if self._bm25:
-            if not isinstance(sparse_vector, str) or not sparse_vector.strip():
-                raise ValueError("BM25 模式下稀疏查询必须是非空文本")
-        elif not sparse_vector:
-            raise ValueError("稀疏查询向量不能为空")
-        if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= 100:
-            raise ValueError("top_k 必须是 1 到 100 之间的整数")
-        if filter and not _valid_filter(filter):
-            raise ValueError("非法 Milvus 过滤条件")
-        req_dense = AnnSearchRequest(data=[dense_vector], anns_field="dense",
-                                     param={"metric_type": "COSINE"}, limit=top_k, expr=filter or None)
-        req_sparse = AnnSearchRequest(data=[sparse_vector], anns_field="sparse",
-                                      param={"metric_type": "BM25" if self._bm25 else "IP"},
-                                      limit=top_k, expr=filter or None)
-        result = self._client.hybrid_search(
-            self._collection, [req_dense, req_sparse], ranker=RRFRanker(k=60), limit=top_k,
-            output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
 
 

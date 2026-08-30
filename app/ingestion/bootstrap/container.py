@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
-from ..adapters.sparse_embedding import LocalSparseEmbedder
+from ..adapters.elasticsearch_text_store import ElasticsearchTextStore
 
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
@@ -84,13 +84,17 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
     # 生产配置必须成组出现，避免“看似成功但数据没有保存”。
     has_key = bool(os.getenv("SILICONFLOW_API_KEY"))
     has_milvus = bool(os.getenv("MILVUS_HOST"))
+    has_es = bool(os.getenv("ES_HOST"))
     # 真实依赖必须成组出现；禁止自定义依赖与 no-op 实现混用。
     effective_embedder = embedder is not None or has_key
     effective_vectors = vectors is not None or has_milvus
+    effective_lexical = has_es
     if mode == "production" and not (effective_embedder and effective_vectors):
         raise ConfigurationError("生产模式必须配置真实 Embedding 与向量库")
     if effective_embedder != effective_vectors:
         raise ConfigurationError("Embedding 与向量库必须同时配置")
+    if effective_vectors and not effective_lexical:
+        raise ConfigurationError("启用向量库时必须同时配置全文检索(ES_HOST)")
     if effective_embedder and not (metadata is not None or os.getenv("MYSQL_HOST")):
         raise ConfigurationError("Embedding、向量库与元数据存储必须同时配置")
     if (has_key or has_milvus) and has_key != has_milvus:
@@ -106,15 +110,23 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             model=os.getenv("SILICONFLOW_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B"),
             embedding_dim=embedding_dim,
         )
-    # 配置了 Milvus 地址时启用真实向量库，否则回退到占位实现。
-    # 默认启用服务端 BM25 全文检索（MILVUS_BM25=false 可回退客户端稀疏向量）；
-    # 注意 BM25 集合的 sparse 由 Function 生成，与旧集合 schema 不兼容。
+    # 配置了 Milvus 地址时启用真实向量库（仅 dense），否则回退到占位实现。
     if vectors is None and os.getenv("MILVUS_HOST"):
         vectors = MilvusVectorStore(
             host=os.environ["MILVUS_HOST"], port=int(os.getenv("MILVUS_PORT", "19530")),
             database=os.getenv("MILVUS_DB", "default"),
             collection=os.getenv("MILVUS_COLLECTION", "document_chunks_4096"),
-            embedding_dim=embedding_dim, hybrid=True,
+            embedding_dim=embedding_dim,
+            user=os.getenv("MILVUS_ROOT_USER", ""), password=os.getenv("MILVUS_PASSWORD", ""),
+            token=os.getenv("MILVUS_TOKEN", "") or None,
+        )
+    lexical = None
+    if has_es:
+        lexical = ElasticsearchTextStore(
+            host=os.environ["ES_HOST"], index=os.environ["ES_INDEX"],
+            username=os.getenv("ES_USERNAME", ""), password=os.getenv("ES_PASSWORD", ""),
+            cert_fingerprint=os.getenv("CERT_FINGERPRINT", ""),
+            timeout=float(os.getenv("ES_TIMEOUT", "10")),
         )
     if metadata is None and os.getenv("MYSQL_HOST"):
         metadata = MySQLMetadataStore(
@@ -127,8 +139,9 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         )
     return IngestDocument(
         parser=parser, classifier=classifier, chunker=chunkers,
-        embedder=embedder or _NoopEmbedder(), sparse_embedder=LocalSparseEmbedder(),
+        embedder=embedder or _NoopEmbedder(),
         vectors=vectors or _NoopVectors(),
         metadata=metadata or _NoopMetadata(),
+        lexical=lexical,
         embedding_dim=embedding_dim,
     )

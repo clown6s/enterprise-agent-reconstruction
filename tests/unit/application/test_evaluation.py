@@ -58,22 +58,6 @@ def test_runner_rejects_unknown_mode():
             [RetrievalCase("x", "问题", frozenset({"ok"}))], mode="bm25")
 
 
-def test_runner_rerank_mode_requires_retriever_support():
-    with pytest.raises(ValueError, match="rerank"):
-        RetrievalEvaluationRunner(FakeRetriever()).run(
-            [RetrievalCase("x", "问题", frozenset({"ok"}))], mode="rerank")
-
-
-def test_runner_rerank_mode_uses_execute_reranked():
-    class RerankedRetriever:
-        def execute_reranked(self, query, *, top_k=10, filter=""):
-            return [Result({"chunk_id": "ok"}, ())]
-    report = RetrievalEvaluationRunner(RerankedRetriever()).run(
-        [RetrievalCase("x", "问题", frozenset({"ok"}))], ks=(5,), mode="rerank")
-    assert report["mode"] == "rerank"
-    assert report["metrics"]["recall@5"] == 1
-
-
 def test_runner_buckets_metrics_by_query_kind():
     cases = [
         RetrievalCase("exact", "第八条 规定了什么", frozenset({"ok"})),

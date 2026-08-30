@@ -25,16 +25,16 @@ def _search_text(chunk) -> str:
 class IngestDocument:
     def __init__(self, parser: Parser, classifier: Classifier, chunker: ChunkerSelector,
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
-                 sparse_embedder=None, ocr: OcrProvider | None = None,
+                 lexical=None, ocr: OcrProvider | None = None,
                  events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024,
                  embedding_dim: int | None = None):
         self.parser, self.classifier, self.chunker = parser, classifier, chunker
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
-        self.sparse_embedder = sparse_embedder
+        self.lexical = lexical
         self.ocr, self.events = ocr, events
         self.preparation = DocumentPreparation(parser, classifier, ocr)
-        self.embedding_service = EmbeddingService(embedder, sparse_embedder, embedding_dim)
-        self.persistence = IngestionPersistence(vectors, metadata)
+        self.embedding_service = EmbeddingService(embedder, embedding_dim)
+        self.persistence = IngestionPersistence(vectors, metadata, lexical)
         if embedding_dim is not None and embedding_dim <= 0:
             raise ValueError("embedding_dim 必须为正数")
         self.max_file_bytes = max_file_bytes
@@ -69,11 +69,11 @@ class IngestDocument:
             chunks = self.chunker.chunk(kind, parsed, source)
             if not chunks:
                 return IngestionResult(IngestionStatus.FAILED, filename, source.size, message=f"《{filename}》切分后无内容")
-            search_texts, vectors, sparse_vectors = self.embedding_service.embed(chunks)
+            search_texts, vectors = self.embedding_service.embed(chunks)
             # 文档 ID 由内容摘要确定，重试时保持幂等。
             document_id = digest[:32]
             rows = build_vector_rows(
-                chunks, search_texts, vectors, sparse_vectors, document_id, source
+                chunks, search_texts, vectors, document_id, source
             )
             self.persistence.persist(rows, digest, document_id, source, len(chunks))
             if self.events:

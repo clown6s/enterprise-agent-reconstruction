@@ -10,13 +10,13 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.application.evaluation.dataset import load_cases
 from app.ingestion.application.evaluation.runner import RetrievalEvaluationRunner
 from app.ingestion.application.retrieve import RetrieveDocuments
-from app.ingestion.bootstrap.container import build_ingestion, build_reranker
+from app.ingestion.bootstrap.container import build_ingestion
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--mode", choices=("dense", "hybrid", "rerank"),
+    parser.add_argument("--mode", choices=("dense", "hybrid"),
                         default="hybrid")
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--output")
@@ -26,8 +26,7 @@ def main() -> int:
     cases = load_cases(args.dataset)
     service = build_ingestion()
     retriever = RetrieveDocuments(service.embedder, service.vectors,
-                                  sparse_embedder=service.sparse_embedder,
-                                  reranker=build_reranker())
+                                  lexical=service.lexical)
     ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
     report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks, mode=args.mode)
     report["dataset"] = str(args.dataset)

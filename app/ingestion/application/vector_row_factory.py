@@ -2,7 +2,7 @@
 from ..domain.policies import document_title
 
 
-def build_vector_rows(chunks, search_texts, dense_vectors, sparse_vectors,
+def build_vector_rows(chunks, search_texts, dense_vectors,
                       document_id: str, source):
     title = document_title(source.title, source.filename or "未命名")
     rows = []
@@ -19,8 +19,7 @@ def build_vector_rows(chunks, search_texts, dense_vectors, sparse_vectors,
             "continuation_of": chunk.continuation_of,
             "continuation_index": chunk.continuation_index,
         }
-        if sparse_vectors is not None:
-            row["sparse"] = sparse_vectors[index]
+        # 全文检索由 Elasticsearch 承担，Milvus 不再写入 sparse 字段。
         row.update(chunk.metadata)
         rows.append(row)
     return rows

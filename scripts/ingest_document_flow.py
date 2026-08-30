@@ -1,14 +1,4 @@
-"""端到端文档入库测试：解析 -> 分类 -> 切分 -> Embedding -> Milvus 入库。
-
-用法:
-    .venv/Scripts/python.exe scripts/ingest_document_flow.py
-
-说明:
-    - 修改下方 DOCUMENT_PATH 指定要入库的文档。
-    - 需要 .env 中已配置 SILICONFLOW_API_KEY 与 MILVUS_HOST 等。
-    - 会把文档真正写入 Milvus，消耗一次向量化费用；请使用小文档测试。
-    - 不删除/重建已有 collection，不自动清空数据。
-"""
+"""端到端文档入库测试：解析 -> 分类 -> 切分 -> Embedding -> Milvus 入库。"""
 import sys
 from pathlib import Path
 
