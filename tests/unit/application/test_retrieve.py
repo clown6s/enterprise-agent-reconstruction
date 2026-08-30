@@ -22,6 +22,23 @@ def test_retrieves_and_decodes_source_metadata():
 
 def test_empty_query_returns_no_results():
     assert RetrieveDocuments(FakeEmbedder(), FakeVectors()).execute("  ") == []
+
+
+def test_lexical_weight_varies_by_query_kind():
+    assert RetrieveDocuments._lexical_weight("semantic") == 0.05
+    assert RetrieveDocuments._lexical_weight("section") == 0.35
+    assert RetrieveDocuments._lexical_weight("exact") == 0.50
+
+
+def test_rrf_score_ignores_raw_backend_scores():
+    from app.ingestion.application.retrieval_strategies import _rrf
+    rows = _rrf(
+        [{"chunk_id": "dense", "score": 0.01}],
+        [{"chunk_id": "lexical", "score": 9999}],
+        lexical_weight=0.05,
+    )
+    assert rows[0]["chunk_id"] == "dense"
+    assert rows[0]["score"] < 1
     def search(self, vector, *, top_k, filter):
         return [
             {"chunk_id": "c1", "text": "甲", "score": 0.9, "document_id": "d1"},

@@ -1,5 +1,6 @@
 """Milvus 适配器（实现摄入存储相关端口），仅负责 dense 向量检索。"""
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from pymilvus import DataType, MilvusClient, MilvusClient as _MilvusClient
@@ -106,6 +107,17 @@ class MilvusVectorStore:
                                      filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
 
+    def chunk_exists(self, chunk_ids: Iterable[str]) -> dict[str, bool]:
+        """返回 {chunk_id: 是否在库中}。批量按 primary key 查询，供评测标注校验。"""
+        ids = list(dict.fromkeys(chunk_ids))
+        found: set[str] = set()
+        for batch in _batches(ids, 1000):
+            expr = "chunk_id in [" + ",".join(f'"{_escape(item)}"' for item in batch) + "]"
+            rows = self._client.query(self._collection, filter=expr,
+                                      output_fields=["chunk_id"], limit=len(batch))
+            found.update(row["chunk_id"] for row in rows)
+        return {item: (item in found) for item in ids}
+
 
 def _valid_document_id(value: str) -> bool:
     import re
@@ -122,3 +134,9 @@ def _escape(value: str) -> str:
     if not value or any(char in value for char in "\r\n\x00"):
         raise ValueError("非法 document_id")
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _batches(items: list, size: int):
+    """把列表按 size 切块；空输入不产生任何块。"""
+    for start in range(0, len(items), size):
+        yield items[start:start + size]

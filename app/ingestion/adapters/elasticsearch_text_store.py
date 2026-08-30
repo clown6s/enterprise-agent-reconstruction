@@ -13,10 +13,12 @@ class ElasticsearchTextStore:
 
     def __init__(self, *, host: str, index: str, username: str = "",
                  password: str = "", cert_fingerprint: str = "",
-                 timeout: float = 10.0, client=None):
+                 timeout: float = 10.0, synonyms_set: str = "enterprise-retrieval-synonyms",
+                 client=None):
         if not host or not index:
             raise ValueError("ES host 和 index 不能为空")
         self._index = index
+        self._synonyms_set = synonyms_set
         if client is not None:
             self._client = client
         else:
@@ -36,10 +38,17 @@ class ElasticsearchTextStore:
     def _ensure_index(self) -> None:
         indices = self._client.indices
         if not indices.exists(index=self._index):
-            indices.create(index=self._index, settings={"analysis": {"analyzer": {
-                "text_index": {"type": "custom", "tokenizer": "ik_max_word"},
-                "text_search": {"type": "custom", "tokenizer": "ik_smart"},
-            }}}, mappings={"properties": {
+            indices.create(index=self._index, settings={"analysis": {
+                "filter": {"business_synonyms": {
+                    "type": "synonym", "synonyms_set": self._synonyms_set,
+                    "updateable": True,
+                }},
+                "analyzer": {
+                    "text_index": {"type": "custom", "tokenizer": "ik_max_word"},
+                    "text_search": {"type": "custom", "tokenizer": "ik_smart",
+                                    "filter": ["business_synonyms"]},
+                },
+            }}, mappings={"properties": {
                 "chunk_id": {"type": "keyword"},
                 "document_id": {"type": "keyword"},
                 "text": {"type": "text", "analyzer": "text_index", "search_analyzer": "text_search"},

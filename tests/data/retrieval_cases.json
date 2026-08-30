@@ -1452,5 +1452,54 @@
     ],
     "expected_sections": [],
     "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-6566741060132036441",
+    "query": "我被人打了要怎么办？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:51",
+      "5d5ed17776944dd9e742ff55354e6a72:9"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4939464603280817718",
+    "query": "别人打我应该怎么处理？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:51",
+      "5d5ed17776944dd9e742ff55354e6a72:9"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-4119878500136560372",
+    "query": "被打后报警有用吗？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:9"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-3902300647953267661",
+    "query": "有人故意伤害我怎么办？",
+    "relevant_chunk_ids": [
+      "84a4a23ca76838bce013257119a5eb61:260"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
+  },
+  {
+    "id": "review-2246507240392608303",
+    "query": "遭到他人殴打应该如何维权？",
+    "relevant_chunk_ids": [
+      "5d5ed17776944dd9e742ff55354e6a72:51",
+      "5d5ed17776944dd9e742ff55354e6a72:9",
+      "5d5ed17776944dd9e742ff55354e6a72:8"
+    ],
+    "expected_sections": [],
+    "forbidden_chunk_ids": []
   }
 ]

@@ -27,10 +27,11 @@ class IngestDocument:
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
                  lexical=None, ocr: OcrProvider | None = None,
                  events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024,
-                 embedding_dim: int | None = None):
+                 embedding_dim: int | None = None, synonyms=None):
         self.parser, self.classifier, self.chunker = parser, classifier, chunker
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
         self.lexical = lexical
+        self.synonyms = synonyms
         self.ocr, self.events = ocr, events
         self.preparation = DocumentPreparation(parser, classifier, ocr)
         self.embedding_service = EmbeddingService(embedder, embedding_dim)

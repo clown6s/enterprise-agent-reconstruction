@@ -13,8 +13,8 @@ from app.ingestion.domain.models import DocumentSource
 # DOCUMENT_PATH = r"D:\datum\中华人工共和国刑法.pdf"
 # DOCUMENT_PATH = r"D:\datum\中华人民共和国治安管理处罚法_20250627.docx"
 # DOCUMENT_PATH = r"D:\datum\导游面试问答.docx"
-# DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
-DOCUMENT_PATH = r"D:\datum\古代诗歌常用意象.txt"
+DOCUMENT_PATH = r"D:\datum\AI-Agents-in-Depth-zh-CN.pdf"
+# DOCUMENT_PATH = r"D:\datum\古代诗歌常用意象.txt"
 
 
 

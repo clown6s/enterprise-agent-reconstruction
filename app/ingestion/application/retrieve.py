@@ -76,7 +76,7 @@ class RetrieveDocuments:
 
     @staticmethod
     def _lexical_weight(kind: str) -> float:
-        return {"exact": 0.50, "section": 0.35, "semantic": 0.10}.get(kind, 0.10)
+        return {"exact": 0.50, "section": 0.35, "semantic": 0.05}.get(kind, 0.05)
 
     @staticmethod
     def _validate(query: str, top_k: int):

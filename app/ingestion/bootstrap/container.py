@@ -8,6 +8,7 @@ from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
 from ..adapters.elasticsearch_text_store import ElasticsearchTextStore
+from ..adapters.elasticsearch_synonyms import ElasticsearchSynonyms
 
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
@@ -121,12 +122,22 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             token=os.getenv("MILVUS_TOKEN", "") or None,
         )
     lexical = None
+    synonyms = None
     if has_es:
+        synonyms_set = os.getenv("ES_SYNONYMS_SET", "enterprise-retrieval-synonyms")
         lexical = ElasticsearchTextStore(
             host=os.environ["ES_HOST"], index=os.environ["ES_INDEX"],
             username=os.getenv("ES_USERNAME", ""), password=os.getenv("ES_PASSWORD", ""),
             cert_fingerprint=os.getenv("CERT_FINGERPRINT", ""),
             timeout=float(os.getenv("ES_TIMEOUT", "10")),
+            synonyms_set=synonyms_set,
+        )
+        synonyms = ElasticsearchSynonyms(
+            host=os.environ["ES_HOST"], index=os.environ["ES_INDEX"],
+            username=os.getenv("ES_USERNAME", ""), password=os.getenv("ES_PASSWORD", ""),
+            cert_fingerprint=os.getenv("CERT_FINGERPRINT", ""),
+            timeout=float(os.getenv("ES_TIMEOUT", "10")),
+            synonyms_set=synonyms_set,
         )
     if metadata is None and os.getenv("MYSQL_HOST"):
         metadata = MySQLMetadataStore(
@@ -143,5 +154,6 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         vectors=vectors or _NoopVectors(),
         metadata=metadata or _NoopMetadata(),
         lexical=lexical,
+        synonyms=synonyms,
         embedding_dim=embedding_dim,
     )
