@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.ingestion.application.retrieve import RetrieveDocuments
 from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.logging import setup_logging
 
 QUERY = "家庭是什么？"
 TOP_K = 26
@@ -19,6 +20,7 @@ SEARCH_MODE = "hybrid"  # "dense" 或 "hybrid"
 
 
 def main() -> int:
+    setup_logging()
     service = build_ingestion()
     retriever = RetrieveDocuments(service.embedder, service.vectors,
                                   lexical=service.lexical)

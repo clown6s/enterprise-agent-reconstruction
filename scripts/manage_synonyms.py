@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.logging import setup_logging
 
 # ==================== 执行配置：按需填写 ====================
 # 可选：list_sets、get_set、create_set、update_set、delete_set、
@@ -118,6 +119,7 @@ def seed(synonyms) -> None:
 
 
 def main() -> int:
+    setup_logging()
     synonyms = _get_adapter()
     if ACTION == "list_sets":
         list_sets(synonyms)

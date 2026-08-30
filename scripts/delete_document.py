@@ -16,11 +16,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 # 填入要删除的 document_id；也可以在运行时传入命令行参数。
-DOCUMENT_ID = "a6a02c4d93f0600b574cfe4c87e6d460"
+DOCUMENT_ID = "d7523401e7a5d4614c0361d4381a6c61"
 DELETE_POLL_TIMEOUT = 30
 DELETE_POLL_INTERVAL = 2
 
 from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.logging import setup_logging
 
 
 def _wait_for_deletion(vectors, lexical, document_id: str, timeout: float) -> bool:
@@ -37,6 +38,7 @@ def _wait_for_deletion(vectors, lexical, document_id: str, timeout: float) -> bo
 
 
 def main(argv: list[str]) -> int:
+    setup_logging()
     document_id = argv[1].strip() if len(argv) >= 2 else DOCUMENT_ID.strip()
     if not document_id:
         print("请在 DOCUMENT_ID 中填入 document_id，或运行时传入命令行参数")

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.ingestion.adapters.elasticsearch_synonyms import ElasticsearchSynonyms
 from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.logging import setup_logging
 
 TEST_RULE_ID = "_smoke_test_rule"
 TEST_SYNONYMS = "冒烟测试词 => 测试词A,测试词B"
@@ -22,6 +23,7 @@ def _fail(msg):
 
 
 def main() -> int:
+    setup_logging()
     service = build_ingestion()
     synonyms: ElasticsearchSynonyms = service.synonyms
     if synonyms is None:

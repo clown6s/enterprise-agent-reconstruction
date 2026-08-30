@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.domain.models import DocumentSource
 from app.ingestion.processing.parsers.docx import DocxParser
 from app.ingestion.bootstrap.container import build_parser
+from app.ingestion.bootstrap.logging import setup_logging
 
 
 DOCUMENT_PATH = r"D:\datum\内科学.pdf"
@@ -21,6 +22,7 @@ DOCUMENT_PATH = r"D:\datum\内科学.pdf"
 
 
 def main() -> int:
+    setup_logging()
     if not DOCUMENT_PATH.strip():
         print("请先在 DOCUMENT_PATH = r\"\" 中填入文件路径")
         return 2

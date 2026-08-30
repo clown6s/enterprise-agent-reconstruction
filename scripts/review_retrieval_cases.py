@@ -11,7 +11,9 @@ import uvicorn
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
 from app.ingestion.application.retrieve import RetrieveDocuments
+from app.ingestion.bootstrap.logging import setup_logging
 from app.ingestion.bootstrap.container import build_ingestion
 
 app = FastAPI(title="Retrieval Review")
@@ -133,6 +135,7 @@ def validate_cases():
             "empty_relevant_cases": empty_relevant_cases, "issues": issues}
 
 def main():
+    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)

@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.ingestion.domain.models import DocumentSource
 from app.ingestion.bootstrap.container import build_parser, build_chunkers
+from app.ingestion.bootstrap.logging import setup_logging
 from app.ingestion.processing.profiles import default_profiles
 
 
@@ -23,6 +24,7 @@ DOCUMENT_PATH = r"D:\datum\内科学.pdf"
 
 
 def main() -> int:
+    setup_logging()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) > 1:

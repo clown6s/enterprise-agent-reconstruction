@@ -1,6 +1,41 @@
-from fastapi import FastAPI
+from uuid import uuid4
+
+import anyio
+import structlog
+from fastapi import FastAPI, Request
+
+from app.ingestion.bootstrap.logging import setup_logging
+
+setup_logging()
+logger = structlog.get_logger(__name__)
 
 app = FastAPI()
+
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    """为每个请求绑定 trace_id，并记录完成状态。
+
+    用 anyio 桥接让 contextvars 贯穿到线程池中的同步 handler，
+    避免同步 route 里丢失 trace_id。
+    """
+    trace_id = request.headers.get("X-Trace-Id") or str(uuid4())
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        trace_id=trace_id,
+        method=request.method,
+        path=request.url.path,
+    )
+    try:
+        response = await anyio.to_thread.run_sync(
+            lambda: anyio.from_thread.run(call_next, request)
+        )
+    except Exception:
+        logger.exception("request_failed")
+        raise
+    response.headers["X-Trace-Id"] = trace_id
+    logger.info("request_completed", status_code=response.status_code)
+    return response
 
 
 @app.get("/")

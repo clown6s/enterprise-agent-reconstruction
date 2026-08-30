@@ -74,12 +74,12 @@ class MedicalChunker:
             if marker:
                 page = int(marker.group(1))
                 continue
-            if _HEADING.fullmatch(line) and not _NUMBERED_ITEM.fullmatch(line):
+            if _HEADING.fullmatch(line) and not _NUMBERED_ITEM.match(line):
                 flush()
                 section = [line] if line.startswith("第") else section + [line]
                 start_page = page
                 continue
-            if _NUMBERED_ITEM.fullmatch(line):
+            if _NUMBERED_ITEM.match(line):
                 flush()
                 current = [line]
                 start_page = page

@@ -12,9 +12,11 @@ from app.ingestion.application.evaluation.dataset import load_cases
 from app.ingestion.application.evaluation.runner import RetrievalEvaluationRunner
 from app.ingestion.application.retrieve import RetrieveDocuments
 from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.logging import setup_logging
 
 
 def main() -> int:
+    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--mode", choices=("dense", "hybrid"),
