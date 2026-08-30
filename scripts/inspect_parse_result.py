@@ -11,8 +11,8 @@ from app.ingestion.processing.parsers.docx import DocxParser
 from app.ingestion.bootstrap.container import build_parser
 
 
-# DOCUMENT_PATH = r"D:\datum\内科学.pdf"
-DOCUMENT_PATH = r"D:\datum\家庭教育促进法.pdf"
+DOCUMENT_PATH = r"D:\datum\内科学.pdf"
+# DOCUMENT_PATH = r"D:\datum\家庭教育促进法.pdf"
 # DOCUMENT_PATH = r"D:\datum\中华人工共和国刑法.pdf"
 # DOCUMENT_PATH = r"D:\datum\中华人民共和国治安管理处罚法_20250627.docx"
 # DOCUMENT_PATH = r"D:\datum\导游面试问答.docx"
