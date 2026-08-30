@@ -115,7 +115,7 @@ class PdfParser:
             return lines
         # 页眉位于页面顶部坐标带；正文标题通常位于其下方。
         # 使用坐标而不是纯文本首行，避免把正文标题误判成页眉。
-        top_limit = height * 0.12
+        top_limit = height * 0.06
         candidates = {text.strip() for text, top in positioned_lines if top <= top_limit}
         if not candidates:
             return lines
