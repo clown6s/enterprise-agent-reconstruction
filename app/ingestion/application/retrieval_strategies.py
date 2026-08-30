@@ -52,11 +52,15 @@ class HybridRetrievalStrategy:
         if self.lexical_weight < 0:
             raise ValueError("lexical_weight 不能为负数")
 
-    def retrieve(self, query: str, top_k: int, filter: str = ""):
+    def retrieve(self, query: str, top_k: int, filter: str = "", *,
+                 lexical_weight: float | None = None):
         if self.lexical is None:
             raise ValueError("未配置全文检索存储")
         dense = self.embedder.embed_batch([query])[0]
         candidates = min(self.candidate_limit, max(top_k, top_k * self.multiplier))
         dense_rows = self.vectors.search(dense, top_k=candidates, filter=filter)
         lexical_rows = self.lexical.search(query, top_k=candidates, filter=filter)
-        return _rrf(dense_rows, lexical_rows, lexical_weight=self.lexical_weight)
+        weight = self.lexical_weight if lexical_weight is None else float(lexical_weight)
+        if weight < 0:
+            raise ValueError("lexical_weight 不能为负数")
+        return _rrf(dense_rows, lexical_rows, lexical_weight=weight)

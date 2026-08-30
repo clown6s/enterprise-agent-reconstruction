@@ -66,10 +66,17 @@ class RetrieveDocuments:
         profile = analyze_query(query)
         if self.lexical_strategy is None:
             raise ValueError("未配置全文检索存储")
-        rows = self.hybrid_strategy.retrieve(query, top_k, filter)
+        rows = self.hybrid_strategy.retrieve(
+            query, top_k, filter,
+            lexical_weight=self._lexical_weight(profile.kind),
+        )
         rows = self._rank(rows, profile)
         self._emit_metrics(profile, len(rows), len(rows[:top_k]), top_k)
         return self._results(rows[:top_k])
+
+    @staticmethod
+    def _lexical_weight(kind: str) -> float:
+        return {"exact": 0.50, "section": 0.35, "semantic": 0.10}.get(kind, 0.10)
 
     @staticmethod
     def _validate(query: str, top_k: int):
