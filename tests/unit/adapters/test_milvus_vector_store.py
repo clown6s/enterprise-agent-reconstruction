@@ -49,7 +49,12 @@ class _FakeMilvusClient:
         return {"upsert_count": len(data)}
 
     def query(self, collection_name, filter="", output_fields=None, limit=10):
-        return [r for r in self._rows.values()][:limit]
+        rows = list(self._rows.values())
+        if filter.startswith("chunk_id in ["):
+            inner = filter[len('chunk_id in ['):-1]
+            ids = [part.strip().strip('"') for part in inner.split(",")]
+            rows = [r for r in rows if r["chunk_id"] in ids]
+        return rows[:limit]
 
     def delete(self, collection_name, filter=""):
         ids = [cid for cid in self._rows if f'"{cid}"' in filter or "document_id" in filter]
@@ -97,4 +102,22 @@ def test_raises_on_dimension_mismatch(monkeypatch):
 
 def test_escape_quotes_and_backslashes():
     assert _escape('a"b\\c') == 'a\\"b\\\\c'
+
+
+def test_chunk_exists_returns_presence_map(monkeypatch):
+    monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient",
+                        lambda **kw: _FakeMilvusClient())
+    store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
+    store.insert([{"document_id": "0123456789abcdef0123456789abcdef", "text": "hello",
+                   "chunk_id": "0123456789abcdef0123456789abcdef:1", "dense": [0.1] * 4096}])
+    result = store.chunk_exists(["0123456789abcdef0123456789abcdef:1", "missing:9"])
+    assert result == {"0123456789abcdef0123456789abcdef:1": True, "missing:9": False}
+
+
+def test_chunk_exists_dedups_and_handles_empty(monkeypatch):
+    monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient",
+                        lambda **kw: _FakeMilvusClient())
+    store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
+    assert store.chunk_exists([]) == {}
+    assert store.chunk_exists(["a:1", "a:1"]) == {"a:1": False}
 
