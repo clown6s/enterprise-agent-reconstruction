@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 # 填入要删除的 document_id；也可以在运行时传入命令行参数。
-DOCUMENT_ID = "d7523401e7a5d4614c0361d4381a6c61"
+DOCUMENT_ID = "f2ac959f4e0c375dc8b021b09a6527b4"
 DELETE_POLL_TIMEOUT = 30
 DELETE_POLL_INTERVAL = 2
 
