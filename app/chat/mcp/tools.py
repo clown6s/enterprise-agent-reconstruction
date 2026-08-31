@@ -2,6 +2,7 @@
 from dataclasses import asdict
 
 from ..application.chat_service import ChatService
+from ..application.context import RequestContext
 from ..application.context_builder import ContextBuilder
 from ..application.rag_answerer import RagAnswerer
 from ..application.sop.sop_service import SopService
@@ -35,19 +36,23 @@ class ChatTools:
     def __init__(self, service: ChatService):
         self.service = service
 
+    def _context(self, tenant_id: str, user_id: str) -> RequestContext:
+        tenant_id, user_id = _identity(tenant_id, user_id)
+        return RequestContext(tenant_id=tenant_id, user_id=user_id)
+
     async def chat_ask(self, question: str, conversation_id: str,
                        tenant_id: str, user_id: str, confirmed: bool = False) -> dict:
-        _identity(tenant_id, user_id)
+        context = self._context(tenant_id, user_id)
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 不能为空")
         return _result_dict(await run_sync(
             self.service.ask, question.strip(), conversation_id=conversation_id,
-            confirmed=confirmed,
+            confirmed=confirmed, context=context,
         ))
 
     async def document_search(self, query: str, top_k: int,
                               tenant_id: str, user_id: str) -> dict:
-        _identity(tenant_id, user_id)
+        self._context(tenant_id, user_id)
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query 不能为空")
         if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= _MAX_TOP_K:
@@ -61,20 +66,21 @@ class ChatTools:
     async def sop_get_step(self, query: str, conversation_id: str,
                            tenant_id: str, user_id: str,
                            confirmed: bool = False) -> dict:
-        _identity(tenant_id, user_id)
+        context = self._context(tenant_id, user_id)
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query 不能为空")
         result = await run_sync(
             self.service.sop.handle, query.strip(), conversation_id, [],
-            confirmed=confirmed,
+            confirmed=confirmed, context=context,
         )
         return _result_dict(result)
 
     async def readonly_sql_query(self, question: str, tenant_id: str,
                                  user_id: str) -> dict:
-        _identity(tenant_id, user_id)
+        context = self._context(tenant_id, user_id)
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 不能为空")
         result = await run_sync(self.service.nl2sql.answer,
-                                question.strip(), f"mcp:{tenant_id}:{user_id}")
+                                question.strip(), f"mcp:{tenant_id}:{user_id}",
+                                context=context)
         return _result_dict(result)

@@ -2,10 +2,11 @@
 from dataclasses import asdict
 from typing import Callable
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..application.chat_service import ChatService
+from ..application.context import RequestContext
 from ..domain.models import ChatResult
 
 
@@ -30,10 +31,14 @@ def create_router(service_provider: Callable[[], ChatService]) -> APIRouter:
         return service_provider()
 
     @router.post("")
-    def chat(request: ChatRequest, chat: ChatService = Depends(service)):
+    def chat(http_request: Request, request: ChatRequest,
+             chat: ChatService = Depends(service)):
+        trace_id = http_request.headers.get("X-Trace-Id", "") or ""
+        context = RequestContext(trace_id=trace_id,
+                                 user_id=http_request.headers.get("X-User-Id", "") or "")
         return _serialize(chat.ask(
             request.question, conversation_id=request.conversation_id,
-            confirmed=request.confirmed,
+            confirmed=request.confirmed, context=context,
         ))
 
     return router

@@ -5,6 +5,7 @@ import re
 from ...domain.exceptions import LlmError, SqlGenerationError, SqlPolicyError
 from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
 from ...security.context_boundary import SYSTEM_POLICY
+from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
 from .sql_guard import validate_sql
 
@@ -21,13 +22,16 @@ class Nl2SqlService:
         self.timeout_s = timeout_s
         self.max_rows = max_rows
 
-    def answer(self, query: str, conversation_id: str) -> ChatResult:
+    def answer(self, query: str, conversation_id: str,
+               context: RequestContext | None = None) -> ChatResult:
+        context = context or RequestContext()
         domain = self.catalog.resolve_domain(query)
         if domain is None:
             return ChatResult(
                 answer="无法确定要查询的数据域，请说明是订单、采购还是其他业务数据。",
                 status=ChatStatus.CLARIFICATION, mode=Intent.NL2SQL,
                 conversation_id=conversation_id, warnings=("domain_unknown",),
+                trace_id=context.trace_id,
             )
         schema = self.catalog.describe(domain)
         allowed = self.catalog.allowed_tables(domain)
@@ -57,6 +61,7 @@ class Nl2SqlService:
             conversation_id=conversation_id,
             sql={"query": sql, "query_id": result.query_id,
                  "columns": list(result.columns), "row_count": result.row_count},
+            trace_id=context.trace_id,
         )
 
     def _extract_sql(self, raw: str) -> str | None:

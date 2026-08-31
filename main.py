@@ -10,6 +10,8 @@ from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import setup_logging
 from app.chat.api.router import create_router
 from app.chat.bootstrap.container import build_chat
+from app.chat.mcp.bridge import LazyService
+from app.chat.mcp.server import build_http_app
 
 setup_logging()
 logger = structlog.get_logger(__name__)
@@ -28,6 +30,9 @@ def _chat_service():
 
 
 app.include_router(create_router(_chat_service))
+
+
+app.mount("/mcp", build_http_app(LazyService(_chat_service), path="/"))
 
 
 @app.middleware("http")

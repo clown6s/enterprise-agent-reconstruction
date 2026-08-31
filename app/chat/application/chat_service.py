@@ -1,6 +1,7 @@
 """Unified chat orchestration: route intent, dispatch to an isolated executor,
 persist conversation, and surface citations/structured outputs."""
 from ..domain.models import ChatMessage, ChatResult, ChatStatus, Intent
+from .context import RequestContext
 from .ports import ConversationStore, IntentRouter
 from .rag_answerer import RagAnswerer
 from .sop.sop_service import SopService
@@ -17,7 +18,9 @@ class ChatService:
         self.nl2sql = nl2sql
 
     def ask(self, question: str, *, conversation_id: str = "default",
-            confirmed: bool = False) -> ChatResult:
+            confirmed: bool = False,
+            context: RequestContext | None = None) -> ChatResult:
+        context = context or RequestContext()
         self.conversation.get_or_create(conversation_id)
         history = self.conversation.recent(conversation_id, limit=10)
         decision = self.router.route(question, history)
@@ -28,12 +31,20 @@ class ChatService:
                 conversation_id=conversation_id, warnings=("clarification",),
             )
         elif decision.intent == Intent.SOP:
-            result = self.sop.handle(question, conversation_id, history, confirmed=confirmed)
+            result = self.sop.handle(question, conversation_id, history,
+                                     confirmed=confirmed, context=context)
         elif decision.intent == Intent.NL2SQL:
-            result = self.nl2sql.answer(question, conversation_id)
+            result = self.nl2sql.answer(question, conversation_id, context=context)
         else:  # KNOWLEDGE_QA, MIXED, CHITCHAT all fall back to RAG
-            result = self.rag.answer(question, conversation_id, history)
+            result = self.rag.answer(question, conversation_id, history, context=context)
 
+        if not result.trace_id:
+            result = ChatResult(
+                answer=result.answer, status=result.status, mode=result.mode,
+                conversation_id=result.conversation_id,
+                citations=result.citations, sql=result.sql, sop=result.sop,
+                warnings=result.warnings, trace_id=context.trace_id,
+            )
         self.conversation.append(conversation_id, ChatMessage("user", question))
         self.conversation.append(conversation_id, ChatMessage(
             "assistant", f"{result.answer}\nmode={result.mode.value}"))

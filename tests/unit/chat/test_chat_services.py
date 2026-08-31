@@ -75,3 +75,13 @@ def test_sop_engine_requires_confirmation():
     # 明确确认后放行
     state = engine.advance(definition, state, confirmed=True)
     assert state.awaiting_confirmation is False
+
+
+def test_chat_result_carries_trace_id():
+    from app.chat.application.context import RequestContext
+    service = _service()
+    result = service.ask("报销标准是什么", conversation_id="trace-test",
+                         context=RequestContext(trace_id="trace-abc",
+                                                tenant_id="t", user_id="u"))
+    assert result.trace_id == "trace-abc"
+    assert result.status.value == "answered"

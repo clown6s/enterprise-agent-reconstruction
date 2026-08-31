@@ -69,6 +69,7 @@ class ChatResult:
     sql: dict[str, Any] | None = None
     sop: dict[str, Any] | None = None
     warnings: tuple[str, ...] = ()
+    trace_id: str = ""
 
 
 @dataclass(frozen=True)
