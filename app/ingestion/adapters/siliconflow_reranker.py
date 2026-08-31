@@ -69,10 +69,14 @@ class SiliconFlowReranker:
                 break
             if attempt < self._max_retries:
                 retry_after = response.headers.get("retry-after", "")
-                try:
-                    delay = min(float(retry_after), 30.0) if retry_after else min(2 ** attempt, 8)
-                except ValueError:
-                    delay = min(2 ** attempt, 8)
+                delay = min(2 ** attempt, 8)
+                if retry_after:
+                    try:
+                        parsed = float(retry_after)
+                        if math.isfinite(parsed) and parsed >= 0:
+                            delay = min(parsed, 30.0)
+                    except ValueError:
+                        delay = min(2 ** attempt, 8)
                 time.sleep(delay)
         if response is None:
             raise SiliconFlowRerankError("SiliconFlow 重排序未返回响应")

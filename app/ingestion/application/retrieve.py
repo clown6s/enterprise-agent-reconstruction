@@ -30,6 +30,7 @@ class HybridStages:
     es: list[dict]
     rrf: list[dict]
     rerank: list[dict]
+    rerank_status: str = "skipped"  # reranked | fallback | skipped
 
 
 class RetrieveDocuments:
@@ -57,7 +58,7 @@ class RetrieveDocuments:
         """执行一次完整 hybrid 查询并保留各阶段结果。"""
         query, top_k = self._validate(query, top_k)
         if not query:
-            return HybridStages([], [], [], [])
+            return HybridStages([], [], [], [], "skipped")
         if self.lexical_strategy is None:
             raise ValueError("未配置全文检索存储")
         candidates = max(top_k, self.rerank_pool) if self.reranker is not None else top_k
@@ -65,8 +66,9 @@ class RetrieveDocuments:
         lexical_rows = self.lexical_strategy.retrieve(query, candidates, filter)
         fused_rows = _rrf(dense_rows, lexical_rows)
         deduped_rows = self._dedup(fused_rows)
-        reranked_rows = self._rerank(query, deduped_rows)
-        return HybridStages(dense_rows, lexical_rows, fused_rows, reranked_rows)
+        reranked_rows, rerank_status = self._rerank(query, deduped_rows)
+        return HybridStages(dense_rows, lexical_rows, fused_rows, reranked_rows,
+                            rerank_status)
 
     def execute_hybrid(self, query: str, *, top_k: int = 10,
                        filter: str = "") -> list[RetrievalResult]:
@@ -100,22 +102,34 @@ class RetrieveDocuments:
         return list(unique.values())
 
     def _rerank(self, query: str, rows):
-        """用模型对候选重排序；无 reranker 或调用失败时退回原序。"""
+        """用模型对候选重排序；自行按分数降序排，不依赖适配器返回有序。
+
+        返回 (排序后的 rows, 状态)。无 reranker / 为空返回 ("skipped")，
+        调用失败退回召回序并标记 "fallback"。
+        """
         if self.reranker is None or not rows:
-            return rows
+            return rows, "skipped"
         texts = [str(row.get("text", "") or "") for row in rows]
         try:
             ranked = self.reranker.rerank(query, texts, top_n=len(rows))
         except Exception as exc:  # 第三方接口失败不拖垮查询，退回召回序
             logger.warning("rerank_failed_fallback_to_retrieval_order",
                            error=str(exc), candidates=len(rows))
-            return rows
-        ordered = []
+            return rows, "fallback"
+        scored = []
         for index, score in ranked:
             item = dict(rows[index])
             item["score"] = float(score)
-            ordered.append(item)
-        return ordered
+            scored.append((float(score), item))
+        ordered = [item for _, item in sorted(scored, key=lambda pair: pair[0],
+                                              reverse=True)]
+        return ordered, "reranked"
+
+    def close(self):
+        """释放 reranker 持有的外部客户端。"""
+        close = getattr(self.reranker, "close", None)
+        if callable(close):
+            close()
 
     def _emit_metrics(self, candidates, returned, top_k):
         if self.metrics:

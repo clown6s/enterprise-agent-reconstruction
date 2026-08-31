@@ -33,8 +33,11 @@ def main() -> int:
     retriever = RetrieveDocuments(service.embedder, service.vectors,
                                   lexical=service.lexical, reranker=reranker,
                                   rerank_pool=args.rerank_pool)
-    ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
-    report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks)
+    try:
+        ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
+        report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks)
+    finally:
+        retriever.close()
     report["dataset"] = str(args.dataset)
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
