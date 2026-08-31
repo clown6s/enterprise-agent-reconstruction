@@ -18,8 +18,6 @@ def main() -> int:
     setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--mode", choices=("dense", "hybrid"),
-                        default="hybrid")
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--rerank", action="store_true",
                         help="在召回后接入模型 rerank（需要 SILICONFLOW_API_KEY）")
@@ -36,7 +34,7 @@ def main() -> int:
                                   lexical=service.lexical, reranker=reranker,
                                   rerank_pool=args.rerank_pool)
     ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
-    report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks, mode=args.mode)
+    report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks)
     report["dataset"] = str(args.dataset)
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:

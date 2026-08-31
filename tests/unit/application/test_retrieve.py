@@ -9,19 +9,26 @@ class FakeEmbedder:
 class FakeVectors:
     def search(self, vector, *, top_k, filter):
         assert vector == [1.0, 2.0]
-        return [{"text": "命中", "score": 0.9, "document_id": "d1",
+        return [{"chunk_id": "d1:1", "text": "命中", "score": 0.9, "document_id": "d1",
                  "page": 3, "kind": "prose", "section_path": "[\"第一章\"]"}]
 
 
+class FakeLexical:
+    def search(self, query, *, top_k, filter=""):
+        return []
+
+
 def test_retrieves_and_decodes_source_metadata():
-    results = RetrieveDocuments(FakeEmbedder(), FakeVectors()).execute("问题", top_k=3)
+    results = RetrieveDocuments(FakeEmbedder(), FakeVectors(), lexical=FakeLexical())\
+        .execute_hybrid("问题", top_k=3)
     assert results[0].text == "命中"
     assert results[0].section_path == ("第一章",)
     assert results[0].page == 3
 
 
 def test_empty_query_returns_no_results():
-    assert RetrieveDocuments(FakeEmbedder(), FakeVectors()).execute("  ") == []
+    assert RetrieveDocuments(FakeEmbedder(), FakeVectors(), lexical=FakeLexical())\
+        .execute_hybrid("  ") == []
 
 
 def test_rrf_score_ignores_raw_backend_scores():
@@ -56,24 +63,25 @@ class FakeReranker:
 
 
 def test_no_reranker_keeps_retrieval_order():
-    rows = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors()).execute("问题", top_k=3)
+    rows = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(), lexical=FakeLexical())\
+        .execute_hybrid("问题", top_k=3)
     assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]
 
 
 def test_rerank_orders_by_model_score_after_dedup():
     # 去重后 c1/c2/c3 三个候选；模型把 c3 排最前
     reranker = FakeReranker(ranking=[(2, 0.9), (0, 0.5), (1, 0.1)])
-    retriever = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(), reranker=reranker)
-    rows = retriever.execute("问题", top_k=3)
+    retriever = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(),
+                                  lexical=FakeLexical(), reranker=reranker)
+    rows = retriever.execute_hybrid("问题", top_k=3)
     assert [r.chunk_id for r in rows] == ["c3", "c1", "c2"]
     assert rows[0].score == 0.9
 
 
 def test_rerank_failure_falls_back_to_retrieval_order():
     reranker = FakeReranker(exc=RuntimeError("boom"))
-    retriever = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(), reranker=reranker)
-    rows = retriever.execute("问题", top_k=3)
+    retriever = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(),
+                                  lexical=FakeLexical(), reranker=reranker)
+    rows = retriever.execute_hybrid("问题", top_k=3)
     # 调用失败不拖垮查询，退回召回序
     assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]
-
-

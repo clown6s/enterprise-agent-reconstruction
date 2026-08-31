@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import pytest
 from app.ingestion.application.evaluation.metrics import hit_rate_at_k, recall_at_k, reciprocal_rank
 from app.ingestion.application.evaluation.runner import RetrievalEvaluationRunner
 from app.ingestion.application.evaluation.models import RetrievalCase
@@ -19,7 +18,7 @@ class Result:
 
 
 class FakeRetriever:
-    def execute(self, query, *, top_k=10, filter=""):
+    def execute_hybrid(self, query, *, top_k=10, filter=""):
         return [Result({"chunk_id": "ok"}, ("第一章",))]
 
 
@@ -30,36 +29,26 @@ def test_runner():
     assert report["metrics"]["recall@10"] == 1
 
 
-class DualModeRetriever:
+class RecordingRetriever:
     def __init__(self):
         self.calls = []
 
-    def execute(self, query, *, top_k=10, filter=""):
-        self.calls.append(("dense", query))
-        return [Result({"chunk_id": "ok"}, ("第一章",))]
-
     def execute_hybrid(self, query, *, top_k=10, filter=""):
-        self.calls.append(("hybrid", query))
+        self.calls.append(query)
         return [Result({"chunk_id": "ok"}, ("第一章",))]
 
 
-def test_runner_hybrid_mode_uses_execute_hybrid():
-    retriever = DualModeRetriever()
+def test_runner_uses_execute_hybrid():
+    retriever = RecordingRetriever()
     report = RetrievalEvaluationRunner(retriever).run(
-        [RetrievalCase("x", "问题", frozenset({"ok"}))], ks=(5,), mode="hybrid")
-    assert retriever.calls == [("hybrid", "问题")]
+        [RetrievalCase("x", "问题", frozenset({"ok"}))], ks=(5,))
+    assert retriever.calls == ["问题"]
     assert report["mode"] == "hybrid"
     assert report["metrics"]["recall@5"] == 1
 
 
-def test_runner_rejects_unknown_mode():
-    with pytest.raises(ValueError, match="不支持的评测模式"):
-        RetrievalEvaluationRunner(FakeRetriever()).run(
-            [RetrievalCase("x", "问题", frozenset({"ok"}))], mode="bm25")
-
-
 class FlakyRetriever:
-    def execute(self, query, *, top_k=10, filter=""):
+    def execute_hybrid(self, query, *, top_k=10, filter=""):
         if "失败" in query:
             raise RuntimeError("boom")
         return [Result({"chunk_id": "ok"}, ())]
