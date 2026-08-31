@@ -7,7 +7,6 @@ import structlog
 from .ports import Embedder
 from .retrieval_strategies import (DenseRetrievalStrategy, HybridRetrievalStrategy,
                                   LexicalRetrievalStrategy)
-from .retrieval_router import DefaultRetrievalRouter
 
 logger = structlog.get_logger(__name__)
 
@@ -35,7 +34,7 @@ class RetrieveDocuments:
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
                  dense_strategy=None, hybrid_strategy=None, lexical_strategy=None,
-                 router=None, lexical=None, reranker=None, rerank_pool: int = 100):
+                 lexical=None, reranker=None, rerank_pool: int = 100):
         self.embedder = embedder
         self.vectors = vectors
         self.metrics = metrics
@@ -44,7 +43,6 @@ class RetrieveDocuments:
             HybridRetrievalStrategy(embedder, vectors, lexical))
         self.lexical_strategy = lexical_strategy or (
             LexicalRetrievalStrategy(lexical) if lexical is not None else None)
-        self.router = router or DefaultRetrievalRouter()
         self.reranker = reranker
         self.rerank_pool = max(1, int(rerank_pool))
 
