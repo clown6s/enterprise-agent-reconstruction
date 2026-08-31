@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
+from ..adapters.siliconflow_reranker import SiliconFlowReranker
 from ..adapters.elasticsearch_text_store import ElasticsearchTextStore
 from ..adapters.elasticsearch_synonyms import ElasticsearchSynonyms
 from ..domain.exceptions import ValidationError
@@ -73,6 +74,18 @@ def build_chunkers():
         "medical_book": MedicalChunker(),
         "generic": GenericChunker(),
     })
+
+
+def build_reranker():
+    """按环境配置构造模型 reranker；配置不齐时返回 None（不启用）。"""
+    _load_env()
+    if not os.getenv("SILICONFLOW_API_KEY"):
+        return None
+    return SiliconFlowReranker(
+        os.environ["SILICONFLOW_API_KEY"],
+        base_url=os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
+        model=os.getenv("SILICONFLOW_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
+    )
 
 
 def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=None,

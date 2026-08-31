@@ -13,10 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.ingestion.application.retrieve import RetrieveDocuments
+from app.ingestion.application.retrieval_strategies import _rrf
 from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import setup_logging
 from app.ingestion.domain.exceptions import ValidationError
-from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.container import build_ingestion, build_reranker
 
 app = FastAPI(title="Retrieval Review")
 register_exception_handlers(app)
@@ -26,14 +27,15 @@ retriever = None
 
 class QueryRequest(BaseModel):
     query: str
-    mode: str = "hybrid"
     top_k: int = 20
 
 class SaveRequest(BaseModel):
     id: str
     query: str
-    mode: str
     candidates: list[dict]
+    stages: dict[str, list[dict]] = {}
+    stage_rank: dict[str, dict] = {}
+    relevant_rankings: dict[str, dict] = {}
     relevant_chunk_ids: list[str] = []
     forbidden_chunk_ids: list[str] = []
     expected_sections: list[str] = []
@@ -49,7 +51,7 @@ def _ensure_retriever():
     if retriever is None:
         service = build_ingestion()
         retriever = RetrieveDocuments(service.embedder, service.vectors,
-            lexical=service.lexical)
+            lexical=service.lexical, reranker=build_reranker())
     return retriever
 
 @app.get("/", response_class=HTMLResponse)
@@ -57,26 +59,69 @@ def index():
     return HTMLResponse("""<!doctype html><html lang='zh-CN'><meta charset='utf-8'><title>检索评测工作台</title>
 <style>
 :root{--ink:#172033;--muted:#718096;--line:#e6eaf0;--brand:#3867d6;--brand-dark:#2a55b8;--good:#16805c;--bad:#c53d4f;--bg:#f5f7fb;--card-shadow:0 2px 14px rgba(27,42,74,.06)}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,'Microsoft YaHei',sans-serif}.shell{max-width:1240px;margin:auto;padding:28px}.hero{display:flex;justify-content:space-between;align-items:end;margin-bottom:20px;gap:16px;flex-wrap:wrap}.eyebrow{color:var(--brand);font-weight:700;letter-spacing:.08em;font-size:12px;text-transform:uppercase}.hero h1{margin:2px 0;font-size:28px}.sub,.meta{color:var(--muted)}.panel{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--card-shadow);padding:20px}.controls{display:grid;grid-template-columns:1fr 150px 130px 110px;gap:12px}.query{width:100%;min-height:64px;border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;resize:vertical;transition:border-color .15s}.query:focus{outline:none;border-color:var(--brand)}.select,.btn{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;font:inherit}.btn{cursor:pointer;font-weight:700;transition:background .15s,transform .05s}.btn:hover{filter:brightness(.97)}.btn:active{transform:translateY(1px)}.primary{background:var(--brand);border-color:var(--brand);color:#fff}.primary:hover{background:var(--brand-dark)}.warn{border-color:var(--bad);color:var(--bad);background:#fff}.toolbar{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}.toolbar .status{flex:1;min-width:200px;text-align:right}.toolbar .status.err{color:var(--bad);font-weight:600}.toolbar .status.ok{color:var(--good);font-weight:600}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column}.stat .num{font-size:24px;font-weight:800;line-height:1.2}.stat .lbl{color:var(--muted);font-size:12px;margin-top:2px}.stat.good .num{color:var(--good)}.stat.bad .num{color:var(--bad)}.section-label{display:flex;align-items:center;gap:8px;margin:22px 0 8px;font-weight:700;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}.section-label:before,.section-label:after{content:'';flex:1;height:1px;background:var(--line)}.card{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:var(--card-shadow);margin:10px 0;padding:15px;transition:border-color .15s,background .15s}.card.selected-good{border-color:#7bd4b3;background:#f4fffa}.card.selected-bad{border-color:#e99aa5;background:#fff7f8}.cardhead{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.rank{font-size:18px;font-weight:800;color:var(--brand);min-width:32px}.badge{border-radius:99px;padding:2px 10px;background:#eef2ff;color:var(--brand);font-size:12px;font-weight:600}.checks{margin-left:auto;display:flex;gap:12px}.checks label{cursor:pointer;user-select:none}.good{color:var(--good)}.bad{color:var(--bad)}.good.selected{background:#e6f7ef}.bad.selected{background:#fdecee}.text{white-space:pre-wrap;background:#fafbfc;border-radius:8px;padding:12px;margin-top:10px;max-height:220px;overflow:auto;border:1px solid #eef1f6}.docid{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);background:#f2f4f8;border-radius:6px;padding:2px 8px;word-break:break-all}.meta-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fafbfc;border-radius:7px;padding:2px 8px;font-size:12px;color:var(--muted)}.chip b{color:var(--ink);font-weight:600}.rank-chip{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;min-width:34px;justify-content:center}.kbadge{border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600}.kbadge.legal{background:#eef2ff;color:#3867d6}.kbadge.medical{background:#e6f7ef;color:#16805c}.kbadge.technical{background:#fff3e0;color:#b26a00}.kbadge.qa{background:#fdecee;color:#c53d4f}.kbadge.prose{background:#f3e8fd;color:#7a3ad6}.kbadge.unknown{background:#eef1f6;color:#718096}.empty{text-align:center;padding:40px;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:13px;margin:10px 0}.validation-result{margin:10px 0;border:1px solid var(--line);border-radius:13px;padding:14px;box-shadow:var(--card-shadow);background:#fff}.validation-result.good{border-color:#7bd4b3}.validation-result.bad{border-color:#e99aa5}@media(max-width:860px){.shell{padding:14px}.controls{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.checks{margin-left:0}.toolbar .status{text-align:left}}
-</style><div class=shell><header class=hero><div><div class=eyebrow>RETRIEVAL REVIEW</div><h1>检索评测工作台</h1><div class=sub>输入真实问题，查看候选结果并标注相关性</div></div><div class=sub>本地只读检索 · 审核后保存</div></header><section class=panel><div class=controls><textarea id=q class=query placeholder='例如：Agent 如何工作的？'></textarea><select id=mode class=select><option value=hybrid>Hybrid 检索</option><option value=dense>Dense 检索</option></select><select id=topk class=select><option value=20>Top 20</option><option value=50>Top 50</option><option value=100>Top 100</option></select></div><div class=toolbar><button class='btn primary' onclick=search()>搜索候选</button><button class=btn onclick=save()>保存审核</button><button class='btn warn' onclick=validateCases()>校验评测集</button><span id=status class='status sub'></span></div></section><div id=validate></div><div id=stats class=stats></div><main id=out class=empty>输入问题后开始检索</main></div><script>let current=null;const $=id=>document.getElementById(id);function clearResults(){current=null;$('out').className='empty';$('out').textContent='搜索后显示候选结果';$('stats').innerHTML='';$('validate').innerHTML='';}function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}function setStatus(text,isErr){let el=$('status');el.textContent=text;el.className=isErr?'status err':'status '+(text&&!text.includes('…')?'ok':'sub');}function statCard(num,label,cls){return `<div class="stat ${cls||''}"><div class=num>${num}</div><div class=lbl>${label}</div></div>`;}function updateStats(){let rel=document.querySelectorAll('[data-r=rel]:checked').length,bad=document.querySelectorAll('[data-r=bad]:checked').length,total=current?.candidates?.length||0;$('stats').innerHTML=statCard(total,'候选')+statCard(rel,'相关','good')+statCard(bad,'噪声','bad')+statCard(Math.max(0,total-rel-bad),'待审核');}async function search(){let query=$('q').value.trim();if(!query)return alert('请输入问题');clearResults();setStatus('检索中…',false);let r=await fetch('/api/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,mode:$('mode').value,top_k:Number($('topk').value)})});current=await r.json();if(current.error){setStatus(current.error,true);$('out').className='empty';$('out').textContent=current.error;return;}setStatus(`已返回 ${current.candidates?.length||0} 条`,false);render();}function kindClass(k){return ['legal','medical','technical','qa','prose'].includes(k)?k:'unknown';}function render(){$('out').className='';$('out').innerHTML=current.candidates.map(x=>`<article class=card><div class=cardhead><span class='chip rank-chip'>#${x.rank}</span><span class='kbadge ${kindClass(x.kind)}'>${escapeHtml(x.kind||'unknown')}</span><span class=checks><label class='good'><input type=checkbox data-r=rel value='${escapeHtml(x.chunk_id)}' onchange="toggle(this,'good')"> 相关</label><label class='bad'><input type=checkbox data-r=bad value='${escapeHtml(x.chunk_id)}' onchange="toggle(this,'bad')"> 噪声</label></span></div><div class=meta-row><span class=chip>分数 <b>${Number(x.score).toFixed(4)}</b></span>${x.page!=null?`<span class=chip>页 <b>${x.page}</b></span>`:''}${x.section_path&&x.section_path.length?`<span class=chip>${escapeHtml(x.section_path.join(' › '))}</span>`:''}</div><div class=docid>${escapeHtml(x.chunk_id||'')}</div><div class=text>${escapeHtml(x.text)}</div></article>`).join('');updateStats();}function toggle(box,kind){let card=box.closest('.card');let other=card.querySelector(`[data-r=${kind==='good'?'bad':'rel'}]`);if(box.checked){other.checked=false;other.closest('label').classList.remove('selected');}box.closest('label').classList.toggle('selected',box.checked);card.classList.toggle('selected-'+kind,box.checked);updateStats();}async function save(){if(!current)return alert('请先搜索');if(!document.querySelector('[data-r=rel]:checked')&&!confirm('未勾选任何「相关」chunk，保存后不会进入正式评测集。仍要保存吗？'))return;let ids=r=>[...document.querySelectorAll(`[data-r=${r}]:checked`)].map(x=>x.value);let body={...current,relevant_chunk_ids:ids('rel'),forbidden_chunk_ids:ids('bad'),expected_sections:[]};let r=await fetch('/api/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});let data=await r.json();setStatus(data.message||data.error,!!data.error);if(!data.error){clearResults();setStatus(data.message||'已保存并清空候选',false);}}async function validateCases(){let el=$('validate');setStatus('校验中…',false);clearResults();el.innerHTML='<div class="empty">校验中…</div>';let r=await fetch('/api/validate_cases',{method:'POST'});let d=await r.json();if(d.error){setStatus(d.error,true);el.innerHTML='';return;}setStatus(`校验完成：共 ${d.total} 条，${d.stale_cases} 条失效`,d.stale_cases>0||d.empty_relevant_cases>0);let issues=d.issues.filter(i=>i.stale_ids.length||i.empty_relevant);if(!issues.length){el.innerHTML=`<div class="validation-result good"><div style="font-weight:700;color:var(--good)">✓ 校验通过</div><div class=sub>共 ${d.total} 条用例，无失效 id、无空相关标注</div></div>`;return;}let html=`<div class="validation-result bad"><div style="font-weight:700;color:var(--bad)">✗ 发现 ${issues.length} 条问题：${d.stale_cases} 条含失效 id，${d.empty_relevant_cases} 条空相关</div></div>`;html+=issues.map(c=>`<div class=card><div class=cardhead><span class=badge style='background:#fdecee;color:var(--bad)'>${c.stale_ids.length?'失效':'空相关'}</span><b>${escapeHtml(c.query||'')}</b><span class=meta>${escapeHtml(c.id||'')}</span></div><div class=meta style=margin-top:6px>${c.stale_ids.length?('<span class=bad>失效 id: </span>'+escapeHtml(c.stale_ids.join(', '))):'<span class=bad>无 relevant_chunk_ids</span>'}</div></div>`).join('');el.innerHTML=html;}
+</style><div class=shell><header class=hero><div><div class=eyebrow>RETRIEVAL REVIEW</div><h1>检索评测工作台</h1><div class=sub>输入真实问题，查看候选结果并标注相关性</div></div><div class=sub>本地只读检索 · 审核后保存</div></header><section class=panel><div class=controls><textarea id=q class=query placeholder='例如：Agent 如何工作的？'></textarea><select id=topk class=select><option value=20>Top 20</option><option value=50>Top 50</option><option value=100>Top 100</option></select></div><div class=toolbar><button class='btn primary' onclick=search()>搜索候选</button><button class=btn onclick=save()>保存审核</button><button class='btn warn' onclick=validateCases()>校验评测集</button><span id=status class='status sub'></span></div></section><div id=validate></div><div id=stats class=stats></div><main id=out class=empty>输入问题后开始检索</main></div><script>let current=null;const $=id=>document.getElementById(id);function clearResults(){current=null;$('out').className='empty';$('out').textContent='搜索后显示候选结果';$('stats').innerHTML='';$('validate').innerHTML='';}function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}function setStatus(text,isErr){let el=$('status');el.textContent=text;el.className=isErr?'status err':'status '+(text&&!text.includes('…')?'ok':'sub');}function statCard(num,label,cls){return `<div class="stat ${cls||''}"><div class=num>${num}</div><div class=lbl>${label}</div></div>`;}function updateStats(){let rel=document.querySelectorAll('[data-r=rel]:checked').length,bad=document.querySelectorAll('[data-r=bad]:checked').length,total=current?.candidates?.length||0;$('stats').innerHTML=statCard(total,'候选')+statCard(rel,'相关','good')+statCard(bad,'噪声','bad')+statCard(Math.max(0,total-rel-bad),'待审核');}async function search(){let query=$('q').value.trim();if(!query)return alert('请输入问题');clearResults();setStatus('检索中…',false);let r=await fetch('/api/search',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({query,top_k:Number($('topk').value)})});current=await r.json();if(current.error){setStatus(current.error,true);$('out').className='empty';$('out').textContent=current.error;return;}setStatus(`已返回 ${current.candidates?.length||0} 条`,false);render();}function kindClass(k){return ['legal','medical','technical','qa','prose'].includes(k)?k:'unknown';}function stageBadges(cid){let s=(current.stage_rank||{})[cid]||{};let parts=[];for(let k of ['milvus','es','rrf','rerank']){let r=s[k];parts.push(r!=null?`${k.toUpperCase()}<b>#${r}</b>`:`${k.toUpperCase()}<b style=color:var(--muted)>-</b>`);}return `<span class='chip' style='background:#eef2ff'>${parts.join(' · ')}</span>`;}function renderGroup(key,label){let rows=(current.stages&&current.stages[key])||[];let title=`<div class=section-label>${label}（Top ${current.candidate_k}，共 ${rows.length} 条）</div>`;let cards=rows.map(x=>`<article class=card data-chunk='${escapeHtml(x.chunk_id||'')}'><div class=cardhead><span class='chip rank-chip'>#${x.rank}</span><span class='kbadge ${kindClass(x.kind)}'>${escapeHtml(x.kind||'unknown')}</span><span class=checks><label class='good'><input type=checkbox data-r=rel value='${escapeHtml(x.chunk_id||'')}' data-chunk='${escapeHtml(x.chunk_id||'')}' onchange="toggle(this,'good')"> 相关</label><label class='bad'><input type=checkbox data-r=bad value='${escapeHtml(x.chunk_id||'')}' data-chunk='${escapeHtml(x.chunk_id||'')}' onchange="toggle(this,'bad')"> 噪声</label></span></div><div class=meta-row>${stageBadges(x.chunk_id)}<span class=chip>分数 <b>${Number(x.score).toFixed(4)}</b></span>${x.page!=null?`<span class=chip>页 <b>${x.page}</b></span>`:''}${x.section_path&&x.section_path.length?`<span class=chip>${escapeHtml(x.section_path.join(' › '))}</span>`:''}</div><div class=docid>${escapeHtml(x.chunk_id||'')}</div><div class=text>${escapeHtml(x.text)}</div></article>`).join('');return title+cards;}function render(){$('out').className='';let groups=[['milvus','Milvus 向量（dense）'],['es','ES 全文（BM25）'],['rrf','RRF 融合'],['rerank','rerank 后（最终）']];$('out').innerHTML=groups.map(g=>renderGroup(g[0],g[1])).join('');updateStats();}function toggle(box,kind){let cid=box.dataset.chunk,same=box.checked;let cards=document.querySelectorAll(`.card[data-chunk="${CSS.escape(cid||'')}"]`);cards.forEach(card=>{let mine=card.querySelector(`[data-r=${kind}]`);let other=card.querySelector(`[data-r=${kind==='good'?'bad':'rel'}]`);if(mine){mine.checked=same;mine.closest('label').classList.toggle('selected',same);}if(other&&same){other.checked=false;other.closest('label').classList.remove('selected');}card.classList.toggle('selected-'+kind,same);});updateStats();}async function save(){if(!current)return alert('请先搜索');if(!document.querySelector('[data-r=rel]:checked')&&!confirm('未勾选任何「相关」chunk，保存后不会进入正式评测集。仍要保存吗？'))return;let ids=r=>[...document.querySelectorAll(`[data-r=${r}]:checked`)].map(x=>x.value);let body={...current,relevant_chunk_ids:ids('rel'),forbidden_chunk_ids:ids('bad'),expected_sections:[]};let r=await fetch('/api/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});let data=await r.json();setStatus(data.message||data.error,!!data.error);if(!data.error){clearResults();setStatus(data.message||'已保存并清空候选',false);}}async function validateCases(){let el=$('validate');setStatus('校验中…',false);clearResults();el.innerHTML='<div class="empty">校验中…</div>';let r=await fetch('/api/validate_cases',{method:'POST'});let d=await r.json();if(d.error){setStatus(d.error,true);el.innerHTML='';return;}setStatus(`校验完成：共 ${d.total} 条，${d.stale_cases} 条失效`,d.stale_cases>0||d.empty_relevant_cases>0);let issues=d.issues.filter(i=>i.stale_ids.length||i.empty_relevant);if(!issues.length){el.innerHTML=`<div class="validation-result good"><div style="font-weight:700;color:var(--good)">✓ 校验通过</div><div class=sub>共 ${d.total} 条用例，无失效 id、无空相关标注</div></div>`;return;}let html=`<div class="validation-result bad"><div style="font-weight:700;color:var(--bad)">✗ 发现 ${issues.length} 条问题：${d.stale_cases} 条含失效 id，${d.empty_relevant_cases} 条空相关</div></div>`;html+=issues.map(c=>`<div class=card><div class=cardhead><span class=badge style='background:#fdecee;color:var(--bad)'>${c.stale_ids.length?'失效':'空相关'}</span><b>${escapeHtml(c.query||'')}</b><span class=meta>${escapeHtml(c.id||'')}</span></div><div class=meta style=margin-top:6px>${c.stale_ids.length?('<span class=bad>失效 id: </span>'+escapeHtml(c.stale_ids.join(', '))):'<span class=bad>无 relevant_chunk_ids</span>'}</div></div>`).join('');el.innerHTML=html;}
 </script></html>""")
+
+def _row_to_item(row, rank):
+    """把策略返回的 row dict 转成前端展示用的 item。"""
+    return {
+        "rank": rank, "chunk_id": row.get("chunk_id"),
+        "score": float(row.get("score", 0.0)),
+        "document_id": row.get("document_id", ""), "page": row.get("page"),
+        "kind": row.get("kind"), "section_path": _as_section_path(row.get("section_path")),
+        "text": row.get("text", ""),
+    }
+
+
+def _as_section_path(value):
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return [value] if value else []
+    return list(value or [])
+
 
 @app.post("/api/search")
 def search(request: QueryRequest):
-    if not request.query.strip():
-        raise ValidationError("query 不能为空")
-    if request.mode not in {"dense", "hybrid"} or not 1 <= request.top_k <= 100:
+    if not request.query.strip() or not 1 <= request.top_k <= 100:
         raise ValidationError("参数无效")
     service = _ensure_retriever()
-    results = (service.execute(request.query, top_k=request.top_k) if request.mode == "dense"
-               else service.execute_hybrid(request.query, top_k=request.top_k))
-    candidates = []
-    for rank, item in enumerate(results, 1):
-        meta = item.metadata or {}
-        candidates.append({"rank": rank, "chunk_id": meta.get("chunk_id"), "score": item.score,
-            "document_id": item.document_id, "page": item.page, "kind": item.kind,
-            "section_path": list(item.section_path), "text": item.text})
-    return {"id": _case_id(request.query), "query": request.query,
-            "mode": request.mode, "candidate_k": request.top_k, "candidates": candidates}
+    query = request.query
+    # 统一走 hybrid：Milvus + ES → RRF → dedup → rerank。展示各阶段，不改变 retrieve.py。
+    pool = (max(request.top_k, service.rerank_pool) if service.reranker is not None
+            else request.top_k)
+    dense_rows = service.dense_strategy.retrieve(query, pool)
+    lexical_rows = service.lexical_strategy.retrieve(query, pool)
+    fused_rows = _rrf(dense_rows, lexical_rows)
+    deduped = service._dedup(fused_rows)
+    reranked = service._rerank(query, deduped)
+
+    stages = {
+        "milvus": [_row_to_item(row, rank) for rank, row in enumerate(dense_rows, 1)],
+        "es": [_row_to_item(row, rank) for rank, row in enumerate(lexical_rows, 1)],
+        "rrf": [_row_to_item(row, rank) for rank, row in enumerate(fused_rows, 1)],
+        "rerank": [_row_to_item(row, rank) for rank, row in enumerate(reranked, 1)],
+    }
+    # 记录每个 chunk 在各阶段出现的 rank 与 score。
+    rank_index = {"milvus": dense_rows, "es": lexical_rows, "rrf": fused_rows,
+                  "rerank": reranked}
+    stage_rank = {}
+    for stage_name, rows in rank_index.items():
+        for rank, row in enumerate(rows, 1):
+            cid = row.get("chunk_id")
+            if not cid:
+                continue
+            entry = stage_rank.setdefault(cid, {"milvus": None, "es": None, "rrf": None,
+                                                "rerank": None,
+                                                "milvus_score": None, "es_score": None,
+                                                "rrf_score": None, "rerank_score": None})
+            entry[stage_name] = rank
+            entry[f"{stage_name}_score"] = float(row.get("score", 0.0))
+    return {"id": _case_id(query), "query": query,
+            "candidate_k": request.top_k, "rerank_enabled": service.reranker is not None,
+            "stages": stages, "stage_rank": stage_rank,
+            "candidates": stages["rerank"]}
 
 @app.post("/api/save")
 def save(request: SaveRequest):
@@ -84,6 +129,9 @@ def save(request: SaveRequest):
     relevant = set(request.relevant_chunk_ids); forbidden = set(request.forbidden_chunk_ids)
     if not request.query.strip() or not relevant <= allowed or not forbidden <= allowed or relevant & forbidden:
         return {"error": "审核 ID 无效或相关/噪声重复"}
+    relevant_rankings = {
+        cid: request.stage_rank[cid] for cid in relevant if cid in request.stage_rank
+    }
     # 保存前校验所有勾选的 chunk 是否真实存在于向量库，阻止失效标注进入评测集。
     if relevant or forbidden:
         exists = _ensure_retriever().vectors.chunk_exists(relevant | forbidden)
@@ -95,7 +143,9 @@ def save(request: SaveRequest):
     # 同时按 id 和 query 去重：兼容旧 hash 生成的 id，避免同一问题重复条目。
     existing = [item for item in existing
                 if item.get("id") != request.id and item.get("query") != request.query]
-    existing.append(request.model_dump())
+    record = request.model_dump()
+    record["relevant_rankings"] = relevant_rankings
+    existing.append(record)
     temp = REVIEW_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(REVIEW_PATH)

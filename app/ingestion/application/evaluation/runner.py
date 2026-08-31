@@ -1,7 +1,6 @@
 from collections.abc import Iterable
 from typing import Protocol
 
-from ..query_analysis import analyze_query
 from ..retrieve import RetrievalResult
 from .models import RetrievalCase
 from .metrics import (hit_rate_at_k, noise_rate, recall_at_k, reciprocal_rank,
@@ -30,7 +29,6 @@ class RetrievalEvaluationRunner:
         retrieve = self._resolve(mode)
         details = []
         for case in cases:
-            kind = analyze_query(case.query).kind
             try:
                 results = list(retrieve(case.query, top_k=max(ks)) or ())
                 ids = [result_id(result) for result in results]
@@ -38,12 +36,12 @@ class RetrievalEvaluationRunner:
                     raise ValueError("检索结果缺少 chunk_id")
             except Exception as exc:
                 details.append({"case_id": case.case_id, "query": case.query,
-                                "query_kind": kind, "status": "error",
+                                "status": "error",
                                 "error": type(exc).__name__,
                                 "message": str(exc)})
                 continue
             item = {"case_id": case.case_id, "query": case.query,
-                    "query_kind": kind, "status": "ok", "returned_ids": ids}
+                    "status": "ok", "returned_ids": ids}
             for k in ks:
                 item.update({f"hit_rate@{k}": hit_rate_at_k(ids, case.relevant_chunk_ids, k),
                     f"recall@{k}": recall_at_k(ids, case.relevant_chunk_ids, k),
@@ -56,7 +54,7 @@ class RetrievalEvaluationRunner:
         ok = [item for item in details if item["status"] == "ok"]
         return {"cases": len(details), "errors": len(details) - len(ok),
                 "mode": mode, "metrics": _aggregate(ok, metric_names),
-                "by_kind": _by_kind(ok, metric_names), "details": details}
+                "details": details}
 
     def _resolve(self, mode: str):
         if not isinstance(mode, str) or mode not in _MODE_METHODS:
@@ -70,12 +68,3 @@ class RetrievalEvaluationRunner:
 def _aggregate(items, metric_names) -> dict:
     n = len(items) or 1
     return {key: sum(item[key] for item in items) / n for key in metric_names}
-
-
-def _by_kind(items, metric_names) -> dict:
-    report = {}
-    for kind in sorted({item["query_kind"] for item in items}):
-        group = [item for item in items if item["query_kind"] == kind]
-        report[kind] = {"cases": len(group),
-                        "metrics": _aggregate(group, metric_names)}
-    return report

@@ -58,20 +58,6 @@ def test_runner_rejects_unknown_mode():
             [RetrievalCase("x", "问题", frozenset({"ok"}))], mode="bm25")
 
 
-def test_runner_buckets_metrics_by_query_kind():
-    cases = [
-        RetrievalCase("exact", "第八条 规定了什么", frozenset({"ok"})),
-        RetrievalCase("section", "第一章 讲了什么", frozenset({"miss"})),
-        RetrievalCase("semantic", "什么是股权激励", frozenset({"miss"})),
-    ]
-    report = RetrievalEvaluationRunner(FakeRetriever()).run(cases, ks=(5,))
-    assert set(report["by_kind"]) == {"exact", "section", "semantic"}
-    assert report["by_kind"]["exact"]["cases"] == 1
-    assert report["by_kind"]["exact"]["metrics"]["recall@5"] == 1
-    assert report["by_kind"]["semantic"]["metrics"]["recall@5"] == 0
-    assert all(item["query_kind"] for item in report["details"])
-
-
 class FlakyRetriever:
     def execute(self, query, *, top_k=10, filter=""):
         if "失败" in query:

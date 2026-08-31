@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 from app.ingestion.application.evaluation.dataset import load_cases
 from app.ingestion.application.evaluation.runner import RetrievalEvaluationRunner
 from app.ingestion.application.retrieve import RetrieveDocuments
-from app.ingestion.bootstrap.container import build_ingestion
+from app.ingestion.bootstrap.container import build_ingestion, build_reranker
 from app.ingestion.bootstrap.logging import setup_logging
 
 
@@ -21,14 +21,20 @@ def main() -> int:
     parser.add_argument("--mode", choices=("dense", "hybrid"),
                         default="hybrid")
     parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument("--rerank", action="store_true",
+                        help="在召回后接入模型 rerank（需要 SILICONFLOW_API_KEY）")
+    parser.add_argument("--rerank-pool", type=int, default=100,
+                        help="送给 rerank 的候选池大小（默认 100）")
     parser.add_argument("--output")
     args = parser.parse_args()
     if args.top_k < 10:
         parser.error("--top-k 至少为 10，以同时计算 Recall@5 和 Recall@10")
     cases = load_cases(args.dataset)
     service = build_ingestion()
+    reranker = build_reranker() if args.rerank else None
     retriever = RetrieveDocuments(service.embedder, service.vectors,
-                                  lexical=service.lexical)
+                                  lexical=service.lexical, reranker=reranker,
+                                  rerank_pool=args.rerank_pool)
     ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
     report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks, mode=args.mode)
     report["dataset"] = str(args.dataset)
