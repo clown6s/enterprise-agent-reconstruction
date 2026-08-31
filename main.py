@@ -4,14 +4,30 @@ import anyio
 import structlog
 from fastapi import FastAPI, Request
 
+from app.ingestion.application.retrieve import RetrieveDocuments
+from app.ingestion.bootstrap.container import build_ingestion, build_reranker
 from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import setup_logging
+from app.chat.api.router import create_router
+from app.chat.bootstrap.container import build_chat
 
 setup_logging()
 logger = structlog.get_logger(__name__)
 
 app = FastAPI()
 register_exception_handlers(app)
+
+
+def _chat_service():
+    ingestion = build_ingestion()
+    retriever = RetrieveDocuments(
+        ingestion.embedder, ingestion.vectors,
+        lexical=ingestion.lexical, reranker=build_reranker(),
+    )
+    return build_chat(retriever=retriever)
+
+
+app.include_router(create_router(_chat_service))
 
 
 @app.middleware("http")

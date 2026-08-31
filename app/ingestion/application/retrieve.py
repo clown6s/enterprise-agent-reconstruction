@@ -11,6 +11,20 @@ from .retrieval_strategies import DenseRetrievalStrategy, LexicalRetrievalStrate
 logger = structlog.get_logger(__name__)
 
 
+def _read_rerank_min_score() -> float | None:
+    """读取可选的 rerank 最低分阈值，空值表示不做过滤。"""
+    raw = os.getenv("RERANK_MIN_SCORE", "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("RERANK_MIN_SCORE 必须是 0 到 1 之间的数字") from exc
+    if not 0 <= value <= 1:
+        raise ValueError("RERANK_MIN_SCORE 必须是 0 到 1 之间的数字")
+    return value
+
+
 @dataclass(frozen=True)
 class RetrievalResult:
     """单条召回结果及其来源信息。"""
@@ -59,6 +73,7 @@ class RetrieveDocuments:
         self.rerank_k = max(1, int(rerank_k if rerank_k is not None
                                    else os.getenv("RERANK_K", "100")))
         self.rerank_k = min(self.rerank_k, self.recall_k)  # rerank 池不能超过召回池
+        self.rerank_min_score = _read_rerank_min_score()
 
     def hybrid_stages(self, query: str, *, filter: str = "") -> HybridStages:
         """执行一次完整 hybrid 查询并保留各阶段结果。"""
@@ -142,6 +157,14 @@ class RetrieveDocuments:
             return rows, "fallback"
         ordered = [item for _, item in sorted(scored, key=lambda pair: pair[0],
                                               reverse=True)]
+        if self.rerank_min_score is not None:
+            kept = [item for item in ordered
+                    if float(item.get("score", 0.0)) >= self.rerank_min_score]
+            if len(kept) != len(ordered):
+                logger.info("rerank_min_score_filtered",
+                            min_score=self.rerank_min_score,
+                            kept=len(kept), dropped=len(ordered) - len(kept))
+                ordered = kept
         return ordered, "reranked"
 
     def close(self):
