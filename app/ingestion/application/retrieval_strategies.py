@@ -7,7 +7,7 @@ logger = structlog.get_logger(__name__)
 
 
 class DenseRetrievalStrategy:
-    def __init__(self, embedder, vectors, *, candidate_limit=100):
+    def __init__(self, embedder, vectors, *, candidate_limit=None):
         self.embedder = embedder
         self.vectors = vectors
         self.candidate_limit = candidate_limit
@@ -15,7 +15,8 @@ class DenseRetrievalStrategy:
     def retrieve(self, query: str, top_k: int, filter: str = ""):
         started = time.perf_counter()
         vector = self.embedder.embed_batch([query])[0]
-        candidates = min(self.candidate_limit, top_k)
+        candidates = (top_k if self.candidate_limit is None
+                      else min(self.candidate_limit, top_k))
         rows = self.vectors.search(vector, top_k=candidates, filter=filter)
         logger.info("retrieve_dense_done", top_k=top_k, candidates=candidates,
                     returned=len(rows),
@@ -24,13 +25,14 @@ class DenseRetrievalStrategy:
 
 
 class LexicalRetrievalStrategy:
-    def __init__(self, lexical, *, candidate_limit=100):
+    def __init__(self, lexical, *, candidate_limit=None):
         self.lexical = lexical
         self.candidate_limit = candidate_limit
 
     def retrieve(self, query: str, top_k: int, filter: str = ""):
         started = time.perf_counter()
-        candidates = min(self.candidate_limit, top_k)
+        candidates = (top_k if self.candidate_limit is None
+                      else min(self.candidate_limit, top_k))
         rows = self.lexical.search(query, top_k=candidates, filter=filter)
         logger.info("retrieve_lexical_done", top_k=top_k, candidates=candidates,
                     returned=len(rows),

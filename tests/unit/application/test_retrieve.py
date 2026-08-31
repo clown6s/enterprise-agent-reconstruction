@@ -85,3 +85,36 @@ def test_rerank_failure_falls_back_to_retrieval_order():
     rows = retriever.execute_hybrid("问题", top_k=3)
     # 调用失败不拖垮查询，退回召回序
     assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]
+
+
+class _RawReranker:
+    """逐字返回 ranking，不做任何清洗，用于验证应用层防御校验。"""
+
+    def __init__(self, ranking):
+        self.ranking = ranking
+
+    def rerank(self, query, texts, *, top_n):
+        return self.ranking
+
+
+def _retrieve_with_ranking(ranking):
+    retriever = RetrieveDocuments(FakeEmbedder(), FakeMultiVectors(),
+                                  lexical=FakeLexical(),
+                                  reranker=_RawReranker(ranking))
+    return retriever.execute_hybrid("问题", top_k=3)
+
+
+def test_rerank_out_of_range_index_falls_back():
+    # 候选只有 c1/c2/c3，返回越界下标 99
+    rows = _retrieve_with_ranking([(99, 0.9)])
+    assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]
+
+
+def test_rerank_duplicate_index_falls_back():
+    rows = _retrieve_with_ranking([(0, 0.9), (0, 0.8), (1, 0.7)])
+    assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]
+
+
+def test_rerank_incomplete_results_falls_back():
+    rows = _retrieve_with_ranking([(0, 0.9)])
+    assert [r.chunk_id for r in rows] == ["c1", "c2", "c3"]

@@ -142,8 +142,11 @@ class ElasticsearchTextStore:
 
     @_wrap_es_errors
     def search(self, query: str, *, top_k: int = 10, filter: str = "") -> list[dict]:
+        """全文检索。``filter`` 契约与向量侧一致：裸 document_id（32-64 位 hex）。"""
+        if filter and not _valid_document_id(filter):
+            raise ValueError("非法 document_id")
         body = {"size": top_k, "query": {"multi_match": {
-            "query": query, "fields": ["text^2", "search_text", "title"]}}}
+            "query": query, "fields": ["text", "search_text", "title"]}}}
         if filter:
             body["query"] = {"bool": {"must": [body["query"]],
                                         "filter": {"term": {"document_id": filter}}}}
@@ -159,6 +162,12 @@ def _source(row: dict) -> dict:
                "chunk_role", "continuation", "continuation_of", "continuation_index",
                "category", "entry", "question_number", "medical_item")
     return {key: _json_safe(row.get(key)) for key in allowed if key in row}
+
+
+def _valid_document_id(value: str) -> bool:
+    import re
+    return isinstance(value, str) and bool(
+        re.fullmatch(r"[A-Fa-f0-9]{32,64}", value))
 
 
 def _json_safe(value):

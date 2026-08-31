@@ -64,6 +64,7 @@ class _FakeMilvusClient:
         return {"delete_count": count}
 
     def search(self, collection_name, data, anns_field, limit, filter="", output_fields=None):
+        self.last_search_filter = filter
         return [[]]
 
 
@@ -120,4 +121,29 @@ def test_chunk_exists_dedups_and_handles_empty(monkeypatch):
     store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
     assert store.chunk_exists([]) == {}
     assert store.chunk_exists(["a:1", "a:1"]) == {"a:1": False}
+
+
+def test_search_accepts_bare_document_id_filter(monkeypatch):
+    monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient",
+                        lambda **kw: _FakeMilvusClient())
+    store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
+    doc = "0123456789abcdef0123456789abcdef"
+    store.search([0.1] * 4096, top_k=5, filter=doc)
+    assert store._client.last_search_filter == f'document_id == "{doc}"'
+
+
+def test_search_empty_filter_passes_no_expression(monkeypatch):
+    monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient",
+                        lambda **kw: _FakeMilvusClient())
+    store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
+    store.search([0.1] * 4096, top_k=5, filter="")
+    assert store._client.last_search_filter == ""
+
+
+def test_search_rejects_invalid_filter(monkeypatch):
+    monkeypatch.setattr("app.ingestion.adapters.milvus_vector_store.MilvusClient",
+                        lambda **kw: _FakeMilvusClient())
+    store = MilvusVectorStore(host="h", port=19530, database="d", collection="c", embedding_dim=4096)
+    with pytest.raises(ValueError, match="非法 document_id"):
+        store.search([0.1] * 4096, top_k=5, filter='document_id == "abc"')
 

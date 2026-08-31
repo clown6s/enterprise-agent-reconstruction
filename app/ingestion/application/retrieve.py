@@ -59,10 +59,11 @@ class RetrieveDocuments:
                                    else os.getenv("RERANK_K", "100")))
         self.rerank_k = min(self.rerank_k, self.recall_k)  # rerank 池不能超过召回池
 
-    def hybrid_stages(self, query: str, *, top_k: int = 10,
-                      filter: str = "") -> HybridStages:
+    def hybrid_stages(self, query: str, *, filter: str = "") -> HybridStages:
         """执行一次完整 hybrid 查询并保留各阶段结果。"""
-        query, top_k = self._validate(query, top_k)
+        if not isinstance(query, str):
+            raise TypeError("query 必须是字符串")
+        query = query.strip()
         if not query:
             return HybridStages([], [], [], [], "skipped")
         if self.lexical_strategy is None:
@@ -79,8 +80,9 @@ class RetrieveDocuments:
     def execute_hybrid(self, query: str, *, top_k: int = 10,
                        filter: str = "") -> list[RetrievalResult]:
         """执行完整 hybrid 检索并返回最终 Top-K。"""
-        stages = self.hybrid_stages(query, top_k=top_k, filter=filter)
-        if not query.strip():
+        query, top_k = self._validate(query, top_k)
+        stages = self.hybrid_stages(query, filter=filter)
+        if not query:
             return []
         rows = stages.rerank[:top_k]
         self._emit_metrics(len(stages.rrf), len(rows), top_k)
@@ -118,15 +120,25 @@ class RetrieveDocuments:
         texts = [str(row.get("text", "") or "") for row in rows]
         try:
             ranked = self.reranker.rerank(query, texts, top_n=len(rows))
-        except Exception as exc:  # 第三方接口失败不拖垮查询，退回召回序
+            scored = []
+            seen_indexes = set()
+            for item in ranked:
+                if not isinstance(item, (tuple, list)) or len(item) != 2:
+                    raise ValueError("reranker 返回了无效数据项")
+                index, score = item
+                if (isinstance(index, bool) or not isinstance(index, int)
+                        or not 0 <= index < len(rows) or index in seen_indexes):
+                    raise ValueError("reranker 返回了无效候选下标")
+                seen_indexes.add(index)
+                scored_item = dict(rows[index])
+                scored_item["score"] = float(score)
+                scored.append((float(score), scored_item))
+            if len(scored) != len(rows):
+                raise ValueError("reranker 返回数量不完整")
+        except Exception as exc:  # 第三方接口或响应异常不拖垮查询，退回召回序
             logger.warning("rerank_failed_fallback_to_retrieval_order",
                            error=str(exc), candidates=len(rows))
             return rows, "fallback"
-        scored = []
-        for index, score in ranked:
-            item = dict(rows[index])
-            item["score"] = float(score)
-            scored.append((float(score), item))
         ordered = [item for _, item in sorted(scored, key=lambda pair: pair[0],
                                               reverse=True)]
         return ordered, "reranked"

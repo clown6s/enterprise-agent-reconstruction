@@ -16,17 +16,6 @@ from .vector_row_factory import build_vector_rows
 logger = structlog.get_logger(__name__)
 
 
-def _search_text(chunk) -> str:
-    """为向量化补充章节/类别上下文，同时保留原始 chunk 文本。"""
-    context = " > ".join(chunk.section_path)
-    metadata = chunk.metadata
-    if metadata.get("category"):
-        context = f"{context} > {metadata['category']}" if context else metadata["category"]
-    if metadata.get("question_number") is not None:
-        context = f"{context} > 问题 {metadata['question_number']}" if context else f"问题 {metadata['question_number']}"
-    return f"上下文：{context}\n{chunk.text}" if context else chunk.text
-
-
 class IngestDocument:
     def __init__(self, parser: Parser, classifier: Classifier, chunker: ChunkerSelector,
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
