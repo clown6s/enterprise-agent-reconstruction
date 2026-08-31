@@ -6,11 +6,30 @@
 import queue
 import re
 import threading
+from functools import wraps
 
 import pymysql
 
 from ..application.ports import MetadataStore
+from ..domain.exceptions import MetadataStoreError
 from ..domain.models import DocumentSource
+
+
+def _wrap_mysql_errors(fn):
+    """把 MySQL 业务方法抛出的异常统一封装成 MetadataStoreError。
+
+    仅包装会与数据库交互的公共方法；构造时的参数校验（ValueError）
+    留在 __init__ 中，不被误判为基础设施故障。
+    """
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return fn(self, *args, **kwargs)
+        except MetadataStoreError:
+            raise
+        except Exception as exc:
+            raise MetadataStoreError(f"元数据存储(MySQL)调用失败: {type(exc).__name__}") from exc
+    return wrapper
 
 
 class MySQLMetadataStore:
@@ -126,6 +145,7 @@ class MySQLMetadataStore:
             cursor.execute(sql)
         conn.commit()
 
+    @_wrap_mysql_errors
     def find_by_document_id(self, document_id: str) -> dict | None:
         conn = self._acquire()
         try:
@@ -136,6 +156,7 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def find_by_sha(self, digest: str) -> dict | None:
         conn = self._acquire()
         try:
@@ -151,6 +172,7 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def claim(self, digest: str, document_id: str, source: DocumentSource,
               stale_after: int = 1800) -> bool:
         """原子认领摘要；失败或超时的 processing 记录可被重新认领。"""
@@ -184,6 +206,7 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def record(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None:
         conn = self._acquire()
         try:
@@ -202,6 +225,7 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def record_legacy(self, digest: str, document_id: str, source: DocumentSource, chunks: int) -> None:
         conn = self._acquire()
         try:
@@ -228,6 +252,7 @@ class MySQLMetadataStore:
         else:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def mark_failed(self, digest: str, document_id: str) -> None:
         conn = self._acquire()
         try:
@@ -242,6 +267,7 @@ class MySQLMetadataStore:
         finally:
             self._release(conn)
 
+    @_wrap_mysql_errors
     def delete_by_document_id(self, document_id: str) -> int:
         conn = self._acquire()
         try:

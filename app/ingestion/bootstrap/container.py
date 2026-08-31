@@ -9,6 +9,7 @@ from ..adapters.mysql_metadata_store import MySQLMetadataStore
 from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
 from ..adapters.elasticsearch_text_store import ElasticsearchTextStore
 from ..adapters.elasticsearch_synonyms import ElasticsearchSynonyms
+from ..domain.exceptions import ValidationError
 
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
@@ -26,7 +27,7 @@ from ..processing.parsers.docx import DocxParser
 from ..processing.parsers.pdf import PdfParser
 
 
-class ConfigurationError(RuntimeError):
+class ConfigurationError(ValidationError):
     """生产依赖配置不完整或互相矛盾。"""
 
 

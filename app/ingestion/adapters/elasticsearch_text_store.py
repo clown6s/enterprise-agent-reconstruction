@@ -1,4 +1,5 @@
 """Elasticsearch lexical-search adapter."""
+from functools import wraps
 from typing import Any
 
 try:
@@ -6,6 +7,27 @@ try:
 except ImportError:  # 允许未安装 ES 客户端时运行不启用 ES 的测试/命令。
     Elasticsearch = None
     helpers = None
+
+from ..domain.exceptions import ElasticsearchError
+
+
+def _wrap_es_errors(fn):
+    """把 ES 客户端抛出的异常统一封装成 ElasticsearchError，保留原始异常链。
+
+    仅包装真实的 IO/网络/ES 异常；业务校验抛出的 ValueError / KeyError /
+    TypeError 属于调用方输入问题，原样透传，不误判为基础设施故障。
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except ElasticsearchError:
+            raise
+        except (ValueError, KeyError, TypeError):
+            raise
+        except Exception as exc:
+            raise ElasticsearchError(f"Elasticsearch 调用失败: {type(exc).__name__}") from exc
+    return wrapper
 
 
 class ElasticsearchTextStore:
@@ -72,6 +94,7 @@ class ElasticsearchTextStore:
             if field.get("analyzer") != "text_index" or field.get("search_analyzer") != "text_search":
                 raise ValueError(f"ES index 字段 {name} IK mapping 不匹配")
 
+    @_wrap_es_errors
     def upsert(self, rows: list[dict]) -> bool:
         actions = [{"_op_type": "index", "_index": self._index,
                     "_id": row["chunk_id"], "_source": _source(row)} for row in rows]
@@ -83,17 +106,20 @@ class ElasticsearchTextStore:
             raise RuntimeError(f"ES 批量写入失败: {len(errors)} 条")
         return ok == len(actions)
 
+    @_wrap_es_errors
     def count_document(self, document_id: str) -> int:
         result = self._client.count(index=self._index,
                                      query={"term": {"document_id": document_id}})
         return int(result.get("count", 0))
 
+    @_wrap_es_errors
     def delete(self, document_id: str) -> int:
         result = self._client.delete_by_query(
             index=self._index, query={"term": {"document_id": document_id}},
             conflicts="proceed", refresh=True)
         return int(result.get("deleted", 0))
 
+    @_wrap_es_errors
     def search(self, query: str, *, top_k: int = 10, filter: str = "") -> list[dict]:
         body = {"size": top_k, "query": {"multi_match": {
             "query": query, "fields": ["text^2", "search_text", "title"]}}}

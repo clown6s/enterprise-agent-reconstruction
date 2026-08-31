@@ -6,6 +6,7 @@ from typing import Any
 from pymilvus import DataType, MilvusClient, MilvusClient as _MilvusClient
 
 from ..application.ports import VectorStore
+from ..domain.exceptions import MilvusError
 
 
 class MilvusVectorStore:
@@ -31,6 +32,19 @@ class MilvusVectorStore:
             kwargs["password"] = password
         self._client = MilvusClient(**kwargs)
         self._ensure_collection()
+
+    def _call(self, fn, *args, **kwargs):
+        """执行一次 Milvus 客户端调用，把 IO 异常封装成 MilvusError。
+
+        参数校验的 ValueError 留在各方法内部（调用本方法之前抛出），
+        不会被误判为基础设施故障。
+        """
+        try:
+            return fn(*args, **kwargs)
+        except MilvusError:
+            raise
+        except Exception as exc:
+            raise MilvusError(f"Milvus 调用失败: {type(exc).__name__}") from exc
 
     def _ensure_collection(self) -> None:
         if not self._client.has_collection(collection_name=self._collection):
@@ -72,7 +86,7 @@ class MilvusVectorStore:
         self._client.create_index(self._collection, index_params)
 
     def has_document(self, document_id: str) -> bool:
-        rows = self._client.query(self._collection, filter=f'document_id == "{_escape(document_id)}"', output_fields=["chunk_id", "document_id"], limit=1)
+        rows = self._call(self._client.query, self._collection, filter=f'document_id == "{_escape(document_id)}"', output_fields=["chunk_id", "document_id"], limit=1)
         return any(row.get("document_id") == document_id for row in rows)
 
     def insert(self, rows: list[dict]) -> bool:
@@ -87,13 +101,13 @@ class MilvusVectorStore:
             item["section_path"] = json.dumps(item.get("section_path", []), ensure_ascii=False)
             payload.append(item)
         # 使用 upsert 保证同一 document_id/index 重试时幂等，不产生重复主键。
-        result = self._client.upsert(self._collection, payload)
+        result = self._call(self._client.upsert, self._collection, payload)
         return result.get("upsert_count", len(payload)) == len(payload)
 
     def delete(self, document_id: str) -> int:
         if not _valid_document_id(document_id):
             raise ValueError("非法 document_id")
-        result = self._client.delete(self._collection, filter=f'document_id == "{_escape(document_id)}"')
+        result = self._call(self._client.delete, self._collection, filter=f'document_id == "{_escape(document_id)}"')
         return int(result.get("delete_count", 0))
 
     def search(self, vector: list[float], *, top_k: int = 10, filter: str = "") -> list[dict]:
@@ -103,8 +117,8 @@ class MilvusVectorStore:
             raise ValueError(f"查询向量维度必须为 {self._dim}")
         if filter and not _valid_filter(filter):
             raise ValueError("非法 Milvus 过滤条件")
-        result = self._client.search(self._collection, data=[vector], anns_field="dense", limit=top_k,
-                                     filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
+        result = self._call(self._client.search, self._collection, data=[vector], anns_field="dense", limit=top_k,
+                            filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
 
     def chunk_exists(self, chunk_ids: Iterable[str]) -> dict[str, bool]:
@@ -113,8 +127,8 @@ class MilvusVectorStore:
         found: set[str] = set()
         for batch in _batches(ids, 1000):
             expr = "chunk_id in [" + ",".join(f'"{_escape(item)}"' for item in batch) + "]"
-            rows = self._client.query(self._collection, filter=expr,
-                                      output_fields=["chunk_id"], limit=len(batch))
+            rows = self._call(self._client.query, self._collection, filter=expr,
+                              output_fields=["chunk_id"], limit=len(batch))
             found.update(row["chunk_id"] for row in rows)
         return {item: (item in found) for item in ids}
 

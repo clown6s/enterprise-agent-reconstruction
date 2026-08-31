@@ -9,12 +9,13 @@ import httpx
 import structlog
 
 from ..application.ports import Embedder
+from ..domain.exceptions import EmbeddingError
 
 
 logger = structlog.get_logger(__name__)
 
 
-class SiliconFlowError(RuntimeError):
+class SiliconFlowError(EmbeddingError):
     """通过 SiliconFlow 进行文本向量化失败时抛出的异常。"""
 
 

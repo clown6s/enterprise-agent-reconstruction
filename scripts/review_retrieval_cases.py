@@ -13,10 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.ingestion.application.retrieve import RetrieveDocuments
+from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import setup_logging
+from app.ingestion.domain.exceptions import ValidationError
 from app.ingestion.bootstrap.container import build_ingestion
 
 app = FastAPI(title="Retrieval Review")
+register_exception_handlers(app)
 REVIEW_PATH = ROOT / "tests" / "data" / "retrieval_review.json"
 CASES_PATH = ROOT / "tests" / "data" / "retrieval_cases.json"
 retriever = None
@@ -59,8 +62,10 @@ def index():
 
 @app.post("/api/search")
 def search(request: QueryRequest):
-    if not request.query.strip(): return {"error": "query 不能为空"}
-    if request.mode not in {"dense", "hybrid"} or not 1 <= request.top_k <= 100: return {"error": "参数无效"}
+    if not request.query.strip():
+        raise ValidationError("query 不能为空")
+    if request.mode not in {"dense", "hybrid"} or not 1 <= request.top_k <= 100:
+        raise ValidationError("参数无效")
     service = _ensure_retriever()
     results = (service.execute(request.query, top_k=request.top_k) if request.mode == "dense"
                else service.execute_hybrid(request.query, top_k=request.top_k))

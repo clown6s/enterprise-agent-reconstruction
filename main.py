@@ -4,12 +4,14 @@ import anyio
 import structlog
 from fastapi import FastAPI, Request
 
+from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import setup_logging
 
 setup_logging()
 logger = structlog.get_logger(__name__)
 
 app = FastAPI()
+register_exception_handlers(app)
 
 
 @app.middleware("http")
@@ -31,7 +33,7 @@ async def request_logging(request: Request, call_next):
             lambda: anyio.from_thread.run(call_next, request)
         )
     except Exception:
-        logger.exception("request_failed")
+        # 完整堆栈由全局 exception handler 统一记录，这里不再重复打印。
         raise
     response.headers["X-Trace-Id"] = trace_id
     logger.info("request_completed", status_code=response.status_code)

@@ -1,10 +1,11 @@
 """Pluggable chunker selection by classified document kind."""
 from collections.abc import Mapping
 
+from ..domain.exceptions import ValidationError
 from ..domain.models import ChunkRecord, DocumentSource, ParsedDocument
 
 
-class ChunkerSelectionError(ValueError):
+class ChunkerSelectionError(ValidationError):
     """Raised when no fallback chunker is configured."""
 
 

@@ -6,6 +6,8 @@ try:
 except ImportError:  # 允许未安装 ES 客户端时运行不启用 ES 的测试/命令。
     Elasticsearch = None
 
+from .elasticsearch_text_store import _wrap_es_errors
+
 
 class ElasticsearchSynonyms:
     """Manage an Elasticsearch synonym set without exposing client details."""
@@ -32,17 +34,20 @@ class ElasticsearchSynonyms:
             self._client = Elasticsearch(host, **kwargs)
         self._client.info()
 
+    @_wrap_es_errors
     def list_sets(self) -> list[dict]:
         """查询全部 Synonyms Set。"""
         response = self._client.synonyms.get_synonyms_sets()
         body = response.body if hasattr(response, "body") else response
         return list(body.get("results", []))
 
+    @_wrap_es_errors
     def get_set(self, set_id: str | None = None) -> dict:
         """查询单个 Synonyms Set。"""
         response = self._client.synonyms.get_synonym(id=set_id or self._set)
         return response.body if hasattr(response, "body") else dict(response)
 
+    @_wrap_es_errors
     def delete_set(self, set_id: str | None = None) -> None:
         """删除单个 Synonyms Set。"""
         self._client.synonyms.delete_synonym(id=set_id or self._set)
@@ -57,12 +62,14 @@ class ElasticsearchSynonyms:
     def list_rules(self) -> list[dict]:
         return list(self.get_set().get("synonyms_set", []))
 
+    @_wrap_es_errors
     def create_set(self, rules: list[dict] | None = None, set_id: str | None = None) -> None:
         """创建同义词集；已存在时由 ES 返回冲突错误。"""
         rules = rules or []
         self._validate_rules(rules)
         self._client.synonyms.put_synonym(id=set_id or self._set, synonyms_set=rules)
 
+    @_wrap_es_errors
     def replace_all(self, rules: list[dict]) -> None:
         self._validate_rules(rules)
         self._client.synonyms.put_synonym(id=self._set, synonyms_set=rules)
@@ -91,6 +98,7 @@ class ElasticsearchSynonyms:
             raise KeyError(f"同义词规则不存在: {rule_id}")
         self.replace_all(updated)
 
+    @_wrap_es_errors
     def reload(self, index: str | None = None) -> None:
         target = index or self._index
         self._client.indices.reload_search_analyzers(index=target)
