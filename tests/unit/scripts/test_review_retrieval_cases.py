@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import scripts.review_retrieval_cases as review
 from app.ingestion.application.retrieve import HybridStages
-from app.ingestion.application.retrieval_strategies import _rrf
+from app.ingestion.application.retrieval_strategies import rrf
 from scripts.review_retrieval_cases import SaveRequest, QueryRequest
 
 
@@ -49,7 +49,7 @@ class FakeRetriever:
     def hybrid_stages(self, query, *, top_k=10, filter=""):
         dense_rows = self.dense_strategy.retrieve(query, self.recall_k, filter)
         lexical_rows = self.lexical_strategy.retrieve(query, self.recall_k, filter)
-        fused = _rrf(dense_rows, lexical_rows)
+        fused = rrf(dense_rows, lexical_rows)
         deduped = self._dedup(fused)
         pool = deduped[:self.rerank_k]
         reranked = self._rerank(query, pool)

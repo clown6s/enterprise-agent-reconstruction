@@ -1,6 +1,6 @@
 """数据摄取用例所使用的端口；实现位于应用程序外部."""
 from typing import Protocol, Sequence
-from ..domain.models import ChunkRecord, DocumentSource, OcrTask, ParsedDocument
+from ..domain.models import ChunkRecord, ContentBlock, DocumentSource, OcrTask, ParsedDocument
 
 
 class Parser(Protocol):
@@ -31,6 +31,14 @@ class OcrProvider(Protocol):
 
 class Embedder(Protocol):
     def embed_batch(self, texts: Sequence[str]) -> list[list[float]]: ...
+
+
+class StructureAnalyzer(Protocol):
+    def analyze(self, blocks: Sequence[ContentBlock]) -> tuple[ContentBlock, ...]: ...
+
+
+class RetrievalStrategy(Protocol):
+    def retrieve(self, query: str, top_k: int, filter: str = "") -> list[dict]: ...
 
 
 class VectorStore(Protocol):

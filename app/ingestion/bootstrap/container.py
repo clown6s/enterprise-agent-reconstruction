@@ -1,8 +1,10 @@
-"""上传核心的统一依赖装配入口。"""
+"""上传核心的统一依赖装配入口（composition root）。
+
+只负责把 parser/chunker/adapter/用例装配起来；
+环境加载与配置校验统一委托给 config 模块。
+"""
 import os
 from collections.abc import Sequence
-
-from dotenv import load_dotenv
 
 from ..adapters.milvus_vector_store import MilvusVectorStore
 from ..adapters.mysql_metadata_store import MySQLMetadataStore
@@ -10,7 +12,6 @@ from ..adapters.siliconflow_embedding import SiliconFlowEmbedder
 from ..adapters.siliconflow_reranker import SiliconFlowReranker
 from ..adapters.elasticsearch_text_store import ElasticsearchTextStore
 from ..adapters.elasticsearch_synonyms import ElasticsearchSynonyms
-from ..domain.exceptions import ValidationError
 
 from ..application.ingest_document import IngestDocument
 from ..processing.chunker_registry import ChunkerRegistry
@@ -26,15 +27,19 @@ from ..processing.parsers.registry import ParserRegistry
 from ..processing.parsers.text import TextParser
 from ..processing.parsers.docx import DocxParser
 from ..processing.parsers.pdf import PdfParser
+from ..processing.structure_analyzer import IdentityStructureAnalyzer
 
+from .config import ConfigurationError, load_env, read_settings, validate_composition
 
-class ConfigurationError(ValidationError):
-    """生产依赖配置不完整或互相矛盾。"""
+# 兼容旧调用方：ConfigurationError 仍可从 container 模块访问。
+__all__ = ["build_ingestion", "build_reranker", "ConfigurationError"]
 
 
 class _NoopEmbedder:
     def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
         return [[0.0] for _ in texts]
+
+
 class _NoopVectors:
     def has_document(self, document_id: str) -> bool:
         return False
@@ -42,6 +47,8 @@ class _NoopVectors:
         return True
     def delete(self, document_id: str) -> int:
         return 0
+
+
 class _NoopMetadata:
     def find_by_sha(self, digest: str) -> dict | None:
         return None
@@ -55,10 +62,6 @@ class _NoopMetadata:
         return 0
     def mark_failed(self, digest: str, document_id: str) -> None:
         return None
-def _load_env() -> None:
-    """从项目根目录显式加载环境变量，避免依赖调用栈推断路径。"""
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    load_dotenv(os.path.join(project_root, ".env"))
 
 
 def build_parser():
@@ -77,7 +80,7 @@ def build_chunkers():
 
 def build_reranker():
     """按环境配置构造模型 reranker；配置不齐时返回 None（不启用）。"""
-    _load_env()
+    load_env()
     if not os.getenv("SILICONFLOW_API_KEY"):
         return None
     return SiliconFlowReranker(
@@ -91,36 +94,18 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
                     mode: str = "production"):
     if mode not in {"production", "test", "offline"}:
         raise ConfigurationError("mode 必须是 production、test 或 offline")
-    _load_env()
+    load_env()
+    settings = read_settings()
+    validate_composition(mode, settings, embedder=embedder, vectors=vectors,
+                         metadata=metadata)
+
     parser = build_parser()
     classifier = RegistryClassifier(default_profiles())
     chunkers = build_chunkers()
-    # 生产配置必须成组出现，避免“看似成功但数据没有保存”。
-    has_key = bool(os.getenv("SILICONFLOW_API_KEY"))
-    has_milvus = bool(os.getenv("MILVUS_HOST"))
-    has_es = bool(os.getenv("ES_HOST"))
-    # 真实依赖必须成组出现；禁止自定义依赖与 no-op 实现混用。
-    effective_embedder = embedder is not None or has_key
-    effective_vectors = vectors is not None or has_milvus
-    effective_lexical = has_es
-    if mode == "production" and not (effective_embedder and effective_vectors):
-        raise ConfigurationError("生产模式必须配置真实 Embedding 与向量库")
-    if effective_embedder != effective_vectors:
-        raise ConfigurationError("Embedding 与向量库必须同时配置")
-    if effective_vectors and not effective_lexical:
-        raise ConfigurationError("启用向量库时必须同时配置全文检索(ES_HOST)")
-    if effective_embedder and not (metadata is not None or os.getenv("MYSQL_HOST")):
-        raise ConfigurationError("Embedding、向量库与元数据存储必须同时配置")
-    if (has_key or has_milvus) and has_key != has_milvus:
-        raise ConfigurationError("SILICONFLOW_API_KEY 与 MILVUS_HOST 必须同时配置")
-    try:
-        embedding_dim = int(os.getenv("EMBEDDING_DIM", "4096"))
-    except ValueError as exc:
-        raise ConfigurationError("EMBEDDING_DIM 必须为整数") from exc
-    if embedding_dim <= 0:
-        raise ConfigurationError("EMBEDDING_DIM 必须为正数")
+
+    embedding_dim = settings.embedding_dim
     # 配置了 SiliconFlow Key 时启用真实 Embedding，否则回退到占位实现。
-    if embedder is None and has_key:
+    if embedder is None and settings.has_embedding_key:
         embedder = SiliconFlowEmbedder(
             os.environ["SILICONFLOW_API_KEY"],
             base_url=os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
@@ -128,7 +113,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             embedding_dim=embedding_dim,
         )
     # 配置了 Milvus 地址时启用真实向量库（仅 dense），否则回退到占位实现。
-    if vectors is None and os.getenv("MILVUS_HOST"):
+    if vectors is None and settings.has_milvus:
         vectors = MilvusVectorStore(
             host=os.environ["MILVUS_HOST"], port=int(os.getenv("MILVUS_PORT", "19530")),
             database=os.getenv("MILVUS_DB", "default"),
@@ -139,7 +124,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         )
     lexical = None
     synonyms = None
-    if has_es:
+    if settings.has_es:
         synonyms_set = os.getenv("ES_SYNONYMS_SET", "enterprise-retrieval-synonyms")
         lexical = ElasticsearchTextStore(
             host=os.environ["ES_HOST"], index=os.environ["ES_INDEX"],
@@ -155,7 +140,7 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
             timeout=float(os.getenv("ES_TIMEOUT", "10")),
             synonyms_set=synonyms_set,
         )
-    if metadata is None and os.getenv("MYSQL_HOST"):
+    if metadata is None and settings.has_mysql:
         metadata = MySQLMetadataStore(
             host=os.environ["MYSQL_HOST"], port=int(os.getenv("MYSQL_PORT", "3306")),
             user=os.getenv("MYSQL_USER", "root"),
@@ -172,4 +157,5 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         lexical=lexical,
         synonyms=synonyms,
         embedding_dim=embedding_dim,
+        structure_analyzer=IdentityStructureAnalyzer(),
     )

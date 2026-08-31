@@ -1,7 +1,6 @@
 """Pure deterministic policies for ingestion."""
 import hashlib
 import os
-import re
 
 DEFAULT_MAX_FILE_BYTES = 50 * 1024 * 1024
 
@@ -28,8 +27,3 @@ def validate_size(size: int, maximum: int = DEFAULT_MAX_FILE_BYTES) -> None:
         raise ValueError("文件大小不能为负数")
     if size > maximum:
         raise ValueError(f"文件超过 {maximum // (1024 * 1024)}MB 上限，请拆分后上传。")
-
-
-def archive_extension(filename: str | None) -> str:
-    ext = normalized_extension(filename)
-    return ext if re.fullmatch(r"[a-z0-9]{1,8}", ext or "") else "bin"

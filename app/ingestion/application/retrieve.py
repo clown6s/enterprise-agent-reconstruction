@@ -5,8 +5,8 @@ from typing import Any, Callable
 
 import structlog
 
-from .ports import Embedder
-from .retrieval_strategies import DenseRetrievalStrategy, LexicalRetrievalStrategy, _rrf
+from .ports import Embedder, RetrievalStrategy
+from .retrieval_strategies import DenseRetrievalStrategy, LexicalRetrievalStrategy, rrf
 
 logger = structlog.get_logger(__name__)
 
@@ -43,7 +43,8 @@ class RetrieveDocuments:
 
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
-                 dense_strategy=None, lexical_strategy=None,
+                 dense_strategy: RetrievalStrategy | None = None,
+                 lexical_strategy: RetrievalStrategy | None = None,
                  lexical=None, reranker=None,
                  recall_k: int | None = None, rerank_k: int | None = None):
         self.embedder = embedder
@@ -70,7 +71,7 @@ class RetrieveDocuments:
             raise ValueError("未配置全文检索存储")
         dense_rows = self.dense_strategy.retrieve(query, self.recall_k, filter)
         lexical_rows = self.lexical_strategy.retrieve(query, self.recall_k, filter)
-        fused_rows = _rrf(dense_rows, lexical_rows)
+        fused_rows = rrf(dense_rows, lexical_rows)
         deduped_rows = self._dedup(fused_rows)
         pool_rows = deduped_rows[:self.rerank_k]  # 只送 RERANK_K 给 rerank
         reranked_rows, rerank_status = self._rerank(query, pool_rows)

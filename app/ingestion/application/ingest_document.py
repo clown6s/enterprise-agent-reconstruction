@@ -7,7 +7,8 @@ import structlog
 
 from ..domain.models import DocumentSource, IngestionResult, IngestionStatus, OcrStatus
 from ..domain.policies import document_title, sha256, validate_size
-from .ports import Classifier, ChunkerSelector, Embedder, EventPublisher, MetadataStore, OcrProvider, Parser, VectorStore
+from .ports import (Classifier, ChunkerSelector, Embedder, EventPublisher,
+                    MetadataStore, OcrProvider, Parser, StructureAnalyzer, VectorStore)
 from .document_preparation import DocumentPreparation
 from .embedding_service import EmbeddingService
 from .ingestion_persistence import IngestionPersistence
@@ -21,13 +22,15 @@ class IngestDocument:
                  embedder: Embedder, vectors: VectorStore, metadata: MetadataStore,
                  lexical=None, ocr: OcrProvider | None = None,
                  events: EventPublisher | None = None, max_file_bytes: int = 50 * 1024 * 1024,
-                 embedding_dim: int | None = None, synonyms=None):
+                 embedding_dim: int | None = None, synonyms=None,
+                 structure_analyzer: StructureAnalyzer | None = None):
         self.parser, self.classifier, self.chunker = parser, classifier, chunker
         self.embedder, self.vectors, self.metadata = embedder, vectors, metadata
         self.lexical = lexical
         self.synonyms = synonyms
         self.ocr, self.events = ocr, events
-        self.preparation = DocumentPreparation(parser, classifier, ocr)
+        self.structure_analyzer = structure_analyzer
+        self.preparation = DocumentPreparation(parser, classifier, ocr, structure_analyzer)
         self.embedding_service = EmbeddingService(embedder, embedding_dim)
         self.persistence = IngestionPersistence(vectors, metadata, lexical)
         if embedding_dim is not None and embedding_dim <= 0:

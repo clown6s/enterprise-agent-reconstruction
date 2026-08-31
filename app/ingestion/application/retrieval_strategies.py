@@ -40,7 +40,7 @@ class LexicalRetrievalStrategy:
         return rows
 
 
-def _rrf(dense_rows, lexical_rows, rrf_k=60, lexical_weight=1.0):
+def rrf(dense_rows, lexical_rows, rrf_k=60, lexical_weight=1.0):
     fused = {}
     for source_rows, weight in ((dense_rows, 1.0), (lexical_rows, lexical_weight)):
         for rank, row in enumerate(source_rows, 1):
@@ -52,3 +52,7 @@ def _rrf(dense_rows, lexical_rows, rrf_k=60, lexical_weight=1.0):
     for item in fused.values():
         item["score"] = item.pop("_rrf_score")
     return sorted(fused.values(), key=lambda row: row["score"], reverse=True)
+
+
+# 兼容旧调用方；新代码应使用公开的 rrf。
+_rrf = rrf

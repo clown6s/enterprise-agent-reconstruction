@@ -32,8 +32,8 @@ def test_empty_query_returns_no_results():
 
 
 def test_rrf_score_ignores_raw_backend_scores():
-    from app.ingestion.application.retrieval_strategies import _rrf
-    rows = _rrf(
+    from app.ingestion.application.retrieval_strategies import rrf
+    rows = rrf(
         [{"chunk_id": "dense", "score": 0.01}],
         [{"chunk_id": "lexical", "score": 9999}],
         lexical_weight=0.05,
