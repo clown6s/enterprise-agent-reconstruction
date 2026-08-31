@@ -1,7 +1,6 @@
 """Run a retrieval evaluation dataset against the configured read-only retriever."""
 import argparse
 import json
-import os
 from pathlib import Path
 import sys
 
@@ -29,8 +28,7 @@ def main() -> int:
     cases = load_cases(args.dataset)
     service = build_ingestion()
     retriever = RetrieveDocuments(service.embedder, service.vectors,
-                                  lexical=service.lexical,
-                                  lexical_weight=float(os.getenv("ES_LEXICAL_WEIGHT", "0.25")))
+                                  lexical=service.lexical)
     ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
     report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks, mode=args.mode)
     report["dataset"] = str(args.dataset)

@@ -1,4 +1,5 @@
 """文档向量检索用例。"""
+import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -33,14 +34,13 @@ class RetrieveDocuments:
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
                  dense_strategy=None, hybrid_strategy=None, lexical_strategy=None,
-                 router=None, lexical=None, lexical_weight=0.25):
+                 router=None, lexical=None):
         self.embedder = embedder
         self.vectors = vectors
         self.metrics = metrics
         self.dense_strategy = dense_strategy or DenseRetrievalStrategy(embedder, vectors)
         self.hybrid_strategy = hybrid_strategy or (
-            HybridRetrievalStrategy(embedder, vectors, lexical,
-                                    lexical_weight=lexical_weight))
+            HybridRetrievalStrategy(embedder, vectors, lexical))
         self.lexical_strategy = lexical_strategy or (
             LexicalRetrievalStrategy(lexical) if lexical is not None else None)
         self.router = router or DefaultRetrievalRouter()
@@ -76,7 +76,13 @@ class RetrieveDocuments:
 
     @staticmethod
     def _lexical_weight(kind: str) -> float:
-        return {"exact": 0.50, "section": 0.35, "semantic": 0.05}.get(kind, 0.05)
+        """按 query 类型返回 ES 融合权重；三档默认值可用环境变量覆盖。"""
+        weights = {
+            "exact": float(os.getenv("ES_LEXICAL_WEIGHT_EXACT", "0.50")),
+            "section": float(os.getenv("ES_LEXICAL_WEIGHT_SECTION", "0.35")),
+            "semantic": float(os.getenv("ES_LEXICAL_WEIGHT_SEMANTIC", "0.05")),
+        }
+        return weights.get(kind, weights["semantic"])
 
     @staticmethod
     def _validate(query: str, top_k: int):
