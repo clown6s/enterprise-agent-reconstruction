@@ -5,8 +5,7 @@ from typing import Any, Callable
 import structlog
 
 from .ports import Embedder
-from .retrieval_strategies import (DenseRetrievalStrategy, HybridRetrievalStrategy,
-                                  LexicalRetrievalStrategy)
+from .retrieval_strategies import DenseRetrievalStrategy, LexicalRetrievalStrategy, _rrf
 
 logger = structlog.get_logger(__name__)
 
@@ -24,6 +23,15 @@ class RetrievalResult:
     metadata: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class HybridStages:
+    """一次 hybrid 查询的各阶段结果，供查询与审核工作台复用。"""
+    milvus: list[dict]
+    es: list[dict]
+    rrf: list[dict]
+    rerank: list[dict]
+
+
 class RetrieveDocuments:
     """使用与入库相同的 Embedder 和向量库检索文档。
 
@@ -33,32 +41,42 @@ class RetrieveDocuments:
 
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
-                 dense_strategy=None, hybrid_strategy=None, lexical_strategy=None,
+                 dense_strategy=None, lexical_strategy=None,
                  lexical=None, reranker=None, rerank_pool: int = 100):
         self.embedder = embedder
         self.vectors = vectors
         self.metrics = metrics
         self.dense_strategy = dense_strategy or DenseRetrievalStrategy(embedder, vectors)
-        self.hybrid_strategy = hybrid_strategy or (
-            HybridRetrievalStrategy(embedder, vectors, lexical))
         self.lexical_strategy = lexical_strategy or (
             LexicalRetrievalStrategy(lexical) if lexical is not None else None)
         self.reranker = reranker
         self.rerank_pool = max(1, int(rerank_pool))
 
-    def execute_hybrid(self, query: str, *, top_k: int = 10,
-                       filter: str = "") -> list[RetrievalResult]:
-        """执行 Milvus dense + Elasticsearch 全文检索的混合检索。"""
+    def hybrid_stages(self, query: str, *, top_k: int = 10,
+                      filter: str = "") -> HybridStages:
+        """执行一次完整 hybrid 查询并保留各阶段结果。"""
         query, top_k = self._validate(query, top_k)
         if not query:
-            return []
+            return HybridStages([], [], [], [])
         if self.lexical_strategy is None:
             raise ValueError("未配置全文检索存储")
-        candidates = self.rerank_pool if self.reranker is not None else top_k
-        rows = self.hybrid_strategy.retrieve(query, candidates, filter)
-        rows = self._rerank(query, self._dedup(rows))
-        self._emit_metrics(len(rows), len(rows[:top_k]), top_k)
-        return self._results(rows[:top_k])
+        candidates = max(top_k, self.rerank_pool) if self.reranker is not None else top_k
+        dense_rows = self.dense_strategy.retrieve(query, candidates, filter)
+        lexical_rows = self.lexical_strategy.retrieve(query, candidates, filter)
+        fused_rows = _rrf(dense_rows, lexical_rows)
+        deduped_rows = self._dedup(fused_rows)
+        reranked_rows = self._rerank(query, deduped_rows)
+        return HybridStages(dense_rows, lexical_rows, fused_rows, reranked_rows)
+
+    def execute_hybrid(self, query: str, *, top_k: int = 10,
+                       filter: str = "") -> list[RetrievalResult]:
+        """执行完整 hybrid 检索并返回最终 Top-K。"""
+        stages = self.hybrid_stages(query, top_k=top_k, filter=filter)
+        if not query.strip():
+            return []
+        rows = stages.rerank[:top_k]
+        self._emit_metrics(len(stages.rrf), len(rows), top_k)
+        return self._results(rows)
 
     @staticmethod
     def _validate(query: str, top_k: int):

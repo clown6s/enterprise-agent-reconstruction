@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
 import scripts.review_retrieval_cases as review
+from app.ingestion.application.retrieve import HybridStages
+from app.ingestion.application.retrieval_strategies import _rrf
 from scripts.review_retrieval_cases import SaveRequest, QueryRequest
 
 
@@ -42,6 +44,14 @@ class FakeRetriever:
     def _rerank(self, query, rows):
         ranked = self.reranker.rerank(query, [r["text"] for r in rows], top_n=len(rows))
         return [{**rows[i], "score": score} for i, score in ranked]
+
+    def hybrid_stages(self, query, *, top_k=10, filter=""):
+        dense_rows = self.dense_strategy.retrieve(query, max(top_k, self.rerank_pool), filter)
+        lexical_rows = self.lexical_strategy.retrieve(query, max(top_k, self.rerank_pool), filter)
+        fused = _rrf(dense_rows, lexical_rows)
+        deduped = self._dedup(fused)
+        reranked = self._rerank(query, deduped)
+        return HybridStages(dense_rows, lexical_rows, fused, reranked)
 
 
 def test_search_returns_all_hybrid_stages(monkeypatch):
