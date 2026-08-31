@@ -55,13 +55,15 @@ class IngestDocument:
             return IngestionResult(IngestionStatus.REJECTED, filename, source.size, message=str(exc))
         digest = sha256(source.content)
         with self._claims_lock:
+            # 单机部署：无跨实例仲裁，claim 只承担去重/失败重试。
             claim = getattr(self.metadata, "claim", None)
             if callable(claim) and not claim(digest, digest[:32], source):
+                # claim 拒绝说明该摘要已有记录；单机下唯一原因是已入库（重复上传）。
                 existing = self.metadata.find_by_sha(digest)
-                if existing:
-                    if existing.get("status") == "processing":
-                        return IngestionResult(IngestionStatus.PENDING, filename, source.size, existing.get("docId"), existing.get("chunks", 0), message="文档正在由其他实例处理")
+                if existing and existing.get("status") == "ingested":
                     return IngestionResult(IngestionStatus.DUPLICATE, filename, source.size, existing.get("docId"), existing.get("chunks", 0))
+                # claim=False 却无 ingested 记录属异常态：不再静默继续，
+                # 交由下方 has_document 去重检查兜底。
             existing = self.metadata.find_by_sha(digest)
             existing_document_id = existing.get("docId") if existing else None
             if existing_document_id and self.vectors.has_document(existing_document_id):

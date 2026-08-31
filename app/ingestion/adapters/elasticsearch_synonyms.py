@@ -103,6 +103,13 @@ class ElasticsearchSynonyms:
         target = index or self._index
         self._client.indices.reload_search_analyzers(index=target)
 
+    def close(self) -> None:
+        """释放 Elasticsearch 客户端持有的连接。"""
+        client = getattr(self, "_client", None)
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
     @staticmethod
     def _validate_rules(rules: list[dict]) -> None:
         if not isinstance(rules, list):

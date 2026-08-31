@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
 from fastapi import FastAPI
@@ -18,17 +19,20 @@ from app.ingestion.bootstrap.logging import setup_logging
 from app.ingestion.domain.exceptions import ValidationError
 from app.ingestion.bootstrap.container import build_ingestion, build_reranker
 
-app = FastAPI(title="Retrieval Review")
+review_retriever = None
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    if review_retriever is not None:
+        review_retriever.close()
+
+
+app = FastAPI(title="Retrieval Review", lifespan=lifespan)
 register_exception_handlers(app)
 REVIEW_PATH = ROOT / "tests" / "data" / "retrieval_review.json"
 CASES_PATH = ROOT / "tests" / "data" / "retrieval_cases.json"
-retriever = None
-
-
-@app.on_event("shutdown")
-def close_retriever():
-    if retriever is not None:
-        retriever.close()
 
 
 class QueryRequest(BaseModel):
@@ -53,12 +57,12 @@ def _case_id(query: str) -> str:
 
 
 def _ensure_retriever():
-    global retriever
-    if retriever is None:
+    global review_retriever
+    if review_retriever is None:
         service = build_ingestion()
-        retriever = RetrieveDocuments(service.embedder, service.vectors,
+        review_retriever = RetrieveDocuments(service.embedder, service.vectors,
             lexical=service.lexical, reranker=build_reranker())
-    return retriever
+    return review_retriever
 
 @app.get("/", response_class=HTMLResponse)
 def index():

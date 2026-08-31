@@ -49,8 +49,7 @@ class _NoopMetadata:
         return None
     def record(self, digest: str, document_id: str, source, chunks: int) -> None:
         return None
-    def claim(self, digest: str, document_id: str, source,
-              stale_after: int = 1800) -> bool:
+    def claim(self, digest: str, document_id: str, source) -> bool:
         return True
     def delete_by_document_id(self, document_id: str) -> int:
         return 0
@@ -114,7 +113,10 @@ def build_ingestion(*, embedder=None, vectors=None, metadata=None, originals=Non
         raise ConfigurationError("Embedding、向量库与元数据存储必须同时配置")
     if (has_key or has_milvus) and has_key != has_milvus:
         raise ConfigurationError("SILICONFLOW_API_KEY 与 MILVUS_HOST 必须同时配置")
-    embedding_dim = int(os.getenv("EMBEDDING_DIM", "4096"))
+    try:
+        embedding_dim = int(os.getenv("EMBEDDING_DIM", "4096"))
+    except ValueError as exc:
+        raise ConfigurationError("EMBEDDING_DIM 必须为整数") from exc
     if embedding_dim <= 0:
         raise ConfigurationError("EMBEDDING_DIM 必须为正数")
     # 配置了 SiliconFlow Key 时启用真实 Embedding，否则回退到占位实现。

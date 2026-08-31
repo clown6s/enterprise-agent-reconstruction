@@ -1,4 +1,5 @@
 """文档向量检索用例。"""
+import os
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -43,7 +44,8 @@ class RetrieveDocuments:
     def __init__(self, embedder: Embedder, vectors,
                  metrics: Callable[[dict], None] | None = None,
                  dense_strategy=None, lexical_strategy=None,
-                 lexical=None, reranker=None, rerank_pool: int = 100):
+                 lexical=None, reranker=None,
+                 recall_k: int | None = None, rerank_k: int | None = None):
         self.embedder = embedder
         self.vectors = vectors
         self.metrics = metrics
@@ -51,7 +53,11 @@ class RetrieveDocuments:
         self.lexical_strategy = lexical_strategy or (
             LexicalRetrievalStrategy(lexical) if lexical is not None else None)
         self.reranker = reranker
-        self.rerank_pool = max(1, int(rerank_pool))
+        self.recall_k = max(1, int(recall_k if recall_k is not None
+                                   else os.getenv("RECALL_K", "100")))
+        self.rerank_k = max(1, int(rerank_k if rerank_k is not None
+                                   else os.getenv("RERANK_K", "100")))
+        self.rerank_k = min(self.rerank_k, self.recall_k)  # rerank 池不能超过召回池
 
     def hybrid_stages(self, query: str, *, top_k: int = 10,
                       filter: str = "") -> HybridStages:
@@ -61,12 +67,12 @@ class RetrieveDocuments:
             return HybridStages([], [], [], [], "skipped")
         if self.lexical_strategy is None:
             raise ValueError("未配置全文检索存储")
-        candidates = max(top_k, self.rerank_pool) if self.reranker is not None else top_k
-        dense_rows = self.dense_strategy.retrieve(query, candidates, filter)
-        lexical_rows = self.lexical_strategy.retrieve(query, candidates, filter)
+        dense_rows = self.dense_strategy.retrieve(query, self.recall_k, filter)
+        lexical_rows = self.lexical_strategy.retrieve(query, self.recall_k, filter)
         fused_rows = _rrf(dense_rows, lexical_rows)
         deduped_rows = self._dedup(fused_rows)
-        reranked_rows, rerank_status = self._rerank(query, deduped_rows)
+        pool_rows = deduped_rows[:self.rerank_k]  # 只送 RERANK_K 给 rerank
+        reranked_rows, rerank_status = self._rerank(query, pool_rows)
         return HybridStages(dense_rows, lexical_rows, fused_rows, reranked_rows,
                             rerank_status)
 

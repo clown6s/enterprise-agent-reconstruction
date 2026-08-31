@@ -21,8 +21,6 @@ def main() -> int:
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--rerank", action="store_true",
                         help="在召回后接入模型 rerank（需要 SILICONFLOW_API_KEY）")
-    parser.add_argument("--rerank-pool", type=int, default=100,
-                        help="送给 rerank 的候选池大小（默认 100）")
     parser.add_argument("--output")
     args = parser.parse_args()
     if args.top_k < 10:
@@ -31,8 +29,7 @@ def main() -> int:
     service = build_ingestion()
     reranker = build_reranker() if args.rerank else None
     retriever = RetrieveDocuments(service.embedder, service.vectors,
-                                  lexical=service.lexical, reranker=reranker,
-                                  rerank_pool=args.rerank_pool)
+                                  lexical=service.lexical, reranker=reranker)
     try:
         ks = (5, 10) if args.top_k == 10 else tuple(sorted({5, 10, args.top_k}))
         report = RetrievalEvaluationRunner(retriever).run(cases, ks=ks)

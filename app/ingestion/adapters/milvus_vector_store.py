@@ -121,6 +121,13 @@ class MilvusVectorStore:
                             filter=filter, output_fields=["chunk_id", "document_id", "text", "page", "kind", "section_path"])
         return [dict(item["entity"], score=item["distance"]) for item in (result[0] if result else [])]
 
+    def close(self) -> None:
+        """释放 Milvus 客户端持有的连接。"""
+        client = getattr(self, "_client", None)
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
     def chunk_exists(self, chunk_ids: Iterable[str]) -> dict[str, bool]:
         """返回 {chunk_id: 是否在库中}。批量按 primary key 查询，供评测标注校验。"""
         ids = list(dict.fromkeys(chunk_ids))

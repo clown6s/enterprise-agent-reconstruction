@@ -32,7 +32,8 @@ class FakeRetriever:
         self.dense_strategy = FakeStrategy(dense)
         self.lexical_strategy = FakeStrategy(lexical)
         self.reranker = FakeReranker()
-        self.rerank_pool = 100
+        self.recall_k = 100
+        self.rerank_k = 100
 
     @staticmethod
     def _dedup(rows):
@@ -46,11 +47,12 @@ class FakeRetriever:
         return [{**rows[i], "score": score} for i, score in ranked]
 
     def hybrid_stages(self, query, *, top_k=10, filter=""):
-        dense_rows = self.dense_strategy.retrieve(query, max(top_k, self.rerank_pool), filter)
-        lexical_rows = self.lexical_strategy.retrieve(query, max(top_k, self.rerank_pool), filter)
+        dense_rows = self.dense_strategy.retrieve(query, self.recall_k, filter)
+        lexical_rows = self.lexical_strategy.retrieve(query, self.recall_k, filter)
         fused = _rrf(dense_rows, lexical_rows)
         deduped = self._dedup(fused)
-        reranked = self._rerank(query, deduped)
+        pool = deduped[:self.rerank_k]
+        reranked = self._rerank(query, pool)
         return HybridStages(dense_rows, lexical_rows, fused, reranked)
 
 

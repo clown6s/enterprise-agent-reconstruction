@@ -81,6 +81,10 @@ class ElasticsearchTextStore:
                 "page": {"type": "integer"},
                 "page_end": {"type": "integer"},
                 "kind": {"type": "keyword"},
+                "category": {"type": "keyword"},
+                "entry": {"type": "keyword"},
+                "question_number": {"type": "keyword"},
+                "medical_item": {"type": "keyword"},
             }})
             return
         mapping = indices.get_mapping(index=self._index)
@@ -120,6 +124,23 @@ class ElasticsearchTextStore:
         return int(result.get("deleted", 0))
 
     @_wrap_es_errors
+    def delete_chunks(self, chunk_ids: list[str]) -> int:
+        """按 chunk_id 精确删除，避免抹掉同文档其他批次的数据。"""
+        if not chunk_ids:
+            return 0
+        result = self._client.delete_by_query(
+            index=self._index, query={"terms": {"chunk_id": chunk_ids}},
+            conflicts="proceed", refresh=True)
+        return int(result.get("deleted", 0))
+
+    def close(self) -> None:
+        """释放 Elasticsearch 客户端持有的连接。"""
+        client = getattr(self, "_client", None)
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
+    @_wrap_es_errors
     def search(self, query: str, *, top_k: int = 10, filter: str = "") -> list[dict]:
         body = {"size": top_k, "query": {"multi_match": {
             "query": query, "fields": ["text^2", "search_text", "title"]}}}
@@ -135,7 +156,8 @@ class ElasticsearchTextStore:
 def _source(row: dict) -> dict:
     allowed = ("chunk_id", "document_id", "text", "search_text", "title",
                "article", "section_path", "page", "page_end", "kind",
-               "chunk_role", "continuation", "continuation_of", "continuation_index")
+               "chunk_role", "continuation", "continuation_of", "continuation_index",
+               "category", "entry", "question_number", "medical_item")
     return {key: _json_safe(row.get(key)) for key in allowed if key in row}
 
 

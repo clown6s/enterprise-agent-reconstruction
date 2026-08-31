@@ -52,6 +52,7 @@ class MySQLMetadataStore:
         self._created = 0
         self._active = 0
         self._closed = False
+        self._ddl_done = False
         self._lock = threading.Lock()
         self._condition = threading.Condition(self._lock)
 
@@ -121,6 +122,9 @@ class MySQLMetadataStore:
             pass
 
     def _create_table_if_missing(self, conn) -> None:
+        with self._lock:
+            if self._ddl_done:
+                return
         sql = f"""
             CREATE TABLE IF NOT EXISTS `{self._table}` (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -144,6 +148,8 @@ class MySQLMetadataStore:
         with conn.cursor() as cursor:
             cursor.execute(sql)
         conn.commit()
+        with self._lock:
+            self._ddl_done = True
 
     @_wrap_mysql_errors
     def find_by_document_id(self, document_id: str) -> dict | None:
@@ -173,9 +179,12 @@ class MySQLMetadataStore:
             self._release(conn)
 
     @_wrap_mysql_errors
-    def claim(self, digest: str, document_id: str, source: DocumentSource,
-              stale_after: int = 1800) -> bool:
-        """原子认领摘要；失败或超时的 processing 记录可被重新认领。"""
+    def claim(self, digest: str, document_id: str, source: DocumentSource) -> bool:
+        """幂等认领摘要：允许对 failed/进行中的记录重新认领重试。
+
+        单机部署下不维护跨实例租约；仅靠 sha256 唯一键去重，并让失败记录
+        可被下次重试覆盖。
+        """
         conn = self._acquire()
         try:
             self._create_table_if_missing(conn)
@@ -191,11 +200,12 @@ class MySQLMetadataStore:
                     return True
                 except pymysql.err.IntegrityError:
                     conn.rollback()
+                    # 已存在：ingested 记录不会被命中（返回 False，上层判 DUPLICATE）；
+                    # failed/processing 记录重置为 processing，允许重试。
                     cursor.execute(
-                        f"UPDATE `{self._table}` SET document_id=%s, status='processing', updated_at=CURRENT_TIMESTAMP "
-                        f"WHERE sha256=%s AND status IN ('failed','processing') "
-                        f"AND (status='failed' OR updated_at < DATE_SUB(NOW(), INTERVAL %s SECOND))",
-                        (document_id, digest, int(stale_after)),
+                        f"UPDATE `{self._table}` SET status='processing', updated_at=CURRENT_TIMESTAMP "
+                        f"WHERE sha256=%s AND status IN ('failed','processing')",
+                        (digest,),
                     )
                     claimed = cursor.rowcount == 1
                     conn.commit()

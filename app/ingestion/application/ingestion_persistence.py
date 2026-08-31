@@ -17,6 +17,8 @@ class IngestionPersistence:
     def persist(self, rows, digest, document_id, source, chunk_count):
         vector_written = False
         lexical_written = False
+        # 本次写入的 chunk 集合：补偿时按 chunk_id 精确回滚，避免误删同文档其他批次。
+        chunk_ids = [row["chunk_id"] for row in rows if row.get("chunk_id")]
         try:
             started = time.perf_counter()
             logger.info("persist_milvus_start", document_id=document_id, row_count=len(rows))
@@ -44,7 +46,12 @@ class IngestionPersistence:
             cleanup_errors = []
             if lexical_written:
                 try:
-                    self.lexical.delete(document_id)
+                    delete_chunks = getattr(self.lexical, "delete_chunks", None)
+                    if chunk_ids and callable(delete_chunks):
+                        delete_chunks(chunk_ids)
+                    else:
+                        # 兼容未实现 delete_chunks 的实现，回退到整文档删除。
+                        self.lexical.delete(document_id)
                 except Exception as cleanup_exc:
                     cleanup_errors.append(f"全文库补偿删除失败:{type(cleanup_exc).__name__}")
             if vector_written:
