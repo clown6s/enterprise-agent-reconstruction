@@ -1,0 +1,17 @@
+# Elasticsearch 日志数据源；地址和证书通过环境变量/部署密钥替换
+apiVersion: 1
+
+datasources:
+  - name: Elasticsearch Logs
+    uid: es-logs
+    type: elasticsearch
+    access: proxy
+    url: ${ES_LOG_URL}
+    database: "[enterprise-agent-logs-]YYYY.MM.DD"
+    editable: false
+    jsonData:
+      timeField: "@timestamp"
+      interval: Daily
+      esVersion: "8.0.0"
+    secureJsonData:
+      basicAuthPassword: ${ES_LOG_PASSWORD}

@@ -1,4 +1,6 @@
 """SOP query and execution orchestration against the SOP store and engine."""
+from contextlib import nullcontext
+
 from ...domain.exceptions import SopError
 from ...domain.models import ChatMessage, ChatResult, ChatStatus, Citation, Intent
 from ...security.context_boundary import build_messages, sanitize_answer
@@ -12,12 +14,17 @@ class SopService:
     def __init__(self, store: SopStore, llm: LLM,
                  retriever: DocumentRetriever | None = None,
                  engine: SopEngine | None = None,
-                 context_builder: ContextBuilder | None = None):
+                 context_builder: ContextBuilder | None = None,
+                 trace_provider=None):
         self.store = store
         self.llm = llm
         self.retriever = retriever
         self.engine = engine or SopEngine()
         self.context_builder = context_builder or ContextBuilder()
+        self.trace_provider = trace_provider
+
+    def _span(self, name: str, **attributes):
+        return self.trace_provider.span(name, **attributes) if self.trace_provider else nullcontext()
 
     def handle(self, query: str, conversation_id: str,
                history: list[ChatMessage] | None = None,
@@ -88,7 +95,8 @@ class SopService:
             content += "需要输入：" + "；".join(step.inputs) + "\n"
         messages = build_messages([], f"请基于 SOP 说明当前步骤和所需操作", content)
         try:
-            raw = self.llm.chat(messages)
+            with self._span("sop.llm_explain"):
+                raw = self.llm.chat(messages)
         except Exception as exc:
             from ...domain.exceptions import LlmError
             raise LlmError(f"LLM 解释 SOP 失败: {type(exc).__name__}") from exc

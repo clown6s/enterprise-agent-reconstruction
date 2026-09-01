@@ -1,6 +1,7 @@
 """NL2SQL: candidate generation -> guard -> read-only execution -> explanation."""
 import json
 import re
+from contextlib import nullcontext
 
 from ...domain.exceptions import LlmError, SqlGenerationError, SqlPolicyError
 from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
@@ -13,24 +14,29 @@ _SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
 
 
 class Nl2SqlService:
+    def _span(self, name: str, **attributes):
+        return self.trace_provider.span(name, **attributes) if self.trace_provider else nullcontext()
+
     def __init__(self, llm: LLM, catalog: SchemaCatalog,
                  executor: ReadonlySqlExecutor, *, timeout_s: float = 10.0,
-                 max_rows: int = 1000):
+                 max_rows: int = 1000, trace_provider=None):
         self.llm = llm
         self.catalog = catalog
         self.executor = executor
         self.timeout_s = timeout_s
         self.max_rows = max_rows
+        self.trace_provider = trace_provider
 
     def answer(self, query: str, conversation_id: str,
                context: RequestContext | None = None,
                state=None) -> ChatResult:
         context = context or RequestContext()
-        domain = (getattr(state, "last_domain", None)
-                  if (state is not None and self.catalog.describe(
-                      state.last_domain, context=context)) else None)
-        if domain is None:
-            domain = self.catalog.resolve_domain(query, context=context)
+        with self._span("nl2sql.resolve_domain"):
+            domain = (getattr(state, "last_domain", None)
+                      if (state is not None and self.catalog.describe(
+                          state.last_domain, context=context)) else None)
+            if domain is None:
+                domain = self.catalog.resolve_domain(query, context=context)
         if domain is None:
             return ChatResult(
                 answer="无法确定要查询的数据域，请说明是订单、采购还是其他业务数据。",
@@ -38,8 +44,9 @@ class Nl2SqlService:
                 conversation_id=conversation_id, warnings=("domain_unknown",),
                 trace_id=context.trace_id,
             )
-        schema = self.catalog.describe(domain, context=context)
-        allowed = self.catalog.allowed_tables(domain, context=context)
+        with self._span("nl2sql.load_schema"):
+            schema = self.catalog.describe(domain, context=context)
+            allowed = self.catalog.allowed_tables(domain, context=context)
         prompt = (
             f"数据域：{domain}\n{schema}\n"
             "要求：只生成单条 SELECT；只能使用上述表和字段；必须给出时间或过滤条件；"
@@ -48,16 +55,19 @@ class Nl2SqlService:
         )
         messages = [ChatMessage("system", SYSTEM_POLICY), ChatMessage("user", prompt)]
         try:
-            raw = self.llm.chat(messages)
+            with self._span("nl2sql.llm_generate"):
+                raw = self.llm.chat(messages)
         except Exception as exc:
             raise LlmError(f"LLM 生成 SQL 失败: {type(exc).__name__}") from exc
         sql = self._extract_sql(raw)
         if not sql:
             raise SqlGenerationError("LLM 未返回合法 SQL")
-        sql = validate_sql(sql, allowed_tables=allowed)
+        with self._span("nl2sql.validate_sql"):
+            sql = validate_sql(sql, allowed_tables=allowed)
         try:
-            result = self.executor.query(sql, timeout_s=self.timeout_s,
-                                         max_rows=self.max_rows)
+            with self._span("nl2sql.execute_sql"):
+                result = self.executor.query(sql, timeout_s=self.timeout_s,
+                                             max_rows=self.max_rows)
         except Exception as exc:
             raise SqlPolicyError(f"只读查询失败: {type(exc).__name__}") from exc
         explanation = self._explain(query, domain, result)
@@ -91,6 +101,7 @@ class Nl2SqlService:
                         f"共 {result.row_count} 行。请用中文简洁解释结果，只依据给定数据。"),
         ]
         try:
-            return self.llm.chat(messages)
+            with self._span("nl2sql.llm_explain"):
+                return self.llm.chat(messages)
         except Exception as exc:
             raise LlmError(f"LLM 解释结果失败: {type(exc).__name__}") from exc

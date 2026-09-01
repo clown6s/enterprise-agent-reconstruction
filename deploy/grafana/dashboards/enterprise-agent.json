@@ -1,0 +1,46 @@
+{
+  "title": "Enterprise Agent",
+  "uid": "enterprise-agent",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "请求速率",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(rate(chat_requests_total[5m]))", "legendFormat": "requests/s"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "LLM 调用耗时",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(llm_duration_seconds_bucket[5m])) by (le, kind))", "legendFormat": "p95 {{kind}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "请求状态",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "sum(rate(chat_requests_total[5m])) by (status)", "legendFormat": "{{status}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "意图分布",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "sum(rate(chat_intent_total[5m])) by (intent)", "legendFormat": "{{intent}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "RAG 召回数量",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rag_retrieved_items_bucket[5m])) by (le))", "legendFormat": "p95 items"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "限流拒绝",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [{"expr": "sum(rate(rate_limited_total[5m])) by (scope)", "legendFormat": "{{scope}}"}]
+    }
+  ]
+}

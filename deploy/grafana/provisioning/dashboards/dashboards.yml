@@ -1,0 +1,12 @@
+# Grafana 仪表盘自动加载配置
+apiVersion: 1
+
+providers:
+  - name: enterprise-agent
+    orgId: 1
+    folder: Enterprise Agent
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,109 @@
+# 企业智能体及可观测性服务编排
+services:
+  enterprise-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-agent
+    env_file:
+      - .env
+    environment:
+      # 容器内通过服务名访问 OTel，不要写宿主机 localhost
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+      OTEL_SERVICE_NAME: enterprise-agent
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
+    ports:
+      - "8000:8000"
+    volumes:
+      - prometheus_multiproc:/tmp/prometheus
+    depends_on:
+      otel-collector:
+        condition: service_started
+    networks:
+      - enterprise_backend
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: enterprise-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      enterprise-agent:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    networks:
+      - enterprise_backend
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.133.0
+    container_name: enterprise-otel-collector
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    volumes:
+      - ./deploy/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_started
+    networks:
+      - enterprise_backend
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    container_name: enterprise-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./deploy/observability/tempo.yml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - enterprise_backend
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: enterprise-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?请在 .env 设置 GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+      tempo:
+        condition: service_started
+    networks:
+      - enterprise_backend
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
+  prometheus_multiproc:
+
+networks:
+  enterprise_backend:
+    name: enterprise_backend
+    driver: bridge

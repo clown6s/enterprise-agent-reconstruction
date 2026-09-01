@@ -1,5 +1,6 @@
 """HTTP adapter for the chat application."""
 from dataclasses import asdict
+import time
 from typing import Callable
 
 from fastapi import APIRouter, Depends, Request
@@ -29,7 +30,8 @@ def _anonymous_principal(_request: Request):
 
 
 def create_router(service_provider: Callable[[], ChatService],
-                  principal_provider: Callable[[Request], object] | None = None) -> APIRouter:
+                  principal_provider: Callable[[Request], object] | None = None,
+                  rate_limiter=None, usage_meter=None) -> APIRouter:
     router = APIRouter(prefix="/chat", tags=["chat"])
     principal_dependency = principal_provider or _anonymous_principal
 
@@ -40,6 +42,12 @@ def create_router(service_provider: Callable[[], ChatService],
     def chat(http_request: Request, request: ChatRequest,
              chat: ChatService = Depends(service),
              principal=Depends(principal_dependency)):
+        if rate_limiter is not None:
+            key = (f"{principal.tenant_id}:{principal.user_id}"
+                   if principal is not None else http_request.client.host)
+            if not rate_limiter.allow(key):
+                from fastapi import HTTPException
+                raise HTTPException(status_code=429, detail="请求过于频繁，请稍后重试")
         if principal is None:
             # Backward-compatible direct test/fake construction.
             context = RequestContext(
@@ -54,9 +62,21 @@ def create_router(service_provider: Callable[[], ChatService],
                             if principal.expires_at else None),
                 department_ids=principal.department_ids,
             )
-        return _serialize(chat.ask(
+        started = time.perf_counter()
+        result = chat.ask(
             request.question, conversation_id=request.conversation_id,
             confirmed=request.confirmed, context=context,
-        ))
+        )
+        if usage_meter is not None:
+            try:
+                usage_meter.record(
+                    f"{context.tenant_id}:{context.user_id}",
+                    input_chars=len(request.question), output_chars=len(result.answer),
+                    duration_ms=int((time.perf_counter() - started) * 1000),
+                )
+            except Exception:
+                # Metrics must never turn a successful answer into a failure.
+                pass
+        return _serialize(result)
 
     return router

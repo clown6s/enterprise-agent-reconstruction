@@ -23,6 +23,7 @@ from ..application.nl2sql.nl2sql_service import Nl2SqlService
 from ..application.question_resolver import QuestionResolver
 from ..application.rag_answerer import RagAnswerer
 from ..application.sop.sop_service import SopService
+from app.observability.trace_provider import OtelTraceProvider
 
 
 def build_chat(*, retriever, llm=None, conversation=None,
@@ -33,6 +34,7 @@ def build_chat(*, retriever, llm=None, conversation=None,
     llm = llm or OpenAiCompatChat(
         settings.api_key, base_url=settings.base_url, model=settings.model,
         temperature=settings.temperature, max_tokens=settings.max_tokens,
+        timeout=settings.llm_timeout, max_retries=settings.llm_max_retries,
     )
     if conversation is None or sop_store is None or schema_catalog is None:
         if storage.backend == "mysql":
@@ -63,11 +65,14 @@ def build_chat(*, retriever, llm=None, conversation=None,
     )
     chat_retriever = IngestionRetriever(retriever)
     context_builder = ContextBuilder(max_chunks=settings.top_k)
+    trace_provider = OtelTraceProvider()
     return ChatService(
         router=RuleIntentRouter(), conversation=conversation,
-        rag=RagAnswerer(chat_retriever, llm, context_builder),
-        sop=SopService(sop_store, llm, chat_retriever, context_builder=context_builder),
-        nl2sql=Nl2SqlService(llm, schema_catalog, sql_executor),
+        rag=RagAnswerer(chat_retriever, llm, context_builder, trace_provider),
+        sop=SopService(sop_store, llm, chat_retriever,
+                      context_builder=context_builder, trace_provider=trace_provider),
+        nl2sql=Nl2SqlService(llm, schema_catalog, sql_executor,
+                             trace_provider=trace_provider),
         audit=audit,
         session_state=session_state,
         question_resolver=question_resolver or QuestionResolver(llm),

@@ -11,6 +11,11 @@ class ChatSettings:
     temperature: float = 0.2
     max_tokens: int = 1024
     top_k: int = 5
+    llm_timeout: float = 90.0
+    llm_max_retries: int = 2
+    max_concurrency: int = 16
+    rate_limit: int = 60
+    rate_window_seconds: int = 60
 
 
 @dataclass(frozen=True)
@@ -42,14 +47,26 @@ class McpSettings:
 
 
 def read_settings() -> ChatSettings:
-    return ChatSettings(
+    settings = ChatSettings(
         api_key=os.getenv("DEEPSEEK_API_KEY", os.getenv("SILICONFLOW_API_KEY", "")),
         base_url=os.getenv("CHAT_BASE_URL", "https://api.deepseek.com/v1"),
         model=os.getenv("CHAT_MODEL", "deepseek-chat"),
         temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
         max_tokens=int(os.getenv("CHAT_MAX_TOKENS", "1024")),
         top_k=max(1, int(os.getenv("CHAT_TOP_K", "5"))),
+        llm_timeout=float(os.getenv("CHAT_LLM_TIMEOUT", "90")),
+        llm_max_retries=max(0, int(os.getenv("CHAT_LLM_MAX_RETRIES", "2"))),
+        max_concurrency=max(1, int(os.getenv("CHAT_MAX_CONCURRENCY", "16"))),
+        rate_limit=max(1, int(os.getenv("CHAT_RATE_LIMIT", "60"))),
+        rate_window_seconds=max(1, int(os.getenv("CHAT_RATE_WINDOW", "60"))),
     )
+    if not 0 <= settings.temperature <= 2:
+        raise ValueError("CHAT_TEMPERATURE 必须在 0 到 2 之间")
+    if settings.max_tokens < 1 or settings.max_tokens > 100000:
+        raise ValueError("CHAT_MAX_TOKENS 超出范围")
+    if settings.llm_timeout <= 0 or settings.llm_timeout > 600:
+        raise ValueError("CHAT_LLM_TIMEOUT 必须在 0 到 600 秒之间")
+    return settings
 
 
 def read_storage_settings() -> StorageSettings:

@@ -10,8 +10,30 @@ class _FreshMetadata:
         return None
 
 
+class _FixedDimEmbedder:
+    """匹配测试默认 embedder 维度，避免依赖 .env 的 EMBEDDING_DIM。"""
+    def __init__(self, dim=4096):
+        self._dim = dim
+
+    def embed_batch(self, texts):
+        return [[0.0] * self._dim for _ in texts]
+
+
+class _FakeVectors:
+    def has_document(self, document_id):
+        return False
+
+    def insert(self, rows):
+        return True
+
+    def delete(self, document_id):
+        return 0
+
+
 def _service():
-    return build_ingestion(metadata=_FreshMetadata(), mode="test")
+    return build_ingestion(metadata=_FreshMetadata(), mode="test",
+                           embedder=_FixedDimEmbedder(),
+                           vectors=_FakeVectors())
 
 
 def test_container_wires_parser_classifier_and_chunker_registry():

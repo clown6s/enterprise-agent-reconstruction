@@ -1,6 +1,7 @@
 """RAG execution: retrieve -> bounded context -> LLM -> citations."""
 import json
 import re
+from contextlib import nullcontext
 
 from ..domain.models import (ChatMessage, ChatResult, ChatStatus, Citation,
                              CitationAudit, Intent)
@@ -14,16 +15,22 @@ from .ports import DocumentRetriever, LLM
 
 class RagAnswerer:
     def __init__(self, retriever: DocumentRetriever, llm: LLM,
-                 context_builder: ContextBuilder | None = None):
+                 context_builder: ContextBuilder | None = None,
+                 trace_provider=None):
         self.retriever = retriever
         self.llm = llm
         self.context_builder = context_builder or ContextBuilder()
+        self.trace_provider = trace_provider
 
     def answer(self, query: str, conversation_id: str,
                history: list[ChatMessage] | None = None,
                context: RequestContext | None = None) -> ChatResult:
         context = context or RequestContext()
-        items = self.retriever.retrieve(query, top_k=self.context_builder.max_chunks)
+        retrieval_span = (self.trace_provider.span(
+            "rag.retrieve", top_k=self.context_builder.max_chunks)
+            if self.trace_provider else nullcontext())
+        with retrieval_span:
+            items = self.retriever.retrieve(query, top_k=self.context_builder.max_chunks)
         context_text, citations = self.context_builder.build(items)
         if not citations:
             return ChatResult(
@@ -39,8 +46,11 @@ class RagAnswerer:
                   "answer 不得包含 [n] 引用编号；used_citations 只能填实际使用的片段编号。\n"
                   + context_text)
         messages = build_messages(history or [], query, prompt)
+        llm_span = (self.trace_provider.span("rag.llm_generate")
+                    if self.trace_provider else nullcontext())
         try:
-            raw = self.llm.chat(messages)
+            with llm_span:
+                raw = self.llm.chat(messages)
         except Exception as exc:
             raise LlmError(f"LLM 回答失败: {type(exc).__name__}") from exc
         answer, used, grounded, parse_warnings = self._parse_response(raw, len(citations))

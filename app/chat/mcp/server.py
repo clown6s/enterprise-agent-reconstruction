@@ -33,9 +33,18 @@ def _request_context(ctx, auth) -> RequestContext:
     )
 
 
-def build_server(service, *, auth=None, policy: McpPolicy | None = None) -> "MCPServer":
-    """Create an MCP server bound to a service and verified auth service."""
+def build_server(service, *, auth=None, policy: McpPolicy | None = None,
+                rate_limiter=None) -> "MCPServer":
+    """Create an MCP server with verified identity and optional rate limiting."""
     from mcp.server.mcpserver import Context, MCPServer
+
+    def request_context_and_limit(ctx, tool_name):
+        context = _request_context(ctx, auth)
+        if rate_limiter is not None:
+            key = f"{context.tenant_id}:{context.user_id}:{tool_name}"
+            if not rate_limiter.allow(key):
+                raise PermissionError("MCP 请求过于频繁，请稍后重试")
+        return context
 
     policy = policy or McpPolicy()
     tools = ChatTools(service)
@@ -47,7 +56,7 @@ def build_server(service, *, auth=None, policy: McpPolicy | None = None) -> "MCP
                            confirmed: bool = False, ctx: Context | None = None) -> dict:
             return await tools.chat_ask(
                 question, conversation_id, confirmed,
-                context=_request_context(ctx, auth),
+                context=request_context_and_limit(ctx, "chat_ask"),
             )
 
     if "document_search" in policy.enabled_tools:
@@ -55,7 +64,7 @@ def build_server(service, *, auth=None, policy: McpPolicy | None = None) -> "MCP
         async def document_search(query: str, top_k: int = 5,
                                   ctx: Context | None = None) -> dict:
             return await tools.document_search(
-                query, top_k, context=_request_context(ctx, auth))
+                query, top_k, context=request_context_and_limit(ctx, "document_search"))
 
     if "sop_get_step" in policy.enabled_tools:
         @server.tool()
@@ -64,7 +73,7 @@ def build_server(service, *, auth=None, policy: McpPolicy | None = None) -> "MCP
                                ctx: Context | None = None) -> dict:
             return await tools.sop_get_step(
                 query, conversation_id, confirmed,
-                context=_request_context(ctx, auth),
+                context=request_context_and_limit(ctx, "sop_get_step"),
             )
 
     if "readonly_sql_query" in policy.enabled_tools:
@@ -72,16 +81,17 @@ def build_server(service, *, auth=None, policy: McpPolicy | None = None) -> "MCP
         async def readonly_sql_query(question: str,
                                      ctx: Context | None = None) -> dict:
             return await tools.readonly_sql_query(
-                question, context=_request_context(ctx, auth))
+                question, context=request_context_and_limit(ctx, "readonly_sql_query"))
 
     return server
 
 
 def build_http_app(service, *, auth=None, policy: McpPolicy | None = None,
-                   path: str = "/", stateless: bool = False,
+                   rate_limiter=None, path: str = "/", stateless: bool = False,
                    host: str = "127.0.0.1", max_request_body_size: int = 4 * 1024 * 1024):
     """Return a Streamable HTTP ASGI app for mounting under ``/mcp``."""
-    server = build_server(service, auth=auth, policy=policy)
+    server = build_server(service, auth=auth, policy=policy,
+                          rate_limiter=rate_limiter)
     return server.streamable_http_app(
         streamable_http_path=path,
         stateless_http=stateless,

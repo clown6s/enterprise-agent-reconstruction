@@ -6,6 +6,7 @@ import httpx
 from ..application.ports import LLM
 from ..domain.exceptions import LlmError
 from ..domain.models import ChatMessage
+from app.observability.tracing import span
 
 
 class OpenAiCompatChat:
@@ -36,6 +37,11 @@ class OpenAiCompatChat:
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
         }
+        with span("llm.chat", kind="completion", model=self._model,
+                  status="attempt"):
+            return self._chat_with_span(payload)
+
+    def _chat_with_span(self, payload: dict) -> str:
         response = None
         for attempt in range(self._max_retries + 1):
             try:
