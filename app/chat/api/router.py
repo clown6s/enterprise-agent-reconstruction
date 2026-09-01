@@ -24,18 +24,36 @@ def _serialize(result: ChatResult) -> dict:
     return payload
 
 
-def create_router(service_provider: Callable[[], ChatService]) -> APIRouter:
+def _anonymous_principal(_request: Request):
+    return None
+
+
+def create_router(service_provider: Callable[[], ChatService],
+                  principal_provider: Callable[[Request], object] | None = None) -> APIRouter:
     router = APIRouter(prefix="/chat", tags=["chat"])
+    principal_dependency = principal_provider or _anonymous_principal
 
     def service() -> ChatService:
         return service_provider()
 
     @router.post("")
     def chat(http_request: Request, request: ChatRequest,
-             chat: ChatService = Depends(service)):
-        trace_id = http_request.headers.get("X-Trace-Id", "") or ""
-        context = RequestContext(trace_id=trace_id,
-                                 user_id=http_request.headers.get("X-User-Id", "") or "")
+             chat: ChatService = Depends(service),
+             principal=Depends(principal_dependency)):
+        if principal is None:
+            # Backward-compatible direct test/fake construction.
+            context = RequestContext(
+                trace_id=http_request.headers.get("X-Trace-Id", "") or "")
+        else:
+            context = RequestContext(
+                trace_id=http_request.headers.get("X-Trace-Id", "") or "",
+                tenant_id=principal.tenant_id, user_id=principal.user_id,
+                roles=principal.roles, permissions=principal.permissions,
+                authenticated=True,
+                expires_at=(principal.expires_at.isoformat()
+                            if principal.expires_at else None),
+                department_ids=principal.department_ids,
+            )
         return _serialize(chat.ask(
             request.question, conversation_id=request.conversation_id,
             confirmed=request.confirmed, context=context,

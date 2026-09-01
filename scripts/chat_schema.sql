@@ -121,17 +121,21 @@ CREATE TABLE IF NOT EXISTS auth_role_permissions (
 CREATE TABLE IF NOT EXISTS auth_sessions (
     tenant_id VARCHAR(64) NOT NULL,
     session_id CHAR(36) NOT NULL,
-    user_id VARCHAR(64) NOT NULL,
+    access_token_hash CHAR(64) NULL,
     refresh_token_hash CHAR(64) NULL,
+    user_id VARCHAR(64) NOT NULL,
     client_ip VARBINARY(16) NULL,
     user_agent VARCHAR(512) NULL,
     status ENUM('active', 'revoked', 'expired') NOT NULL DEFAULT 'active',
     expires_at DATETIME(6) NOT NULL,
+    access_token_expires_at DATETIME(6) NULL,
     last_seen_at DATETIME(6) NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     revoked_at DATETIME(6) NULL,
     PRIMARY KEY (tenant_id, session_id),
+    UNIQUE KEY uk_auth_session_access_hash (access_token_hash),
     UNIQUE KEY uk_auth_session_refresh_hash (refresh_token_hash),
+    KEY idx_auth_session_access_expire (access_token_hash, status, access_token_expires_at),
     KEY idx_auth_session_user_status (tenant_id, user_id, status),
     KEY idx_auth_session_expire (expires_at),
     CONSTRAINT fk_auth_session_user FOREIGN KEY (tenant_id, user_id)
@@ -607,4 +611,29 @@ CREATE TABLE IF NOT EXISTS chat_tool_calls (
         REFERENCES chat_messages(message_id),
     CONSTRAINT fk_tool_call_user FOREIGN KEY (tenant_id, user_id)
         REFERENCES auth_users(tenant_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- 多轮会话结构化状态（第 4 步）
+-- 供指代消解与能力续走使用；sop_execution_states 仍为 SOP 唯一状态源。
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS chat_session_states (
+    tenant_id VARCHAR(64) NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    last_intent VARCHAR(32) NULL,
+    last_domain VARCHAR(64) NULL,
+    last_query_id CHAR(36) NULL,
+    current_sop_id VARCHAR(64) NULL,
+    current_sop_version VARCHAR(32) NULL,
+    current_step_id VARCHAR(64) NULL,
+    state_json JSON NOT NULL,
+    version_no INT UNSIGNED NOT NULL DEFAULT 1,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (tenant_id, conversation_id),
+    KEY idx_session_state_user (tenant_id, user_id, updated_at),
+    CONSTRAINT fk_session_state_conv FOREIGN KEY (tenant_id, conversation_id)
+        REFERENCES chat_conversations(tenant_id, conversation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

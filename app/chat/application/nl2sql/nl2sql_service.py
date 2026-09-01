@@ -23,9 +23,14 @@ class Nl2SqlService:
         self.max_rows = max_rows
 
     def answer(self, query: str, conversation_id: str,
-               context: RequestContext | None = None) -> ChatResult:
+               context: RequestContext | None = None,
+               state=None) -> ChatResult:
         context = context or RequestContext()
-        domain = self.catalog.resolve_domain(query)
+        domain = (getattr(state, "last_domain", None)
+                  if (state is not None and self.catalog.describe(
+                      state.last_domain, context=context)) else None)
+        if domain is None:
+            domain = self.catalog.resolve_domain(query, context=context)
         if domain is None:
             return ChatResult(
                 answer="无法确定要查询的数据域，请说明是订单、采购还是其他业务数据。",
@@ -33,8 +38,8 @@ class Nl2SqlService:
                 conversation_id=conversation_id, warnings=("domain_unknown",),
                 trace_id=context.trace_id,
             )
-        schema = self.catalog.describe(domain)
-        allowed = self.catalog.allowed_tables(domain)
+        schema = self.catalog.describe(domain, context=context)
+        allowed = self.catalog.allowed_tables(domain, context=context)
         prompt = (
             f"数据域：{domain}\n{schema}\n"
             "要求：只生成单条 SELECT；只能使用上述表和字段；必须给出时间或过滤条件；"
@@ -60,7 +65,8 @@ class Nl2SqlService:
             answer=explanation, status=ChatStatus.ANSWERED, mode=Intent.NL2SQL,
             conversation_id=conversation_id,
             sql={"query": sql, "query_id": result.query_id,
-                 "columns": list(result.columns), "row_count": result.row_count},
+                 "domain": domain, "columns": list(result.columns),
+                 "row_count": result.row_count},
             trace_id=context.trace_id,
         )
 

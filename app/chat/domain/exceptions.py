@@ -24,3 +24,7 @@ class SqlGenerationError(ProcessingError):
 
 class SqlPolicyError(ValidationError):
     """Generated SQL violates the read-only policy."""
+
+
+class SessionConflictError(ValidationError):
+    """Concurrent update lost the optimistic lock on session state."""

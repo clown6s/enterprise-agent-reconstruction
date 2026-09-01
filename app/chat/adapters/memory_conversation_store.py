@@ -12,14 +12,14 @@ class MemoryConversationStore(ConversationStore):
         self._lock = threading.Lock()
         self._store: dict[str, deque] = defaultdict(lambda: deque(maxlen=capacity))
 
-    def get_or_create(self, conversation_id: str) -> None:
+    def get_or_create(self, conversation_id: str, *, context=None) -> None:
         with self._lock:
             self._store.setdefault(conversation_id, deque(maxlen=self._capacity))
 
-    def append(self, conversation_id: str, message: ChatMessage) -> None:
+    def append(self, conversation_id: str, message: ChatMessage, *, context=None) -> None:
         with self._lock:
             self._store[conversation_id].append(message)
 
-    def recent(self, conversation_id: str, limit: int = 10) -> list[ChatMessage]:
+    def recent(self, conversation_id: str, limit: int = 10, *, context=None) -> list[ChatMessage]:
         with self._lock:
             return list(self._store[conversation_id])[-limit:]

@@ -15,7 +15,7 @@ class MemorySopStore(SopStore):
         with self._lock:
             self._definitions[f"{definition.sop_id}:{definition.version}"] = definition
 
-    def find(self, sop_id: str, version: str | None = None) -> SopDefinition | None:
+    def find(self, sop_id: str, version: str | None = None, *, context=None) -> SopDefinition | None:
         with self._lock:
             if version is not None:
                 return self._definitions.get(f"{sop_id}:{version}")
@@ -23,17 +23,17 @@ class MemorySopStore(SopStore):
                           if key.startswith(f"{sop_id}:")]
             return max(candidates, key=lambda d: d.version) if candidates else None
 
-    def search(self, query: str) -> list[SopDefinition]:
+    def search(self, query: str, *, context=None) -> list[SopDefinition]:
         with self._lock:
             lowered = query.lower()
             return [d for d in self._definitions.values()
                     if any(term in d.title.lower() or term in d.sop_id.lower()
                            for term in lowered.split() if term)]
 
-    def get_state(self, conversation_id: str) -> SopExecutionState | None:
+    def get_state(self, conversation_id: str, *, context=None) -> SopExecutionState | None:
         with self._lock:
             return self._states.get(conversation_id)
 
-    def save_state(self, conversation_id: str, state: SopExecutionState) -> None:
+    def save_state(self, conversation_id: str, state: SopExecutionState, *, context=None) -> None:
         with self._lock:
             self._states[conversation_id] = state

@@ -76,19 +76,21 @@ def test_server_respects_tool_allowlist():
 
 def test_chat_tools_ask_returns_structured():
     import asyncio
+    from app.chat.application.context import RequestContext
     from app.chat.mcp.tools import ChatTools
     tools = ChatTools(_service())
+    context = RequestContext(tenant_id="ten-1", user_id="u-1", authenticated=True)
     result = asyncio.run(
-        tools.chat_ask("报销标准是什么", "c1", "ten-1", "u-1"))
+        tools.chat_ask("报销标准是什么", "c1", context=context))
     assert result["mode"] == "knowledge_qa"
     assert "citations" in result and result["conversation_id"] == "c1"
 
 
 def test_chat_tools_rejects_missing_identity():
     import asyncio
+    from app.chat.application.context import RequestContext
     from app.chat.mcp.tools import ChatTools
     tools = ChatTools(_service())
-    with pytest.raises(ValueError):
-        asyncio.run(tools.chat_ask("报销标准是什么", "c1", "", "u-1"))
-    with pytest.raises(ValueError):
-        asyncio.run(tools.chat_ask("报销标准是什么", "c1", "ten-1", ""))
+    with pytest.raises(PermissionError):
+        asyncio.run(tools.chat_ask(
+            "报销标准是什么", "c1", context=RequestContext()))

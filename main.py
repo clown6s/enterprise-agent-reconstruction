@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 import anyio
@@ -12,15 +13,18 @@ from app.chat.api.router import create_router
 from app.chat.bootstrap.container import build_chat
 from app.chat.mcp.bridge import LazyService
 from app.chat.mcp.server import build_http_app
+from app.auth.api.dependencies import make_principal_provider
+from app.auth.api.router import create_router as create_auth_router
+from app.auth.bootstrap.container import build_auth
+from app.chat.mcp.config import McpPolicy
 
 setup_logging()
 logger = structlog.get_logger(__name__)
 
-app = FastAPI()
-register_exception_handlers(app)
-
 
 def _chat_service():
+    """Build a ChatService for this process. Kept separate so closing and
+    re-opening (e.g. across reloads) can build a fresh instance."""
     ingestion = build_ingestion()
     retriever = RetrieveDocuments(
         ingestion.embedder, ingestion.vectors,
@@ -29,10 +33,40 @@ def _chat_service():
     return build_chat(retriever=retriever)
 
 
-app.include_router(create_router(_chat_service))
+# Process-level singleton: built lazily on first use, closed on shutdown so the
+# LLM/retriever/DB connections are created once and released together.
+singleton = LazyService(_chat_service)
+auth_singleton = LazyService(build_auth)
 
 
-app.mount("/mcp", build_http_app(LazyService(_chat_service), path="/"))
+@asynccontextmanager
+async def lifespan(_app):
+    try:
+        yield
+    finally:
+        for holder in (singleton, auth_singleton):
+            service = holder._service
+            if service is not None:
+                closer = getattr(service, "close", None)
+                if callable(closer):
+                    closer()
+
+
+app = FastAPI(lifespan=lifespan)
+register_exception_handlers(app)
+
+principal_provider = make_principal_provider(auth_singleton)
+chat_principal_provider = make_principal_provider(auth_singleton, "chat:ask")
+app.include_router(create_auth_router(auth_singleton, principal_provider))
+app.include_router(create_router(lambda: singleton._get(), chat_principal_provider))
+
+app.mount(
+    "/mcp",
+    build_http_app(
+        singleton, auth=auth_singleton,
+        policy=McpPolicy(auth_enabled=True), path="/",
+    ),
+)
 
 
 @app.middleware("http")

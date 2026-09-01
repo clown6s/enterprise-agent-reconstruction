@@ -19,18 +19,18 @@ class MemorySchemaCatalog(SchemaCatalog):
     def register(self, domain: SchemaDomain) -> None:
         self._domains[domain.name] = domain
 
-    def domains(self) -> list[str]:
+    def domains(self, *, context=None) -> list[str]:
         return list(self._domains)
 
-    def describe(self, domain: str) -> str:
+    def describe(self, domain: str, *, context=None) -> str:
         item = self._domains.get(domain)
         return item.description if item else ""
 
-    def allowed_tables(self, domain: str) -> set[str]:
+    def allowed_tables(self, domain: str, *, context=None) -> set[str]:
         item = self._domains.get(domain)
         return set(item.tables) if item else set()
 
-    def resolve_domain(self, query: str) -> str | None:
+    def resolve_domain(self, query: str, *, context=None) -> str | None:
         lowered = query.lower()
         for item in self._domains.values():
             if any(keyword.lower() in lowered for keyword in item.keywords):

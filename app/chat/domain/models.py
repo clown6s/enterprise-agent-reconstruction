@@ -60,6 +60,27 @@ class IntentDecision:
 
 
 @dataclass(frozen=True)
+class CitationAudit:
+    sent: tuple[int, ...] = ()
+    used: tuple[int, ...] = ()
+    unused: tuple[int, ...] = ()
+    grounded: bool = False
+
+
+@dataclass(frozen=True)
+class AuditEvent:
+    event_id: str
+    trace_id: str
+    stage: str
+    status: str
+    tenant_id: str = ""
+    user_id: str = ""
+    conversation_id: str | None = None
+    mode: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ChatResult:
     answer: str
     status: ChatStatus
@@ -70,6 +91,7 @@ class ChatResult:
     sop: dict[str, Any] | None = None
     warnings: tuple[str, ...] = ()
     trace_id: str = ""
+    citation_audit: CitationAudit | None = None
 
 
 @dataclass(frozen=True)
@@ -111,3 +133,24 @@ class SqlResult:
     rows: tuple[tuple[Any, ...], ...]
     query_id: str
     row_count: int
+
+
+@dataclass(frozen=True)
+class SessionState:
+    """Structured state for multi-turn routing and follow-up resolution."""
+    last_intent: Intent | None = None
+    last_domain: str | None = None
+    last_query_id: str | None = None
+    current_sop_id: str | None = None
+    current_sop_version: str | None = None
+    current_step_id: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    version_no: int = 1
+
+
+@dataclass(frozen=True)
+class ResolvedQuestion:
+    question: str
+    intent_hint: Intent | None = None
+    needs_clarification: bool = False
+    reason: str = ""

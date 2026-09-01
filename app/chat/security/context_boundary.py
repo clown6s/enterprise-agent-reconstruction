@@ -43,6 +43,12 @@ def find_injection(text: str) -> tuple[str, ...]:
 
 
 def sanitize_answer(answer: str, citations: tuple[Citation, ...]) -> tuple[str, tuple[str, ...]]:
+    """Validate citation markers and return the answer plus warnings.
+
+    The caller must use :func:`referenced_citations` when it needs the subset
+    actually cited by the model; all retrieved citations are never implicitly
+    treated as cited.
+    """
     warnings: list[str] = []
     if any(re.search(pattern, answer) for pattern in _SECRET_PATTERNS):
         raise ValueError("回答包含疑似敏感凭据")
@@ -51,4 +57,16 @@ def sanitize_answer(answer: str, citations: tuple[Citation, ...]) -> tuple[str, 
     if referenced - valid:
         warnings.append("回答包含不存在的引用编号")
         answer = re.sub(r"\[(\d+)\]", lambda m: m.group(0) if m.group(1) in valid else "", answer)
+    if not referenced:
+        warnings.append("回答未标注引用")
     return answer.strip(), tuple(warnings)
+
+
+def referenced_citations(answer: str, citations: tuple[Citation, ...]) -> tuple[Citation, ...]:
+    """Map valid ``[n]`` markers to citations, preserving marker order."""
+    indexes = []
+    for value in re.findall(r"\[(\d+)\]", answer):
+        index = int(value) - 1
+        if 0 <= index < len(citations) and index not in indexes:
+            indexes.append(index)
+    return tuple(citations[index] for index in indexes)

@@ -25,14 +25,14 @@ class SopService:
                context: RequestContext | None = None) -> ChatResult:
         context = context or RequestContext()
         # Try to continue an active execution in this conversation.
-        state = self.store.get_state(conversation_id)
+        state = self.store.get_state(conversation_id, context=context)
         if state is not None:
-            definition = self.store.find(state.sop_id, state.version)
+            definition = self.store.find(state.sop_id, state.version, context=context)
             if definition is not None:
                 return self._advance(definition, state, conversation_id, confirmed=confirmed, context=context)
 
         # Otherwise locate a SOP by structured search first.
-        definitions = self.store.search(query)
+        definitions = self.store.search(query, context=context)
         definition = definitions[0] if definitions else self._retrieve_sop(query)
         if definition is None:
             return ChatResult(
@@ -41,7 +41,7 @@ class SopService:
                 conversation_id=conversation_id, warnings=("no_sop",),
             )
         state = self.engine.begin(definition)
-        self.store.save_state(conversation_id, state)
+        self.store.save_state(conversation_id, state, context=context)
         step = self.engine.current(definition, state)
         return self._render_step(definition, step, state, conversation_id,
                                  high_risk=self.engine.is_high_risk(step), context=context)
@@ -54,7 +54,7 @@ class SopService:
             return self._render_step(definition, step, state, conversation_id,
                                      high_risk=True, awaiting=True, context=context)
         next_state = self.engine.advance(definition, state, confirmed=confirmed)
-        self.store.save_state(conversation_id, next_state)
+        self.store.save_state(conversation_id, next_state, context=context)
         if next_state.current_step_id == state.current_step_id and not step.next_steps:
             return ChatResult(
                 answer=f"SOP《{definition.title}》流程已完成。",

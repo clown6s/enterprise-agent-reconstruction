@@ -14,12 +14,12 @@ from ..mcp.bridge import run_sync
 _MAX_TOP_K = 20
 
 
-def _identity(tenant_id: str, user_id: str) -> tuple[str, str]:
-    if not isinstance(tenant_id, str) or not tenant_id.strip():
-        raise ValueError("tenant_id 不能为空")
-    if not isinstance(user_id, str) or not user_id.strip():
-        raise ValueError("user_id 不能为空")
-    return tenant_id.strip(), user_id.strip()
+def _identity(context: RequestContext) -> RequestContext:
+    if not isinstance(context, RequestContext) or not context.authenticated:
+        raise PermissionError("MCP 请求未认证")
+    if not context.tenant_id or not context.user_id:
+        raise PermissionError("MCP 请求缺少可信身份")
+    return context
 
 
 def _result_dict(result) -> dict:
@@ -41,8 +41,8 @@ class ChatTools:
         return RequestContext(tenant_id=tenant_id, user_id=user_id)
 
     async def chat_ask(self, question: str, conversation_id: str,
-                       tenant_id: str, user_id: str, confirmed: bool = False) -> dict:
-        context = self._context(tenant_id, user_id)
+                       confirmed: bool = False, *, context: RequestContext) -> dict:
+        context = _identity(context)
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 不能为空")
         return _result_dict(await run_sync(
@@ -51,8 +51,8 @@ class ChatTools:
         ))
 
     async def document_search(self, query: str, top_k: int,
-                              tenant_id: str, user_id: str) -> dict:
-        self._context(tenant_id, user_id)
+                              *, context: RequestContext) -> dict:
+        _identity(context)
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query 不能为空")
         if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= _MAX_TOP_K:
@@ -64,9 +64,8 @@ class ChatTools:
                 "citations": [asdict(item) for item in citations]}
 
     async def sop_get_step(self, query: str, conversation_id: str,
-                           tenant_id: str, user_id: str,
-                           confirmed: bool = False) -> dict:
-        context = self._context(tenant_id, user_id)
+                           confirmed: bool = False, *, context: RequestContext) -> dict:
+        context = _identity(context)
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query 不能为空")
         result = await run_sync(
@@ -75,12 +74,12 @@ class ChatTools:
         )
         return _result_dict(result)
 
-    async def readonly_sql_query(self, question: str, tenant_id: str,
-                                 user_id: str) -> dict:
-        context = self._context(tenant_id, user_id)
+    async def readonly_sql_query(self, question: str,
+                                 *, context: RequestContext) -> dict:
+        context = _identity(context)
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 不能为空")
         result = await run_sync(self.service.nl2sql.answer,
-                                question.strip(), f"mcp:{tenant_id}:{user_id}",
+                                question.strip(), f"mcp:{context.tenant_id}:{context.user_id}",
                                 context=context)
         return _result_dict(result)
