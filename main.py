@@ -17,6 +17,7 @@ from app.ingestion.bootstrap.container import build_ingestion, build_reranker
 from app.ingestion.bootstrap.handlers import register_exception_handlers
 from app.ingestion.bootstrap.logging import close_log_sink, setup_logging
 from app.observability.es_log_sink import ElasticsearchLogSink
+from app.channels.feishu.bootstrap import build_feishu_channel
 from app.chat.api.router import create_router
 from app.chat.bootstrap.container import build_chat
 from app.chat.bootstrap.config import read_settings
@@ -60,14 +61,22 @@ def _chat_service():
 # LLM/retriever/DB connections are created once and released together.
 singleton = LazyService(_chat_service)
 auth_singleton = LazyService(build_auth)
+feishu_channel = None
 
 
 @asynccontextmanager
 async def lifespan(_app):
+    global feishu_channel
     setup_tracing()
     try:
+        # 未启用或配置不完整时返回 None，不影响主服务启动。
+        feishu_channel = build_feishu_channel(singleton._get())
+        if feishu_channel is not None:
+            feishu_channel.start()
         yield
     finally:
+        if feishu_channel is not None:
+            feishu_channel.stop()
         for holder in (singleton, auth_singleton):
             service = holder._service
             if service is not None:
