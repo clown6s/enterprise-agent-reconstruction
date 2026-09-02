@@ -1,4 +1,5 @@
 """Unit tests for MySQL chat adapters using a fake connection/pool (no DB)."""
+import json
 from collections import OrderedDict
 
 import pytest
@@ -169,8 +170,9 @@ def test_sop_get_state_maps_waiting_confirmation():
 
 def test_schema_allowed_tables():
     sink = _make_sink()
-    sink.plan["SELECT t.table_name FROM sql_allowed_tables"] = [
-        {"table_name": "orders"}, {"table_name": "order_items"}]
+    sink.plan["SELECT t.table_name, t.domain_id FROM sql_allowed_tables"] = [
+        {"table_name": "orders", "domain_id": "d-1"},
+        {"table_name": "order_items", "domain_id": "d-1"}]
     store = _store(MysqlSchemaCatalog, sink)
     assert store.allowed_tables("orders", context=_CTX) == {"orders", "order_items"}
 
@@ -186,6 +188,33 @@ def test_schema_describe_builds_lines():
     store = _store(MysqlSchemaCatalog, sink)
     text = store.describe("orders", context=_CTX)
     assert "订单数据" in text and "amount" in text
+
+
+def test_schema_describe_renders_registry_join_format():
+    sink = _make_sink()
+    sink.plan["SELECT domain_id, description FROM sql_data_domains"] = {
+        "domain_id": "d-1", "description": "订单数据"}
+    sink.plan["SELECT t.table_name, t.table_description, c.column_name, c.business_name, c.data_type, c.selectable, c.filterable, c.sortable, c.aggregatable FROM sql_allowed_tables t"] = [
+        {"table_name": "orders", "table_description": "订单表", "column_name": "amount",
+         "business_name": "金额", "data_type": "decimal", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 1}]
+    sink.plan["SELECT table_name, allowed_joins FROM sql_allowed_tables"] = [
+        {"table_name": "orders", "allowed_joins": json.dumps(
+            [{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])}]
+    store = _store(MysqlSchemaCatalog, sink)
+    text = store.describe("orders", context=_CTX)
+    assert "LEFT JOIN customers ON orders.customer_id=customers.id" in text
+
+
+def test_schema_domains_filters_denied_domain():
+    sink = _make_sink()
+    sink.plan["SELECT domain_id FROM sql_domain_permissions"] = [
+        {"domain_id": "d-denied"}]
+    sink.plan["SELECT domain_id, domain_name FROM sql_data_domains"] = [
+        {"domain_id": "d-ok", "domain_name": "orders"},
+        {"domain_id": "d-denied", "domain_name": "secret"}]
+    store = _store(MysqlSchemaCatalog, sink)
+    assert store.domains(context=_CTX) == ["orders"]
 
 
 def test_adapters_require_authenticated_context():

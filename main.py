@@ -19,7 +19,8 @@ from app.ingestion.bootstrap.logging import close_log_sink, setup_logging
 from app.observability.es_log_sink import ElasticsearchLogSink
 from app.channels.feishu.bootstrap import build_feishu_channel
 from app.chat.api.router import create_router
-from app.chat.bootstrap.container import build_chat
+from app.chat.api.schema_router import create_router as create_schema_router
+from app.chat.bootstrap.container import build_chat, build_schema_admin
 from app.chat.bootstrap.config import read_settings
 from app.chat.adapters.redis_rate_limiter import RedisRateLimiter
 from app.chat.adapters.memory_usage_meter import MemoryUsageMeter
@@ -60,6 +61,7 @@ def _chat_service():
 # LLM/检索器/数据库连接一次性创建并共同释放.
 singleton = LazyService(_chat_service)
 auth_singleton = LazyService(build_auth)
+schema_admin_singleton = LazyService(build_schema_admin)
 feishu_channel = None
 
 
@@ -76,7 +78,7 @@ async def lifespan(_app):
     finally:
         if feishu_channel is not None:
             feishu_channel.stop()
-        for holder in (singleton, auth_singleton):
+        for holder in (singleton, auth_singleton, schema_admin_singleton):
             service = holder._service
             if service is not None:
                 closer = getattr(service, "close", None)
@@ -104,6 +106,9 @@ rate_limiter = RedisRateLimiter(
 app.include_router(create_auth_router(auth_singleton, principal_provider))
 app.include_router(create_router(lambda: singleton._get(), chat_principal_provider,
                                 rate_limiter=rate_limiter, usage_meter=usage_meter))
+schema_admin_principal_provider = make_principal_provider(auth_singleton, "schema:admin")
+app.include_router(create_schema_router(lambda: schema_admin_singleton._get(),
+                                        schema_admin_principal_provider))
 
 app.mount(
     "/mcp",

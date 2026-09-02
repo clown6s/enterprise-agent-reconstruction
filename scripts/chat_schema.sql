@@ -637,3 +637,20 @@ CREATE TABLE IF NOT EXISTS chat_session_states (
     CONSTRAINT fk_session_state_conv FOREIGN KEY (tenant_id, conversation_id)
         REFERENCES chat_conversations(tenant_id, conversation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- 7. Schema Registry（MVP）
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS sql_domain_keywords (
+    tenant_id VARCHAR(64) NOT NULL,
+    domain_id VARCHAR(64) NOT NULL,
+    keyword VARCHAR(128) NOT NULL,
+    weight DECIMAL(8,3) NOT NULL DEFAULT 1,
+    PRIMARY KEY (tenant_id, domain_id, keyword),
+    CONSTRAINT fk_sql_keyword_domain FOREIGN KEY (tenant_id, domain_id)
+        REFERENCES sql_data_domains(tenant_id, domain_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO auth_permissions (permission_id, permission_code, description)
+VALUES ('perm-schema-admin', 'schema:admin', '管理 NL2SQL Schema Registry');

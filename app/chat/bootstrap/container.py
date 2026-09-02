@@ -17,6 +17,9 @@ from ..adapters.mysql_audit_logger import MysqlAuditLogger
 from ..adapters.mysql_readonly_executor import MysqlReadonlyExecutor
 from ..adapters.openai_compat_chat import OpenAiCompatChat
 from ..application.chat_service import ChatService
+from ..application.schema_registry import SchemaRegistry
+from ..application.schema_admin import SchemaAdminService
+from ..adapters.mysql_schema_registry import MysqlSchemaRegistry
 from ..application.context_builder import ContextBuilder
 from ..application.conversation_understanding import RuleConversationUnderstanding
 from ..application.intent_router import HybridIntentRouter, RuleIntentRouter
@@ -26,6 +29,19 @@ from ..application.question_resolver import QuestionResolver
 from ..application.rag_answerer import RagAnswerer
 from ..application.sop.sop_service import SopService
 from app.observability.trace_provider import OtelTraceProvider
+
+
+def build_schema_admin():
+    """Build the isolated schema administration service without chat/LLM setup."""
+    storage = read_storage_settings()
+    if storage.backend != "mysql":
+        raise RuntimeError("Schema Registry 管理接口需要 MySQL 存储")
+    pool = MysqlPool(
+        host=storage.mysql_host, port=storage.mysql_port,
+        user=storage.mysql_user, password=storage.mysql_password,
+        database=storage.mysql_database,
+    )
+    return SchemaAdminService(SchemaRegistry(MysqlSchemaRegistry(pool)))
 
 
 def build_chat(*, retriever, llm=None, conversation=None,

@@ -15,21 +15,26 @@ VALUES
     ('perm-chat', 'chat:ask', '使用 Chat 问答'),
     ('perm-sop-read', 'sop:read', '查看 SOP'),
     ('perm-sop-execute', 'sop:execute', '执行已授权的 SOP 动作'),
-    ('perm-sql-read', 'sql:read', '执行只读数据查询');
+    ('perm-sql-read', 'sql:read', '执行只读数据查询'),
+    ('perm-schema-admin', 'schema:admin', '管理 NL2SQL Schema Registry');
 
 INSERT IGNORE INTO auth_roles
     (tenant_id, role_id, role_name, description, status)
 VALUES
-    ('tenant-test', 'role-employee', 'employee', '测试普通员工', 'active');
+    ('tenant-test', 'role-employee', 'employee', '测试普通员工', 'active'),
+    ('tenant-test', 'role-schema-admin', 'schema-admin', '测试 Schema 管理员', 'active');
 
 INSERT IGNORE INTO auth_user_roles (tenant_id, user_id, role_id)
-VALUES ('tenant-test', 'user-test-001', 'role-employee');
+VALUES
+    ('tenant-test', 'user-test-001', 'role-employee'),
+    ('tenant-test', 'user-test-001', 'role-schema-admin');
 
 INSERT IGNORE INTO auth_role_permissions (tenant_id, role_id, permission_id)
 VALUES
     ('tenant-test', 'role-employee', 'perm-chat'),
     ('tenant-test', 'role-employee', 'perm-sop-read'),
-    ('tenant-test', 'role-employee', 'perm-sql-read');
+    ('tenant-test', 'role-employee', 'perm-sql-read'),
+    ('tenant-test', 'role-schema-admin', 'perm-schema-admin');
 
 -- ---------- 2. NL2SQL 演示业务表 ----------
 -- 这些表是测试业务数据，不是系统元数据表。
