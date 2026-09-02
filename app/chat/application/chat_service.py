@@ -205,6 +205,7 @@ class ChatService:
             current_step_id=sop.get("current_step") if sop else None,
             extra={
                 "topic": topic or (previous.extra.get("topic") if previous and relation == "follow_up" else None),
+                "last_question": resolved_question,
                 "relation": relation,
             },
             version_no=(previous.version_no if previous else 1),

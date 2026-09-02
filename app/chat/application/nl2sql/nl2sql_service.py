@@ -58,8 +58,13 @@ class Nl2SqlService:
         with self._span("nl2sql.load_schema"):
             schema = self.catalog.describe(domain, context=context)
             allowed = self.catalog.allowed_tables(domain, context=context)
+        previous_context = ""
+        if state is not None and getattr(state, "extra", None):
+            previous_question = state.extra.get("last_question")
+            if previous_question:
+                previous_context = f"上轮已确认的问题（仅用于理解本轮追问）：{previous_question}\n"
         prompt = (
-            f"数据库方言：MySQL 8.x。数据域：{domain}\n{schema}\n"
+            f"数据库方言：MySQL 8.x。{previous_context}数据域：{domain}\n{schema}\n"
             "要求：只生成单条 SELECT；只能使用上述表和字段；必须使用 MySQL 语法；"
             "日期请使用 DATE_FORMAT、DATE_ADD、DATE_SUB 和 INTERVAL 1 MONTH，禁止 DATE_TRUNC 和 PostgreSQL 字符串 interval；"
             "必须包含 tenant_id 过滤条件；只返回 SQL 代码块，不要解释。\n"

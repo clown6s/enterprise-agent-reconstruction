@@ -27,7 +27,7 @@ storage:
     wal:
       path: /var/tempo/wal
 
-override:
+overrides:
   defaults:
     metrics_generator:
       processors: []
