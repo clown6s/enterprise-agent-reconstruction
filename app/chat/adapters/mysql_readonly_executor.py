@@ -4,16 +4,9 @@ import uuid
 
 import pymysql
 
-from ..application.nl2sql.sql_guard import is_policy_safe
+from ..application.nl2sql.row_rewrite import rewrite_with_row_policies
 from ..application.ports import ReadonlySqlExecutor
-from ..domain.exceptions import SqlPolicyError
 from ..domain.models import SqlResult
-
-# Literals and quoted identifiers, replaced with same-length spaces so keyword
-# positions in the original SQL are preserved for safe WHERE injection.
-_QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
-_WHERE = re.compile(r"\bwhere\b", re.I)
-_CLAUSE_BOUNDARY = re.compile(r"\b(GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|FOR\s+UPDATE)\b", re.I)
 
 
 class MysqlReadonlyExecutor(ReadonlySqlExecutor):
@@ -50,34 +43,13 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
 
     @staticmethod
     def _apply_row_policies(sql: str, row_policies) -> tuple[str, tuple]:
-        """Combine bound predicates into the WHERE clause with parameters.
+        """Combine bound predicates into derived tables with parameters.
 
-        Row policies are only applied to a simple single-table SELECT; any
-        other shape fails closed rather than risking a misplaced predicate.
+        Governed physical tables (any row policy registered) are replaced by
+        filtered derived tables via AST rewrite; unsupported shapes fail closed
+        rather than returning ungoverned SQL. Empty input preserves the legacy
+        no-policy fast path.
         """
         if not row_policies:
             return sql, ()
-        if not is_policy_safe(sql):
-            raise SqlPolicyError("行级权限无法安全应用于复杂 SQL")
-        predicate = " AND ".join(f"({p.sql})" for p in row_policies)
-        params = tuple(value for p in row_policies for value in p.params)
-        return MysqlReadonlyExecutor._inject_predicate(sql, predicate), params
-
-    @staticmethod
-    def _mask(sql: str) -> str:
-        return _QUOTED.sub(lambda m: " " * len(m.group(0)), sql)
-
-    @staticmethod
-    def _inject_predicate(sql: str, predicate: str) -> str:
-        masked = MysqlReadonlyExecutor._mask(sql)
-        where = _WHERE.search(masked)
-        if where:
-            insert_at = where.end()
-            following = re.match(r"\s*", sql[insert_at:])
-            insert_at += following.end()
-            return sql[:insert_at] + predicate + " AND " + sql[insert_at:]
-        boundary = _CLAUSE_BOUNDARY.search(masked)
-        if boundary:
-            pos = boundary.start()
-            return sql[:pos] + " WHERE " + predicate + " " + sql[pos:].strip()
-        return (sql.strip() + " WHERE " + predicate).strip()
+        return rewrite_with_row_policies(sql, row_policies)

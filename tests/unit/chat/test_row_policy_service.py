@@ -60,15 +60,16 @@ def test_initial_and_retry_both_use_same_bound_policy_pipeline():
     result = _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
     assert result.status.value == "answered"
     assert len(executor.calls) == 2
-    assert executor.calls[0][1] == policy
-    assert executor.calls[1][1] == policy
+    expected = {"orders": policy}
+    assert executor.calls[0][1] == expected
+    assert executor.calls[1][1] == expected
 
 
-def test_complex_query_with_policy_fails_closed_before_execution():
+def test_unparseable_query_with_policy_fails_closed_before_execution():
     policy = (BoundPolicy("owner_id = %s", ("u1",)),)
-    catalog = _Catalog(policy, tables=("orders", "customers"))
+    catalog = _Catalog(policy)
     executor = _Executor()
-    llm = _LLM(["```sql\nSELECT o.amount FROM orders o JOIN customers c ON c.id=o.customer_id\n```"])
+    llm = _LLM(["```sql\nSELECT amount FROM orders WHERE owner_id =\n```"])
     with pytest.raises(SqlPolicyError):
         _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
     assert executor.calls == []

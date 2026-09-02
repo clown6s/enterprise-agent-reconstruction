@@ -234,6 +234,27 @@ class MysqlSchemaCatalog(SchemaCatalog):
         return self._pool.run(operation)
 
     @mysql_errors
+    def domain_limits(self, domain: str, *, context) -> tuple[int, int]:
+        """Return (max_rows, max_execution_seconds) for an active domain.
+
+        Falls back to generous defaults if the domain is not found so that
+        catalog reads stay lenient; the caller caps actual execution.
+        """
+        tenant_id, _ = identity(context)
+        def operation(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT max_rows, max_execution_seconds FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_name=%s AND status='active' LIMIT 1",
+                    (tenant_id, domain),
+                )
+                row = cur.fetchone()
+            if row is None:
+                return 100000, 60
+            return int(row["max_rows"] or 1000), int(row["max_execution_seconds"] or 10)
+        return self._pool.run(operation)
+
+    @mysql_errors
     def resolve_domain(self, query: str, *, context) -> str | None:
         tenant_id, _ = identity(context)
         def operation(conn):

@@ -159,7 +159,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, _ = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
-                c.execute("SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, sensitive, masking_rule, description FROM sql_allowed_columns WHERE tenant_id=%s AND domain_id=%s AND table_name=%s ORDER BY column_name", (tenant, domain_id, table_name))
+                c.execute("SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns WHERE tenant_id=%s AND domain_id=%s AND table_name=%s ORDER BY column_name", (tenant, domain_id, table_name))
                 return c.fetchall()
         return self._pool.run(op)
 

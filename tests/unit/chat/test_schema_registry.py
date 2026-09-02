@@ -239,9 +239,6 @@ def test_publish_rejects_unknown_domain():
 
 # --- row policy admin ---
 
-_POLICY = SchemaRegistryPortPolicyRow()
-
-
 def _policy():
     from app.chat.application.schema_registry import RowPolicyRegistration
     return RowPolicyRegistration(

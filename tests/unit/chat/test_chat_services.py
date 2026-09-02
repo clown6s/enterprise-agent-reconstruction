@@ -66,6 +66,39 @@ def test_sql_guard_rejects_write():
         validate_sql("DELETE FROM orders", allowed_tables={"orders"})
 
 
+class _LimitsCatalog(MemorySchemaCatalog):
+    def domain_limits(self, domain, *, context=None):
+        return 5, 3  # max_rows=5, timeout_s=3
+
+
+class _RecordingSql:
+    def __init__(self): self.calls = []
+    def query(self, sql, *, timeout_s=10.0, max_rows=1000, row_policies=()):
+        self.calls.append((timeout_s, max_rows))
+        return SqlResult(("amount",), ((100,),), "q-1", 1)
+
+
+def test_domain_limits_reach_executor():
+    from app.chat.application.context import RequestContext
+    llm = FakeLLM()
+    retriever = FakeRetriever()
+    recording = _RecordingSql()
+    catalog = _LimitsCatalog([SchemaDomain(
+        "orders", "orders(amount)", frozenset({"orders"}), ("订单",))])
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(retriever, llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm, retriever),
+        Nl2SqlService(llm, catalog, recording, max_rows=1000, timeout_s=10.0),
+    )
+    ctx = RequestContext(tenant_id="tenant-test", user_id="user-test-001",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    service.ask("统计订单金额", conversation_id="q", context=ctx)
+    assert recording.calls, "NL2SQL 未执行"
+    timeout_s, max_rows = recording.calls[0]
+    assert max_rows == 5 and timeout_s == 3  # 域级限制，而非全局 1000/10
+
+
 def test_sop_engine_requires_confirmation():
     definition = default_sops()[0]
     engine = SopEngine()

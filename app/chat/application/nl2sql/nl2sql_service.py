@@ -16,7 +16,8 @@ from ...security.context_boundary import SYSTEM_POLICY
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
 from .row_policy import BoundPolicy
-from .sql_guard import is_policy_safe, referenced_tables, validate_sql
+from .row_rewrite import rewrite_with_row_policies
+from .sql_guard import referenced_tables, validate_sql
 
 _SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
 # 在这些关键字之前插入 tenant 条件，避免追加到 GROUP/ORDER/LIMIT 之后。
@@ -62,6 +63,12 @@ class Nl2SqlService:
             column_loader = getattr(self.catalog, "blocked_columns", None)
             blocked_columns = (column_loader(domain, context=context)
                                if callable(column_loader) else {})
+            limits_loader = getattr(self.catalog, "domain_limits", None)
+            domain_max_rows, domain_timeout_s = (limits_loader(domain, context=context)
+                                                 if callable(limits_loader)
+                                                 else (self.max_rows, self.timeout_s))
+            max_rows = min(self.max_rows, domain_max_rows)
+            timeout_s = domain_timeout_s
         previous_context = ""
         if state is not None and getattr(state, "extra", None):
             previous_question = state.extra.get("last_question")
@@ -92,8 +99,8 @@ class Nl2SqlService:
         result = None
         try:
             with self._span("nl2sql.execute_sql"):
-                result = self.executor.query(sql, timeout_s=self.timeout_s,
-                                             max_rows=self.max_rows,
+                result = self.executor.query(sql, timeout_s=timeout_s,
+                                             max_rows=max_rows,
                                              row_policies=row_policies)
         except Exception as exc:
             # 允许基于底层错误重写一次，仍失败才抛出并保留脱敏错误信息。
@@ -103,8 +110,8 @@ class Nl2SqlService:
                 raise SqlPolicyError(self._safe_error(exc)) from exc
             rewritten, retry_policies = retry
             with self._span("nl2sql.execute_sql_retry"):
-                result = self.executor.query(rewritten, timeout_s=self.timeout_s,
-                                             max_rows=self.max_rows,
+                result = self.executor.query(rewritten, timeout_s=timeout_s,
+                                             max_rows=max_rows,
                                              row_policies=retry_policies)
             sql = rewritten
         explanation = self._explain(query, domain, result)
@@ -134,21 +141,23 @@ class Nl2SqlService:
         return f"{prefix} WHERE {predicate} {suffix}".strip()
 
     def _row_policies_for(self, sql: str, domain: str, context,
-                          ) -> tuple[BoundPolicy, ...]:
+                          ) -> dict[str, tuple[BoundPolicy, ...]]:
         """Resolve per-table row policies; fail closed if not safely applicable."""
         tables = referenced_tables(sql)
-        if not tables:
-            return ()
-        policies: list[BoundPolicy] = []
         loader = getattr(self.catalog, "row_policies", None)
-        if callable(loader):
-            for table in tables:
-                policies.extend(loader(domain, table, context=context))
-        if not policies:
-            return ()
-        if not is_policy_safe(sql):
-            raise SqlPolicyError("存在行级权限但 SQL 结构复杂，无法安全应用，已拒绝执行")
-        return tuple(policies)
+        if not callable(loader):
+            return {}
+        policies_by_table: dict[str, tuple[BoundPolicy, ...]] = {}
+        for table in tables:
+            resolved = loader(domain, table, context=context)
+            if resolved:
+                policies_by_table[table.lower()] = tuple(resolved)
+        if not policies_by_table:
+            return {}
+        # Validate rewriteability here (executor re-applies); unsafe shapes fail
+        # closed before any execution attempt.
+        rewrite_with_row_policies(sql, policies_by_table)
+        return policies_by_table
 
     def _retry_on_error(self, query: str, domain: str, sql: str, error: Exception,
                         allowed_tables: set[str], context,

@@ -289,6 +289,370 @@ POST /admin/schema/domains/orders/joins
 - 只允许 `LEFT` / `INNER`，不支持任意 SQL 片段
 - JOIN 只作为 LLM 的受控提示，最终 SQL 仍由 SQL Guard 校验
 
+### 4.5 JOIN 完整实操流程（从创建域开始）
+
+下面以 `orders` 和 `order_customers` 为例，演示从创建数据域到查询验证的完整流程。**创建数据域接口仍然使用**：
+
+```text
+POST http://127.0.0.1:8000/admin/schema/domains
+```
+
+它没有废弃，是所有表、字段、JOIN、权限登记的入口。后续 URL 中的 `{domain_id}` 必须使用创建接口返回的 `domain_id`。
+
+#### 步骤 1：确认真实业务表
+
+Registry 只登记已经存在的业务表，不负责创建业务表。先在业务数据库执行：
+
+```sql
+SHOW TABLES LIKE 'orders';
+SHOW TABLES LIKE 'order_customers';
+SHOW CREATE TABLE orders;
+SHOW CREATE TABLE order_customers;
+```
+
+两张表建议都具备 `tenant_id`，并确认 JOIN 字段真实存在，例如：
+
+```text
+orders.customer_id = order_customers.customer_id
+```
+
+如果表或字段不存在，后续 introspect 或 publish 会失败。
+
+#### 步骤 2：创建数据域（仍然使用原接口）
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"name\":\"customer_orders\",\"description\":\"订单及客户信息\",\"keywords\":[\"订单客户\",\"客户订单\",\"customer orders\"]}"
+```
+
+请求体：
+
+```json
+{
+  "name": "customer_orders",
+  "description": "订单及客户信息",
+  "keywords": ["订单客户", "客户订单", "customer orders"]
+}
+```
+
+返回示例：
+
+```json
+{
+  "domain_id": "customer_orders",
+  "domain_name": "customer_orders",
+  "status": "draft"
+}
+```
+
+记住：
+
+- `domain_id` 是后续接口中的路径参数；
+- `status=draft` 表示还不能被 NL2SQL 使用；
+- `schema_admin_token` 必须对应拥有 `schema:admin` 的管理员；
+- 如果使用中文域名导致系统生成随机 ID，后续必须使用返回的真实 ID。
+
+#### 步骤 3：探测两张表结构
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/introspect ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"tables\":[\"orders\",\"order_customers\"],\"include_columns\":true}"
+```
+
+请求体：
+
+```json
+{
+  "tables": ["orders", "order_customers"],
+  "include_columns": true
+}
+```
+
+该接口从 `INFORMATION_SCHEMA.COLUMNS` 返回候选字段：
+
+```json
+[
+  {
+    "table_name": "orders",
+    "columns": [
+      {"column_name": "tenant_id", "data_type": "varchar"},
+      {"column_name": "order_id", "data_type": "varchar"},
+      {"column_name": "customer_id", "data_type": "varchar"},
+      {"column_name": "amount", "data_type": "decimal"}
+    ]
+  },
+  {
+    "table_name": "order_customers",
+    "columns": [
+      {"column_name": "tenant_id", "data_type": "varchar"},
+      {"column_name": "customer_id", "data_type": "varchar"},
+      {"column_name": "customer_name", "data_type": "varchar"}
+    ]
+  }
+]
+```
+
+探测只读真实结构，不会自动登记字段、不开放字段、不发布域。
+
+#### 步骤 4：登记左表和右表
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/tables ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"table\":\"orders\",\"description\":\"订单主表\",\"required_tenant_filter\":true}"
+
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/tables ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"table\":\"order_customers\",\"description\":\"客户信息表\",\"required_tenant_filter\":true}"
+```
+
+两个表必须先登记，JOIN 不能引用尚未登记的表。
+
+#### 步骤 5：登记 JOIN 两侧字段
+
+JOIN 使用的列必须先进入 `sql_allowed_columns`。例如登记订单字段：
+
+```json
+{
+  "table": "orders",
+  "columns": [
+    {
+      "column_name": "order_id",
+      "data_type": "varchar",
+      "business_name": "订单号",
+      "description": "订单唯一编号",
+      "selectable": true,
+      "filterable": true,
+      "sortable": true,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
+      "column_name": "customer_id",
+      "data_type": "varchar",
+      "business_name": "客户编号",
+      "description": "关联客户的编号",
+      "selectable": false,
+      "filterable": true,
+      "sortable": false,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
+      "column_name": "amount",
+      "data_type": "decimal",
+      "business_name": "订单金额",
+      "selectable": true,
+      "filterable": true,
+      "sortable": true,
+      "aggregatable": true,
+      "sensitive": false
+    }
+  ]
+}
+```
+
+登记客户字段：
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/columns ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"table\":\"order_customers\",\"columns\":[{\"column_name\":\"customer_id\",\"data_type\":\"varchar\",\"business_name\":\"客户编号\",\"selectable\":false,\"filterable\":true,\"sortable\":false,\"aggregatable\":false,\"sensitive\":false},{\"column_name\":\"customer_name\",\"data_type\":\"varchar\",\"business_name\":\"客户名称\",\"selectable\":true,\"filterable\":true,\"sortable\":true,\"aggregatable\":false,\"sensitive\":false}]}"
+```
+
+左表 `customer_id` 和右表 `customer_id` 都必须登记，即使它们不作为最终输出字段，也必须允许参与关联。
+
+#### 步骤 6：通过 Registry 登记 JOIN
+
+调用的仍是：
+
+```text
+POST /admin/schema/domains/{domain_id}/joins
+```
+
+本例：
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/joins ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"table\":\"orders\",\"joins\":[{\"table\":\"order_customers\",\"columns\":{\"customer_id\":\"customer_id\"},\"join_type\":\"LEFT\"}]}"
+```
+
+请求体含义：
+
+```json
+{
+  "table": "orders",
+  "joins": [
+    {
+      "table": "order_customers",
+      "columns": {
+        "customer_id": "customer_id"
+      },
+      "join_type": "LEFT"
+    }
+  ]
+}
+```
+
+字段含义：
+
+| 字段 | 含义 |
+|---|---|
+| `table` | 当前表/左表，必须是已登记表 |
+| `joins[].table` | 目标表/右表，必须是已登记表 |
+| `joins[].columns` | 左列到右列的映射 |
+| `joins[].join_type` | `LEFT` 或 `INNER` |
+
+这条登记等价于：
+
+```sql
+LEFT JOIN order_customers
+  ON orders.customer_id = order_customers.customer_id
+```
+
+Registry 会先存入 `sql_allowed_tables.allowed_joins` JSON；发布时再展开写入当前版本的 `sql_allowed_joins`。
+
+#### 步骤 7：查看 JOIN 是否登记成功
+
+```bash
+curl http://127.0.0.1:8000/admin/schema/domains/customer_orders/joins ^
+  -H "Authorization: Bearer <schema_admin_token>"
+```
+
+预期返回：
+
+```json
+[
+  {
+    "source_table": "orders",
+    "table": "order_customers",
+    "columns": {"customer_id": "customer_id"},
+    "join_type": "LEFT"
+  }
+]
+```
+
+如果返回空数组，先检查：
+
+- `table` 是否写成了正确的当前表；
+- 目标表是否已登记；
+- `columns` 是否是对象而不是字符串；
+- 列名是否严格匹配真实字段；
+- 是否请求到了正确的 `domain_id`。
+
+#### 步骤 8：配置 JOIN 表的行级权限（可选）
+
+如果该域配置了行级权限，JOIN 中每张受保护表都需要策略，否则会按照当前 fail-closed 规则拒绝无法证明安全的查询。
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/policies ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"table\":\"orders\",\"subject_type\":\"user\",\"subject_id\":\"user-test-001\",\"predicate_template\":\"tenant_id = :tenant_id\",\"allowed\":true}"
+```
+
+对客户表同样登记：
+
+```json
+{
+  "table": "order_customers",
+  "subject_type": "user",
+  "subject_id": "user-test-001",
+  "predicate_template": "tenant_id = :tenant_id",
+  "allowed": true
+}
+```
+
+`subject_type=role` 时，`subject_id` 填 `auth_roles.role_name`，例如 `employee`，不要填 `role-employee`。
+
+#### 步骤 9：发布整个数据域
+
+JOIN 登记只是 draft，必须显式发布：
+
+```bash
+curl -X POST http://127.0.0.1:8000/admin/schema/domains/customer_orders/publish ^
+  -H "Authorization: Bearer <schema_admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"version\":1,\"comment\":\"发布订单客户关联关系\"}"
+```
+
+发布事务会：
+
+```text
+校验 domain/table/column/JOIN
+  → 生成 snapshot hash
+  → 写 sql_schema_versions
+  → 写 sql_allowed_joins
+  → 写 sql_schema_change_logs
+  → domain.status = active
+```
+
+只有发布成功后，NL2SQL 才会看到该 JOIN。
+
+#### 步骤 10：给只读账号授权两张真实表
+
+```sql
+GRANT SELECT ON enterprise_agent.orders
+TO 'nl2sql_readonly'@'%';
+
+GRANT SELECT ON enterprise_agent.order_customers
+TO 'nl2sql_readonly'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+验证：
+
+```sql
+SHOW GRANTS FOR 'nl2sql_readonly'@'%';
+```
+
+Schema 发布不会自动执行这些授权。
+
+#### 步骤 11：通过 Chat 验证 JOIN
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat ^
+  -H "Authorization: Bearer <access_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"查询本月订单及对应客户名称\",\"conversation_id\":\"customer-orders-test\"}"
+```
+
+预期内部链路：
+
+```text
+已发布 domain
+  → 读取受控 JOIN
+  → LLM 生成 SELECT
+  → SQL Guard 校验每张表都在 allowlist
+  → 敏感字段校验
+  → AST 行策略重写（如配置了 RLS）
+  → SQL_READONLY_USER 执行
+```
+
+#### JOIN 登记的最小正确顺序
+
+```text
+1. 创建 domain：POST /admin/schema/domains
+2. introspect 两张真实表
+3. POST /domains/{domain_id}/tables 登记两张表
+4. POST /domains/{domain_id}/columns 登记两侧字段
+5. POST /domains/{domain_id}/joins 登记关联关系
+6. （可选）POST /domains/{domain_id}/policies 登记行权限
+7. POST /domains/{domain_id}/publish 发布
+8. GRANT SELECT 给 nl2sql_readonly
+9. POST /chat 验证自然语言查询
+```
+
 ---
 
 ## 5. 只读权限授权
@@ -445,6 +809,34 @@ VALUES
 - **deny 优先**：任一匹配策略 `allowed=0` → 整表拒绝；
 - allow 策略 `AND` 合并后注入 WHERE；
 - 策略文本永远不会出现在 LLM prompt 或审计日志中。
+
+### 通过管理 API 配置
+
+除直接写库外，可通过 `/admin/schema` 管理接口配置（需 `schema:admin`）：
+
+```http
+POST /admin/schema/domains/{domain}/policies
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "table": "orders",
+  "subject_type": "role",        // user | role | department
+  "subject_id": "employee",      // 角色填角色名称（非 role_id）
+  "predicate_template": "tenant_id = :tenant_id AND owner_id = :user_id",
+  "allowed": true
+}
+```
+
+接口：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/domains/{domain}/policies` | 列出该域全部策略 |
+| POST | `/domains/{domain}/policies` | 新增/更新策略（按唯一键 upsert） |
+| DELETE | `/domains/{domain}/policies/{permission_id}` | 删除策略 |
+
+写入时服务端执行受限模板 DSL 校验（与查询端同一套 `compile_template`），非法模板直接返回 400，不落库。角色级策略的 `subject_id` 必须使用角色**名称**（`Principal.roles` 来自 `auth_roles.role_name`），不是角色 ID。
 
 ### 当前限制（fail-closed）
 

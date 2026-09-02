@@ -105,16 +105,18 @@ def test_executor_policy_injection_and_binding(monkeypatch):
     monkeypatch.setattr(module.pymysql, "connect", lambda **kwargs: connection)
     result = module.MysqlReadonlyExecutor(host="h", user="u", password="p", database="d").query(
         "SELECT amount FROM orders WHERE tenant_id = 't1' ORDER BY amount",
-        row_policies=(BoundPolicy("owner_id = %s", ("u1",)),))
+        row_policies={"orders": (BoundPolicy("owner_id = %s", ("u1",)),)})
     sql, params = connection.cursor_obj.executed[-1]
-    assert "WHERE (owner_id = %s) AND tenant_id = 't1'" in sql
+    assert "(owner_id = %s)" in sql
+    assert "tenant_id = 't1'" in sql
+    assert sql.startswith("SELECT amount FROM (")
     assert params == ("u1",)
     assert result.row_count == 1
 
 
-def test_executor_rejects_complex_policy_shape():
+def test_executor_fails_closed_when_policy_table_is_not_in_sql():
     from app.chat.adapters.mysql_readonly_executor import MysqlReadonlyExecutor
     with pytest.raises(SqlPolicyError):
         MysqlReadonlyExecutor._apply_row_policies(
-            "SELECT o.amount FROM orders o JOIN users u ON u.id=o.user_id",
-            (BoundPolicy("o.owner_id = %s", ("u1",)),))
+            "SELECT amount FROM orders",
+            {"customers": (BoundPolicy("owner_id = %s", ("u1",)),)})

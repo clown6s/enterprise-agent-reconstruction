@@ -37,6 +37,9 @@ class MemorySchemaCatalog(SchemaCatalog):
         """The memory catalog intentionally has no row-policy storage."""
         return ()
 
+    def domain_limits(self, domain: str, *, context=None) -> tuple[int, int]:
+        return 1000, 10
+
     def resolve_domain(self, query: str, *, context=None) -> str | None:
         lowered = query.lower()
         for item in self._domains.values():
