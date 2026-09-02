@@ -40,10 +40,13 @@ class RagAnswerer:
                 warnings=("no_context",),
                 trace_id=context.trace_id,
             )
-        prompt = ("只能依据用户问题和参考片段中明确出现或直接推导的事实回答，禁止编造。\n"
-                  "资料不足时 answer 必须写‘根据当前资料无法确定。’且 grounded=false。\n"
+        prompt = ("请优先依据下面的参考片段回答用户问题，不要调用外部知识补充事实。\n"
+                  "如果片段能直接或部分支持答案，请正常回答；不确定的部分要明确说明。\n"
+                  "回答要围绕当前问题完整展开，充分利用所有相关片段，不要只给一句过度概括的答案。\n"
+                  "answer 直接从结论和解释开始，禁止出现‘根据参考资料’、‘根据提供的参考资料’等来源前缀。\n"
+                  "只有参考片段完全没有相关信息时，才回答‘根据当前资料无法确定。’\n"
                   "只返回 JSON 对象，字段为 answer(string)、used_citations(整数数组)、grounded(boolean)。\n"
-                  "answer 不得包含 [n] 引用编号；used_citations 只能填实际使用的片段编号。\n"
+                  "answer 不得包含 [n] 引用编号；used_citations 是审计字段，填写实际参考的片段编号。\n"
                   + context_text)
         messages = build_messages(history or [], query, prompt)
         llm_span = (self.trace_provider.span("rag.llm_generate")
@@ -55,16 +58,46 @@ class RagAnswerer:
             raise LlmError(f"LLM 回答失败: {type(exc).__name__}") from exc
         answer, used, grounded, parse_warnings = self._parse_response(raw, len(citations))
         selected = tuple(citations[index - 1] for index in used)
-        audit = CitationAudit(sent=tuple(range(1, len(citations) + 1)),
-                              used=tuple(used),
-                              unused=tuple(i for i in range(1, len(citations) + 1) if i not in used),
-                              grounded=grounded and bool(used))
+        sent_numbers = tuple(range(1, len(citations) + 1))
+        unused_numbers = tuple(i for i in sent_numbers if i not in used)
+        sent_details = tuple(self._citation_detail(i, item)
+                             for i, item in enumerate(items[:len(citations)], 1))
+        detail_by_no = {detail["no"]: detail for detail in sent_details}
+        audit = CitationAudit(
+            sent=sent_numbers, used=tuple(used), unused=unused_numbers,
+            grounded=grounded and bool(used), sent_details=sent_details,
+            used_details=tuple(detail_by_no[i] for i in used),
+            unused_details=tuple(detail_by_no[i] for i in unused_numbers),
+        )
         return ChatResult(
             answer=answer, status=ChatStatus.ANSWERED, mode=Intent.KNOWLEDGE_QA,
             conversation_id=conversation_id, citations=selected,
             warnings=parse_warnings, trace_id=context.trace_id,
             citation_audit=audit,
         )
+
+    @staticmethod
+    def _clean_answer_prefix(answer: str) -> str:
+        """删除不应展示给用户的来源声明前缀。"""
+        prefixes = (
+            "根据参考资料，", "根据参考资料:", "根据提供的参考资料，",
+            "根据提供的参考资料:", "根据检索结果，", "根据检索结果:",
+        )
+        for prefix in prefixes:
+            if answer.startswith(prefix):
+                return answer[len(prefix):].lstrip()
+        return answer
+
+    @staticmethod
+    def _citation_detail(number, item):
+        """把编号映射到真实召回来源，禁止信任模型生成的来源字段。"""
+        return {
+            "no": number,
+            "document_id": item.document_id,
+            "chunk_id": item.chunk_id,
+            "page": item.page,
+            "score": item.score,
+        }
 
     @staticmethod
     def _parse_response(raw: str, count: int):
@@ -83,6 +116,7 @@ class RagAnswerer:
                 if 1 <= index <= count and index not in used:
                     used.append(index)
             answer = re.sub(r"\[\d+\]", "", raw or "").strip()
+            answer = RagAnswerer._clean_answer_prefix(answer)
             warnings.append("llm_response_not_structured")
             return answer, used, bool(used), tuple(warnings)
         answer = data.get("answer") if isinstance(data, dict) else None
@@ -91,6 +125,8 @@ class RagAnswerer:
         if not isinstance(answer, str):
             answer = "根据当前资料无法确定。"
             warnings.append("invalid_answer")
+        else:
+            answer = RagAnswerer._clean_answer_prefix(answer)
         if not isinstance(raw_used, list):
             raw_used = []
             warnings.append("invalid_used_citations")

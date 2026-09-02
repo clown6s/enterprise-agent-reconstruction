@@ -29,10 +29,12 @@ class SopService:
     def handle(self, query: str, conversation_id: str,
                history: list[ChatMessage] | None = None,
                *, confirmed: bool = False,
-               context: RequestContext | None = None) -> ChatResult:
+               context: RequestContext | None = None,
+               continue_state: bool = True) -> ChatResult:
         context = context or RequestContext()
-        # Try to continue an active execution in this conversation.
-        state = self.store.get_state(conversation_id, context=context)
+        # 只有明确续问时才读取旧 SOP 状态；换题不能无条件推进旧流程。
+        state = (self.store.get_state(conversation_id, context=context)
+                 if continue_state else None)
         if state is not None:
             definition = self.store.find(state.sop_id, state.version, context=context)
             if definition is not None:

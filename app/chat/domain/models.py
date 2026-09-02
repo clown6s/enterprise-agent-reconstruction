@@ -4,6 +4,13 @@ from enum import Enum
 from typing import Any
 
 
+class ConversationRelation(str, Enum):
+    FOLLOW_UP = "follow_up"
+    NEW_TOPIC = "new_topic"
+    MIXED = "mixed"
+    CLARIFICATION = "clarification"
+
+
 class Intent(str, Enum):
     KNOWLEDGE_QA = "knowledge_qa"
     SOP = "sop"
@@ -65,6 +72,10 @@ class CitationAudit:
     used: tuple[int, ...] = ()
     unused: tuple[int, ...] = ()
     grounded: bool = False
+    # 带真实来源的审计详情；编号对应 sent/used/unused。
+    sent_details: tuple[dict[str, Any], ...] = ()
+    used_details: tuple[dict[str, Any], ...] = ()
+    unused_details: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -154,3 +165,8 @@ class ResolvedQuestion:
     intent_hint: Intent | None = None
     needs_clarification: bool = False
     reason: str = ""
+    relation: ConversationRelation = ConversationRelation.NEW_TOPIC
+    topic: str | None = None
+    confidence: float = 1.0
+    referenced_turns: tuple[int, ...] = ()
+    subtasks: tuple[dict[str, Any], ...] = ()

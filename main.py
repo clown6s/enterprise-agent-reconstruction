@@ -47,8 +47,7 @@ logger = structlog.get_logger(__name__)
 
 
 def _chat_service():
-    """Build a ChatService for this process. Kept separate so closing and
-    re-opening (e.g. across reloads) can build a fresh instance."""
+    """为该流程构建一个聊天服务。保持独立，以便在关闭和重新打开（例如跨页面重载）时可以创建一个新的实例."""
     ingestion = build_ingestion()
     retriever = RetrieveDocuments(
         ingestion.embedder, ingestion.vectors,
@@ -57,8 +56,8 @@ def _chat_service():
     return build_chat(retriever=retriever)
 
 
-# Process-level singleton: built lazily on first use, closed on shutdown so the
-# LLM/retriever/DB connections are created once and released together.
+# 进程级单例：首次使用时延迟创建，关闭时释放资源.
+# LLM/检索器/数据库连接一次性创建并共同释放.
 singleton = LazyService(_chat_service)
 auth_singleton = LazyService(build_auth)
 feishu_channel = None
@@ -153,13 +152,13 @@ async def metrics_endpoint():
 
 @app.get("/healthz")
 async def healthz():
-    """Liveness probe: process is alive; no external dependency calls."""
+    """活动探针：进程正在运行；无外部依赖调用."""
     return {"status": "ok"}
 
 
 @app.get("/readyz")
 async def readyz():
-    """Readiness probe with safe configuration/dependency summaries."""
+    """安全配置/依赖关系摘要的就绪探测."""
     import os
     mysql_host = os.getenv("MYSQL_HOST", "")
     milvus_host = os.getenv("MILVUS_HOST", "")

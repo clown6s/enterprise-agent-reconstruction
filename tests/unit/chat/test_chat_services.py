@@ -50,10 +50,13 @@ def _service():
 
 
 def test_chat_routes_rag_sop_and_sql():
+    from app.chat.application.context import RequestContext
+    ctx = RequestContext(tenant_id="tenant-test", user_id="user-test-001",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
     service = _service()
     assert service.ask("报销标准是什么", conversation_id="r").mode.value == "knowledge_qa"
     assert service.ask("报销流程下一步怎么做", conversation_id="s").mode.value == "sop"
-    assert service.ask("统计订单金额", conversation_id="q").mode.value == "nl2sql"
+    assert service.ask("统计订单金额", conversation_id="q", context=ctx).mode.value == "nl2sql"
 
 
 def test_sql_guard_rejects_write():

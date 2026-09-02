@@ -18,7 +18,9 @@ from ..adapters.mysql_readonly_executor import MysqlReadonlyExecutor
 from ..adapters.openai_compat_chat import OpenAiCompatChat
 from ..application.chat_service import ChatService
 from ..application.context_builder import ContextBuilder
-from ..application.intent_router import RuleIntentRouter
+from ..application.conversation_understanding import RuleConversationUnderstanding
+from ..application.intent_router import HybridIntentRouter, RuleIntentRouter
+from ..application.semantic_intent_classifier import SemanticIntentClassifier
 from ..application.nl2sql.nl2sql_service import Nl2SqlService
 from ..application.question_resolver import QuestionResolver
 from ..application.rag_answerer import RagAnswerer
@@ -66,8 +68,10 @@ def build_chat(*, retriever, llm=None, conversation=None,
     chat_retriever = IngestionRetriever(retriever)
     context_builder = ContextBuilder(max_chunks=settings.top_k)
     trace_provider = OtelTraceProvider()
+    classifier = SemanticIntentClassifier(llm)
+    router = HybridIntentRouter(RuleIntentRouter(), classifier)
     return ChatService(
-        router=RuleIntentRouter(), conversation=conversation,
+        router=router, conversation=conversation,
         rag=RagAnswerer(chat_retriever, llm, context_builder, trace_provider),
         sop=SopService(sop_store, llm, chat_retriever,
                       context_builder=context_builder, trace_provider=trace_provider),
@@ -75,5 +79,6 @@ def build_chat(*, retriever, llm=None, conversation=None,
                              trace_provider=trace_provider),
         audit=audit,
         session_state=session_state,
-        question_resolver=question_resolver or QuestionResolver(llm),
+        question_resolver=question_resolver,
+        understanding=RuleConversationUnderstanding(llm),
     )

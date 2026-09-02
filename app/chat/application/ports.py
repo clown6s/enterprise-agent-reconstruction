@@ -37,6 +37,12 @@ class IntentRouter(Protocol):
     def route(self, query: str, history: list[ChatMessage] | None = None) -> IntentDecision: ...
 
 
+class IntentClassifier(Protocol):
+    """语义意图分类；只返回分类决策，不可改权限或执行工具。"""
+    def classify(self, query: str,
+                 history: list[ChatMessage] | None = None) -> IntentDecision: ...
+
+
 class SopStore(Protocol):
     def find(self, sop_id: str, version: str | None = None, *, context) -> SopDefinition | None: ...
     def search(self, query: str, *, context) -> list[SopDefinition]: ...
@@ -92,3 +98,9 @@ class QuestionResolver(Protocol):
     """Resolve anaphora / elided follow-ups into a self-contained question."""
     def resolve(self, question: str, history: list[ChatMessage] | None,
                 state: SessionState | None) -> ResolvedQuestion: ...
+
+
+class ConversationUnderstanding(Protocol):
+    """判断当前问题与历史的关系，不负责执行任何业务工具。"""
+    def understand(self, question: str, history: list[ChatMessage] | None,
+                   state: SessionState | None) -> ResolvedQuestion: ...

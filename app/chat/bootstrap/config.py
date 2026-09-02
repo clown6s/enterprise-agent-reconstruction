@@ -52,7 +52,7 @@ def read_settings() -> ChatSettings:
         base_url=os.getenv("CHAT_BASE_URL", "https://api.deepseek.com/v1"),
         model=os.getenv("CHAT_MODEL", "deepseek-chat"),
         temperature=float(os.getenv("CHAT_TEMPERATURE", "0.2")),
-        max_tokens=int(os.getenv("CHAT_MAX_TOKENS", "1024")),
+        max_tokens=int(os.getenv("CHAT_MAX_TOKENS", "4096")),
         top_k=max(1, int(os.getenv("CHAT_TOP_K", "5"))),
         llm_timeout=float(os.getenv("CHAT_LLM_TIMEOUT", "90")),
         llm_max_retries=max(0, int(os.getenv("CHAT_LLM_MAX_RETRIES", "2"))),

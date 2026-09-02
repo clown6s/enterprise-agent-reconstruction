@@ -17,3 +17,4 @@ data/backup/
 nginx.conf
 # 测试/预览本地输出
 outputs/
+.claude

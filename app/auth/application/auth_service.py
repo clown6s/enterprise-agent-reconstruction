@@ -9,6 +9,13 @@ from .ports import RolePermissionProvider, SessionStore, UserStore
 from .token_service import generate_token, sha256
 
 
+def _as_utc(value: datetime) -> datetime:
+    """统一处理 MySQL DATETIME 返回的无时区时间。"""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class AuthService:
     def __init__(self, users: UserStore, sessions: SessionStore,
                  permissions: RolePermissionProvider, *,
@@ -53,7 +60,8 @@ class AuthService:
         if session is None:
             raise InvalidTokenError("访问令牌无效或已吊销")
         now = self.clock()
-        if session.access_expires_at is None or session.access_expires_at <= now:
+        if (session.access_expires_at is None
+                or _as_utc(session.access_expires_at) <= _as_utc(now)):
             raise TokenExpiredError("访问令牌已过期")
         user = self.users.find_by_id(session.tenant_id, session.user_id)
         if user is None or user.status != "active":
@@ -74,7 +82,7 @@ class AuthService:
         if session is None:
             raise InvalidTokenError("刷新令牌无效或已吊销")
         now = self.clock()
-        if session.expires_at <= now:
+        if _as_utc(session.expires_at) <= _as_utc(now):
             raise TokenExpiredError("刷新令牌已过期")
         user = self.users.find_by_id(session.tenant_id, session.user_id)
         if user is None or user.status != "active":

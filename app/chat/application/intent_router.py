@@ -2,6 +2,7 @@
 import re
 
 from ..domain.models import ChatMessage, Intent, IntentDecision
+from .ports import IntentClassifier
 
 
 # Weights are evidence, not permissions. Execution layers perform their own checks.
@@ -34,10 +35,13 @@ _TERMS = {
         ("有什么用途", 2), ("主要用来", 1), ("用来干嘛", 2), ("指什么", 2),
         ("统称什么", 2), ("统称", 1), ("叫什么", 2), ("称作", 2), ("称为", 2),
         ("称为什么", 2), ("是什么名字", 2), ("术语", 1), ("这个叫什么", 2),
+        ("基本特征", 2), ("特征", 2), ("特点", 2), ("表现", 2), ("典型表现", 2),
+        ("临床表现", 2), ("标志", 2), ("本质", 2), ("核心特征", 2),
     ),
 }
 
-_PROCESS_RE = re.compile(r"怎么|如何|流程|步骤|审批|办理|提交|下一步|接下来|材料|操作")
+_PROCESS_RE = re.compile(r"流程|步骤|审批|办理|提交|下一步|接下来|材料|操作指南|作业指导")
+_SOP_ACTION_RE = re.compile(r"(?:提交|办理|审批|操作|申请|执行).{0,12}(?:流程|步骤|申请|审批|表单|系统|手续)|(?:流程|步骤).{0,12}(?:怎么|如何|办理|操作|提交)")
 _DATA_RE = re.compile(
     r"统计|查询|查一下|多少|几(?:笔|单|个|件)|总数|合计|总额|金额|占比|平均|"
     r"同比|环比|排名|排行|本月|上月|今年|去年|最近|趋势|明细|报表|数据"
@@ -69,12 +73,27 @@ class RuleIntentRouter:
         if _PROCESS_RE.search(query):
             scores[Intent.SOP] += 1.5
             evidence[Intent.SOP].append("process_pattern")
+        if _SOP_ACTION_RE.search(query):
+            scores[Intent.SOP] += 2.0
+            evidence[Intent.SOP].append("sop_action_pattern")
         if _DATA_RE.search(query):
             scores[Intent.NL2SQL] += 1.5
             evidence[Intent.NL2SQL].append("data_pattern")
         if _NUMBER_RE.search(query):
             scores[Intent.NL2SQL] += 2.0
             evidence[Intent.NL2SQL].append("numeric_or_time_pattern")
+
+        # 命名/概念识别优先于描述中的流程词。比如“下一步该做什么，
+        # 这个循环叫什么”是在问术语，不是在请求执行 SOP。
+        naming_markers = ("叫什么", "统称", "称作", "称为", "术语",
+                          "是什么名字", "指什么")
+        operation_markers = ("怎么操作", "如何操作", "怎么办理", "提交什么",
+                             "怎么提交", "如何办理")
+        if (any(marker in query for marker in naming_markers)
+                and not any(marker in query for marker in operation_markers)):
+            evidence[Intent.KNOWLEDGE_QA].append("naming_pattern")
+            return IntentDecision(
+                Intent.KNOWLEDGE_QA, 1.0, "命名型知识问题")
 
         ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         top_intent, top_score = ordered[0]
@@ -116,3 +135,24 @@ class RuleIntentRouter:
                     if f"mode={intent.value}" in message.content:
                         return intent
         return None
+
+
+class HybridIntentRouter:
+    """规则优先、语义模型兜底的路由器。"""
+
+    def __init__(self, rules: RuleIntentRouter, classifier: IntentClassifier | None = None):
+        self.rules = rules
+        self.classifier = classifier
+
+    def route(self, query: str, history: list[ChatMessage] | None = None) -> IntentDecision:
+        rule = self.rules.route(query, history)
+        # 规则给出明确单一结论时不调用模型，控制成本和延迟。
+        if (self.classifier is None or rule.intent not in
+                (Intent.CLARIFICATION, Intent.MIXED) and rule.confidence >= self.rules.min_confidence):
+            return rule
+        if self.classifier is None:
+            return rule
+        semantic = self.classifier.classify(query, history)
+        if semantic.intent == Intent.CLARIFICATION or semantic.confidence < self.classifier.min_confidence:
+            return rule if rule.intent not in (Intent.CLARIFICATION, Intent.MIXED) else semantic
+        return semantic

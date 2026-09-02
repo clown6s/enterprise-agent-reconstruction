@@ -36,6 +36,8 @@ class FeishuChannel:
         self._stop = threading.Event()
         self._worker: threading.Thread | None = None
         self._ws = None
+        self._ws_loop = None
+        self._ws_thread: threading.Thread | None = None
         self._started = False
 
     @property
@@ -58,25 +60,50 @@ class FeishuChannel:
         return True
 
     def _start_websocket(self) -> None:
-        try:
-            import lark_oapi
-            from lark_oapi.api.im.v1.model.p2_im_message_receive_v1 import P2ImMessageReceiveV1
-            from lark_oapi.event.dispatcher_handler import EventDispatcherHandler
-            from lark_oapi.ws import Client as WsClient
-        except ImportError as exc:
-            raise RuntimeError("飞书 SDK 未安装") from exc
-        dispatcher = (EventDispatcherHandler.builder(
-            self.settings.app_id, self.settings.app_secret)
-            .register_p2_im_message_receive_v1(self._on_message)
-            .register_p2_card_action_trigger(self._on_card_action)
-            .build())
-        self._ws = WsClient(
-            self.settings.app_id, self.settings.app_secret,
-            log_level=lark_oapi.LogLevel.ERROR, event_handler=dispatcher,
-        )
-        thread = threading.Thread(target=self._ws.start,
-                                  name="feishu-websocket", daemon=True)
-        thread.start()
+        """在线程内部导入 SDK、创建 loop/client，并运行阻塞 start。"""
+        def run():
+            import asyncio
+            try:
+                import lark_oapi
+                from lark_oapi.event.dispatcher_handler import EventDispatcherHandler
+                from lark_oapi.ws import Client as WsClient
+            except ImportError:
+                self._mark_system_failure("sdk_missing")
+                return
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._ws_loop = loop
+            # lark-oapi 1.x 在 ws.client 模块级保存 loop；替换为本线程 loop。
+            try:
+                import lark_oapi.ws.client as ws_module
+                ws_module.loop = loop
+            except ImportError:
+                pass
+            dispatcher = (EventDispatcherHandler.builder(
+                self.settings.app_id, self.settings.app_secret)
+                .register_p2_im_message_receive_v1(self._on_message)
+                .register_p2_card_action_trigger(self._on_card_action)
+                .build())
+            self._ws = WsClient(
+                self.settings.app_id, self.settings.app_secret,
+                log_level=lark_oapi.LogLevel.ERROR, event_handler=dispatcher,
+            )
+            try:
+                self._ws.start()
+            except Exception:
+                self._mark_system_failure("websocket_start_failed")
+            finally:
+                loop.close()
+                self._ws_loop = None
+
+        self._ws_thread = threading.Thread(target=run,
+                                           name="feishu-websocket", daemon=True)
+        self._ws_thread.start()
+
+    def _mark_system_failure(self, error_code: str) -> None:
+        """记录启动类错误，不构造伪造事件或污染业务幂等表。"""
+        import logging
+        logging.getLogger(__name__).error("feishu_channel_failure:%s", error_code)
 
     def _on_message(self, event) -> None:
         item = parse_text_event(event)

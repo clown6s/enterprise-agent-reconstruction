@@ -82,11 +82,36 @@ class MysqlSchemaCatalog(SchemaCatalog):
         def operation(conn):
             with conn.cursor() as cur:
                 cur.execute(
+                    "SELECT d.domain_name, k.keyword, k.weight "
+                    "FROM sql_domain_keywords k "
+                    "JOIN sql_data_domains d "
+                    "ON d.tenant_id=k.tenant_id AND d.domain_id=k.domain_id "
+                    "WHERE k.tenant_id=%s AND d.status='active'",
+                    (tenant_id,),
+                )
+                rows = cur.fetchall()
+            if rows:
+                scores = {}  # domain_name -> 累计权重
+                for row in rows:
+                    keyword = row["keyword"]
+                    if keyword and keyword in query:
+                        bonus = 1.0 + min(len(keyword), 8) * 0.1
+                        scores[row["domain_name"]] = scores.get(
+                            row["domain_name"], 0.0) + float(row["weight"]) * bonus
+                if scores:
+                    ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+                    top, top_score = ordered[0]
+                    if len(ordered) == 1 or ordered[1][1] * 1.3 < top_score:
+                        return top
+                    return None  # 多个域都命中且分差小，需要澄清
+            # 回退：domain_name 直接包含整句（英文别名场景）
+            with conn.cursor() as cur:
+                cur.execute(
                     "SELECT domain_name FROM sql_data_domains "
                     "WHERE tenant_id=%s AND status='active' "
-                    "AND (domain_name LIKE %s OR description LIKE %s) "
+                    "AND domain_name LIKE %s "
                     "ORDER BY CHAR_LENGTH(domain_name) DESC LIMIT 1",
-                    (tenant_id, f"%{query}%", f"%{query}%"),
+                    (tenant_id, f"%{query}%"),
                 )
                 row = cur.fetchone()
             return row["domain_name"] if row else None
