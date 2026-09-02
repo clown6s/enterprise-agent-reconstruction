@@ -3,7 +3,9 @@ import re
 from uuid import uuid4
 
 from .context import identity
-from .schema_registry import SchemaColumn, SchemaDomain, SchemaJoin, SchemaTable
+from .schema_registry import (
+    RowPolicyRegistration, SchemaColumn, SchemaDomain, SchemaJoin, SchemaTable,
+)
 
 
 class SchemaAdminService:
@@ -85,6 +87,25 @@ class SchemaAdminService:
                                         version=version, reason=reason or None)
         return {"domain_id": domain, "status": "active",
                 **({} if result is None else result)}
+
+    def list_row_policies(self, domain, *, context):
+        return self._registry.list_row_policies(domain, context=self._context(context))
+
+    def register_row_policy(self, domain, request, *, context):
+        context = self._context(context)
+        policy = RowPolicyRegistration(
+            table_name=getattr(request, "table"),
+            subject_type=getattr(request, "subject_type"),
+            subject_id=getattr(request, "subject_id"),
+            predicate_template=getattr(request, "predicate_template"),
+            allowed=bool(getattr(request, "allowed", True)),
+        )
+        result = self._registry.register_row_policy(domain, policy, context=context)
+        return {"domain_id": domain, **({} if result is None else result)}
+
+    def delete_row_policy(self, domain, permission_id, *, context):
+        self._registry.delete_row_policy(domain, int(permission_id), context=self._context(context))
+        return {"domain_id": domain, "permission_id": int(permission_id), "deleted": True}
 
     def close(self):
         closer = getattr(self._registry, "close", None)

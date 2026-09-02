@@ -180,4 +180,67 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
                 return result
         return self._pool.run(op)
 
+    @mysql_errors
+    def register_row_policy(self, domain_id, policy, *, context):
+        tenant, user = self._admin(context)
+        validate_identifier(domain_id, "数据域ID")
+        validate_identifier(policy.table_name, "表名")
+        from ..application.nl2sql.row_policy import compile_template
+        compile_template(policy.predicate_template)
+        def op(conn):
+            with conn.cursor() as c:
+                c.execute(
+                    "SELECT 1 FROM sql_allowed_tables WHERE tenant_id=%s "
+                    "AND domain_id=%s AND table_name=%s LIMIT 1",
+                    (tenant, domain_id, policy.table_name),
+                )
+                if not c.fetchone():
+                    raise ValidationError("策略目标表未登记")
+                c.execute(
+                    "INSERT INTO sql_domain_permissions "
+                    "(tenant_id,domain_id,table_name,subject_type,subject_id,"
+                    "row_predicate_template,allowed) VALUES (%s,%s,%s,%s,%s,%s,%s) "
+                    "ON DUPLICATE KEY UPDATE row_predicate_template=VALUES(row_predicate_template),"
+                    "allowed=VALUES(allowed)",
+                    (tenant, domain_id, policy.table_name, policy.subject_type,
+                     policy.subject_id, policy.predicate_template, policy.allowed),
+                )
+                conn.commit()
+            return {"subject_type": policy.subject_type, "subject_id": policy.subject_id,
+                    "table_name": policy.table_name, "allowed": bool(policy.allowed),
+                    "updated_by": user}
+        return self._pool.run(op)
+
+    @mysql_errors
+    def list_row_policies(self, domain_id, *, context):
+        tenant, _ = self._admin(context)
+        def op(conn):
+            with conn.cursor() as c:
+                c.execute(
+                    "SELECT permission_id, table_name, subject_type, subject_id, "
+                    "row_predicate_template, allowed, created_at "
+                    "FROM sql_domain_permissions WHERE tenant_id=%s AND domain_id=%s "
+                    "ORDER BY table_name, subject_type, subject_id",
+                    (tenant, domain_id),
+                )
+                return c.fetchall()
+        return self._pool.run(op)
+
+    @mysql_errors
+    def delete_row_policy(self, domain_id, permission_id, *, context):
+        tenant, _ = self._admin(context)
+        if not isinstance(permission_id, int) or permission_id <= 0:
+            raise ValidationError("策略 ID 无效")
+        def op(conn):
+            with conn.cursor() as c:
+                c.execute(
+                    "DELETE FROM sql_domain_permissions WHERE tenant_id=%s "
+                    "AND domain_id=%s AND permission_id=%s",
+                    (tenant, domain_id, permission_id),
+                )
+                if c.rowcount == 0:
+                    raise ValidationError("策略不存在")
+                conn.commit()
+        return self._pool.run(op)
+
     def close(self): self._pool.close()

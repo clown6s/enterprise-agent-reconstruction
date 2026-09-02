@@ -490,6 +490,7 @@ CREATE TABLE IF NOT EXISTS sql_domain_permissions (
 
     subject_type ENUM('user', 'role', 'department') NOT NULL,
     subject_id VARCHAR(64) NOT NULL,
+    table_name VARCHAR(128) NULL,
 
     row_predicate_template VARCHAR(2000) NOT NULL,
     allowed BOOLEAN NOT NULL DEFAULT TRUE,
@@ -497,7 +498,7 @@ CREATE TABLE IF NOT EXISTS sql_domain_permissions (
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (permission_id),
-    UNIQUE KEY uk_sql_permission_subject (tenant_id, domain_id, subject_type, subject_id),
+    UNIQUE KEY uk_sql_permission_subject (tenant_id, domain_id, table_name, subject_type, subject_id),
     KEY idx_sql_permission_subject_lookup (tenant_id, subject_type, subject_id, domain_id),
     CONSTRAINT fk_sql_permission_domain
         FOREIGN KEY (tenant_id, domain_id)

@@ -181,10 +181,13 @@ VALUES
     ('tenant-test', 'domain-procurement', 'procurement_requests', 'created_at', '创建时间', 'datetime', TRUE, TRUE, TRUE, FALSE, FALSE, '申请创建时间');
 
 INSERT IGNORE INTO sql_domain_permissions
-    (tenant_id, domain_id, subject_type, subject_id, row_predicate_template, allowed)
+    (tenant_id, domain_id, table_name, subject_type, subject_id,
+     row_predicate_template, allowed)
 VALUES
-    ('tenant-test', 'domain-orders', 'user', 'user-test-001', 'tenant_id = :tenant_id', TRUE),
-    ('tenant-test', 'domain-procurement', 'user', 'user-test-001', 'tenant_id = :tenant_id', TRUE);
+    ('tenant-test', 'domain-orders', 'orders', 'user', 'user-test-001',
+     'tenant_id = :tenant_id', TRUE),
+    ('tenant-test', 'domain-procurement', 'procurement_requests', 'user',
+     'user-test-001', 'tenant_id = :tenant_id', TRUE);
 
 -- ---------- 4. SOP 测试定义、版本和步骤 ----------
 

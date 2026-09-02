@@ -30,6 +30,13 @@ class MemorySchemaCatalog(SchemaCatalog):
         item = self._domains.get(domain)
         return set(item.tables) if item else set()
 
+    def blocked_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:
+        return {}
+
+    def row_policies(self, domain: str, table_name: str, *, context=None) -> tuple:
+        """The memory catalog intentionally has no row-policy storage."""
+        return ()
+
     def resolve_domain(self, query: str, *, context=None) -> str | None:
         lowered = query.lower()
         for item in self._domains.values():

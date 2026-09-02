@@ -3,6 +3,7 @@ import json
 
 from ..application.context import identity
 from ..application.ports import SchemaCatalog
+from ..domain.exceptions import ValidationError
 from .mysql_pool import MysqlPool, mysql_errors
 
 
@@ -154,6 +155,82 @@ class MysqlSchemaCatalog(SchemaCatalog):
                 )
                 return {row["table_name"] for row in cur.fetchall()
                         if row["domain_id"] not in denied}
+        return self._pool.run(operation)
+
+    @mysql_errors
+    def blocked_columns(self, domain: str, *, context) -> dict[str, set[str]]:
+        """Sensitive columns that must not appear in generated SQL, per table."""
+        tenant_id, _ = identity(context)
+        def operation(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT domain_id FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_name=%s AND status='active' LIMIT 1",
+                    (tenant_id, domain),
+                )
+                item = cur.fetchone()
+                if item is None:
+                    return {}
+                cur.execute(
+                    "SELECT table_name, column_name FROM sql_allowed_columns "
+                    "WHERE tenant_id=%s AND domain_id=%s AND `sensitive`=1 "
+                    "ORDER BY table_name, column_name",
+                    (tenant_id, item["domain_id"]),
+                )
+                blocked: dict[str, set[str]] = {}
+                for row in cur.fetchall():
+                    blocked.setdefault(row["table_name"], set()).add(row["column_name"])
+                return blocked
+        return self._pool.run(operation)
+
+    @mysql_errors
+    def row_policies(self, domain: str, table_name: str, *, context) -> tuple:
+        """Resolve table policies for the caller; any matching deny wins."""
+        tenant_id, user_id = identity(context)
+        roles = tuple(getattr(context, "roles", ()) or ())
+        departments = tuple(getattr(context, "department_ids", ()) or ())
+
+        def operation(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT domain_id FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_name=%s AND status='active' LIMIT 1",
+                    (tenant_id, domain),
+                )
+                item = cur.fetchone()
+                if item is None:
+                    return ()
+                branches = ["(subject_type='user' AND subject_id=%s)"]
+                params = [tenant_id, item["domain_id"], table_name, user_id]
+                if roles:
+                    marks = ", ".join(["%s"] * len(roles))
+                    branches.append(
+                        f"(subject_type='role' AND subject_id IN ({marks}))")
+                    params.extend(roles)
+                if departments:
+                    marks = ", ".join(["%s"] * len(departments))
+                    branches.append(
+                        f"(subject_type='department' AND subject_id IN ({marks}))")
+                    params.extend(departments)
+                cur.execute(
+                    "SELECT subject_type, subject_id, row_predicate_template, allowed "
+                    "FROM sql_domain_permissions "
+                    "WHERE tenant_id=%s AND domain_id=%s AND table_name=%s "
+                    "AND (" + " OR ".join(branches) + ")",
+                    tuple(params),
+                )
+                rows = cur.fetchall()
+            if not rows:
+                return ()
+            from ..application.nl2sql.row_policy import bind_policy
+            if any(not bool(row.get("allowed")) for row in rows):
+                raise ValidationError("行级权限拒绝访问该表")
+            return tuple(
+                bind_policy(row["row_predicate_template"], tenant_id=tenant_id,
+                            user_id=user_id, role_names=roles,
+                            department_ids=departments)
+                for row in rows if bool(row.get("allowed")))
+
         return self._pool.run(operation)
 
     @mysql_errors

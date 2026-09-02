@@ -15,7 +15,8 @@ from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
 from ...security.context_boundary import SYSTEM_POLICY
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
-from .sql_guard import validate_sql
+from .row_policy import BoundPolicy
+from .sql_guard import is_policy_safe, referenced_tables, validate_sql
 
 _SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
 # 在这些关键字之前插入 tenant 条件，避免追加到 GROUP/ORDER/LIMIT 之后。
@@ -58,6 +59,9 @@ class Nl2SqlService:
         with self._span("nl2sql.load_schema"):
             schema = self.catalog.describe(domain, context=context)
             allowed = self.catalog.allowed_tables(domain, context=context)
+            column_loader = getattr(self.catalog, "blocked_columns", None)
+            blocked_columns = (column_loader(domain, context=context)
+                               if callable(column_loader) else {})
         previous_context = ""
         if state is not None and getattr(state, "extra", None):
             previous_question = state.extra.get("last_question")
@@ -81,21 +85,27 @@ class Nl2SqlService:
         if not sql:
             raise SqlGenerationError("LLM 未返回合法 SQL")
         with self._span("nl2sql.validate_sql"):
-            sql = validate_sql(sql, allowed_tables=allowed)
+            sql = validate_sql(sql, allowed_tables=allowed,
+                               blocked_columns=blocked_columns)
         sql = self._enforce_tenant(sql, context.tenant_id)
+        row_policies = self._row_policies_for(sql, domain, context)
         result = None
         try:
             with self._span("nl2sql.execute_sql"):
                 result = self.executor.query(sql, timeout_s=self.timeout_s,
-                                             max_rows=self.max_rows)
+                                             max_rows=self.max_rows,
+                                             row_policies=row_policies)
         except Exception as exc:
             # 允许基于底层错误重写一次，仍失败才抛出并保留脱敏错误信息。
-            rewritten = self._retry_on_error(query, domain, sql, exc, allowed, context.tenant_id)
-            if rewritten is None:
+            retry = self._retry_on_error(query, domain, sql, exc, allowed,
+                                         context, blocked_columns=blocked_columns)
+            if retry is None:
                 raise SqlPolicyError(self._safe_error(exc)) from exc
+            rewritten, retry_policies = retry
             with self._span("nl2sql.execute_sql_retry"):
                 result = self.executor.query(rewritten, timeout_s=self.timeout_s,
-                                             max_rows=self.max_rows)
+                                             max_rows=self.max_rows,
+                                             row_policies=retry_policies)
             sql = rewritten
         explanation = self._explain(query, domain, result)
         return ChatResult(
@@ -123,9 +133,27 @@ class Nl2SqlService:
             return f"{prefix} AND {predicate} {suffix}".strip()
         return f"{prefix} WHERE {predicate} {suffix}".strip()
 
+    def _row_policies_for(self, sql: str, domain: str, context,
+                          ) -> tuple[BoundPolicy, ...]:
+        """Resolve per-table row policies; fail closed if not safely applicable."""
+        tables = referenced_tables(sql)
+        if not tables:
+            return ()
+        policies: list[BoundPolicy] = []
+        loader = getattr(self.catalog, "row_policies", None)
+        if callable(loader):
+            for table in tables:
+                policies.extend(loader(domain, table, context=context))
+        if not policies:
+            return ()
+        if not is_policy_safe(sql):
+            raise SqlPolicyError("存在行级权限但 SQL 结构复杂，无法安全应用，已拒绝执行")
+        return tuple(policies)
+
     def _retry_on_error(self, query: str, domain: str, sql: str, error: Exception,
-                        allowed_tables: set[str], tenant_id: str) -> str | None:
-        """针对可修复的 SQL 执行错误，请模型最多重写一次。"""
+                        allowed_tables: set[str], context,
+                        blocked_columns: dict | None = None) -> tuple[str, tuple] | None:
+        """针对可修复的 SQL 执行错误，请模型最多重写一次（复用同一安全 pipeline）。"""
         prompt = (
             "上一条 MySQL SELECT 执行失败。只返回修正后的单条 SELECT 代码块，"
             "只能使用原 SQL 的允许表字段，必须保留 tenant_id 过滤；不要解释。\n"
@@ -137,8 +165,11 @@ class Nl2SqlService:
             candidate = self._extract_sql(raw)
             if not candidate:
                 return None
-            candidate = validate_sql(candidate, allowed_tables=allowed_tables)
-            return self._enforce_tenant(candidate, tenant_id)
+            candidate = validate_sql(candidate, allowed_tables=allowed_tables,
+                                    blocked_columns=blocked_columns)
+            candidate = self._enforce_tenant(candidate, context.tenant_id)
+            policies = self._row_policies_for(candidate, domain, context)
+            return candidate, policies
         except Exception:
             return None
 

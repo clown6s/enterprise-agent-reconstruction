@@ -21,7 +21,7 @@ publish（校验 → 版本 + 变更日志 → 置 active）
 NL2SQL 查询链路
    ├─ SchemaCatalog  只读取已发布(published)元数据
    ├─ 意图路由 + LLM 生成 SQL
-   ├─ SQL Guard       只读/表列/方言/租户校验
+   ├─ SQL Guard       只读/全表 allowlist/租户校验
    └─ ReadonlySqlExecutor  用只读账号执行
 ```
 
@@ -349,7 +349,7 @@ Content-Type: application/json
 2. 关键词/语义解析到已发布数据域 `orders`
 3. 加载受控 Schema（含允许的 JOIN）给 LLM
 4. LLM 生成单条 SELECT
-5. SQL Guard 校验（只读、允许表列、注入租户条件）
+5. SQL Guard 校验（只读、所有表必须在 allowlist、注入租户条件）
 6. 用只读账号执行并返回结果
 
 ---
@@ -406,6 +406,49 @@ Content-Type: application/json
 - JOIN 只能使用登记过的受控关系
 - `schema:admin` 与普通 `chat:ask` 权限隔离，LLM 无法触发管理操作
 - 数据库授权必须由管理员显式 `GRANT SELECT`，Registry 不做自动授权
+- **行级权限**：`sql_domain_permissions` 可按表设置行级过滤，按 `user` / `role` / `department` 主体匹配，deny 优先于 allow
+
+## 9.1 行级权限（RLS）
+
+行级权限让不同用户只能看到表中授权的行。
+
+### 配置
+
+在 `sql_domain_permissions` 中按表设置策略（需先运行迁移 `scripts/migrations/2026_09_03_row_policy_table_name.sql` 增加 `table_name` 列）：
+
+```sql
+-- 用户 user-test-001 只看自己的订单
+INSERT INTO sql_domain_permissions
+    (tenant_id, domain_id, table_name, subject_type, subject_id,
+     row_predicate_template, allowed)
+VALUES
+    ('tenant-test', 'domain-orders', 'orders', 'user', 'user-test-001',
+     'tenant_id = :tenant_id AND owner_id = :user_id', 1);
+```
+
+### 模板占位符（受限 DSL）
+
+模板只允许以下受信任目标占位符，值由服务端从认证上下文绑定为 SQL 参数，绝不写入 SQL 文本：
+
+| 占位符 | 类型 | 绑定值来源 |
+|---|---|---|
+| `:tenant_id` | 标量 | 认证 tenant |
+| `:user_id` | 标量 | 认证用户 |
+| `:role_names` | 列表 | 认证角色 |
+| `:department_ids` | 列表 | 认证部门 |
+
+模板禁止 `%`、注释、分号、写操作/关键字和未知占位符；列表为空时展开为 `(NULL)`（安全地不返回任何行）。
+
+### 生效规则
+
+- 匹配主体：按用户、角色、部门匹配当前登录者；
+- **deny 优先**：任一匹配策略 `allowed=0` → 整表拒绝；
+- allow 策略 `AND` 合并后注入 WHERE；
+- 策略文本永远不会出现在 LLM prompt 或审计日志中。
+
+### 当前限制（fail-closed）
+
+行策略仅在**单表 SELECT** 上可靠生效。凡命中受保护表的复杂 SQL——`JOIN`、`UNION`、子查询、CTE——会被整体**拒绝执行**（fail-closed），而不是冒险把谓词注入错误的位置。启用 RLS 后，这些表暂不支持 JOIN 查询；后续升级到 AST 重写后可放宽该限制。
 
 ---
 
@@ -627,11 +670,26 @@ app/chat/application/nl2sql/sql_guard.py
 - 拒绝 SQL 注释；
 - 拒绝 `INTO OUTFILE` / `INTO DUMPFILE`；
 - 默认拒绝 `SELECT *`；
-- 检查 SQL 使用的表是否属于当前 domain allowlist。
+- 检查 SQL 中引用的**每一张物理表**是否属于当前 domain allowlist；不能用一张合法表掩盖另一张未授权表；
+- 支持 FROM/JOIN、逗号多表、UNION、表别名和常见只读 CTE 的表引用识别；
+- 函数参数、SELECT 列名不会被误当成表名；
+- 未配置 allowlist，或 SQL 没有可识别的表引用时拒绝执行；
+- 拒绝 SQL 中引用任何标记为 `sensitive` 的字段（无论出现在 SELECT、WHERE、ORDER BY 还是 GROUP BY）；
+- 字符串字面量中的敏感字段名不会误报。
+
+例如，下面的 SQL 会被拒绝：
+
+```sql
+SELECT o.order_id
+FROM orders o
+JOIN users u ON o.user_id = u.id
+```
+
+当 allowlist 只有 `orders` 时，Guard 会拒绝 `users`，即使 `orders` 是允许表。
 
 Guard 失败时立即拒绝，不连接业务数据库。
 
-> 当前 Guard 是基础校验层，复杂 CTE、别名、嵌套查询、列级权限和多表 tenant 条件仍应继续加强 AST 级校验。Schema Registry 不会因此替代 Guard。
+> 当前 Guard 已实现表级全量 allowlist 与敏感字段拦截，但仍是无外部 parser 的保守词法校验，不等同于完整 AST 分析。列级能力（selectable/filterable/sortable/aggregatable）、敏感字段脱敏（masking）、复杂 JOIN 语义和每张表的 tenant 条件仍应继续升级为 AST 级校验。Schema Registry 不会因此替代 Guard。
 
 ### 10.9 服务端强制租户条件
 
@@ -798,7 +856,7 @@ HTTP POST /chat
 | 返回 `clarification` | 问题是否包含明确业务域关键词，是否命中多个域 |
 | 返回 `no_context` | 是否被错误路由到 SOP/RAG，是否存在对应知识/SOP 数据 |
 | 域解析失败 | domain 是否 active、关键词是否登记、用户是否有域权限 |
-| Guard 拒绝 | 生成 SQL 是否为 SELECT、表是否 allowlist、是否包含禁用语法 |
+| Guard 拒绝 | 是否为 SELECT、引用的每张表是否都在 allowlist、是否包含禁用语法 |
 | 数据库拒绝权限 | `SHOW GRANTS FOR 'nl2sql_readonly'@'%';` |
 | 找不到表 | 业务表真实存在、数据库名正确、Schema 已发布 |
 | 找不到列 | 列是否登记且真实存在，字段是否 selectable |

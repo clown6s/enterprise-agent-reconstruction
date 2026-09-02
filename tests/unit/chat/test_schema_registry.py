@@ -235,3 +235,74 @@ def test_publish_rejects_unknown_domain():
     store = _store(sink)
     with pytest.raises(ValidationError):
         store.publish("dom", context=_ADMIN)
+
+
+# --- row policy admin ---
+
+_POLICY = SchemaRegistryPortPolicyRow()
+
+
+def _policy():
+    from app.chat.application.schema_registry import RowPolicyRegistration
+    return RowPolicyRegistration(
+        table_name="orders", subject_type="role", subject_id="finance",
+        predicate_template="department_id IN :department_ids", allowed=True)
+
+
+def test_service_register_row_policy_invalid_subject_type():
+    from app.chat.application.schema_registry import RowPolicyRegistration
+    svc = SchemaRegistry(object())
+    with pytest.raises(ValidationError):
+        svc.register_row_policy("dom", RowPolicyRegistration(
+            "orders", "group", "g1", "department_id = :department_ids"), context=_ADMIN)
+
+
+def test_service_register_row_policy_rejects_unsafe_template():
+    from app.chat.application.schema_registry import RowPolicyRegistration
+    svc = SchemaRegistry(object())
+    with pytest.raises(ValidationError):
+        svc.register_row_policy("dom", RowPolicyRegistration(
+            "orders", "user", "u1", "owner_id = :unknown_placeholder"), context=_ADMIN)
+
+
+def test_adapter_register_row_policy_commits():
+    from app.chat.application.schema_registry import RowPolicyRegistration
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_allowed_tables"] = {"1": 1}
+    store = _store(sink)
+    store.register_row_policy("dom", _policy(), context=_ADMIN)
+    insert = [s for s, _ in sink.calls if s.startswith("INSERT INTO sql_domain_permissions")]
+    assert len(insert) == 1
+    assert sink.calls[-1][1] == ("t", "dom", "orders", "role", "finance",
+                                 "department_id IN :department_ids", True)
+    assert sink.commits == 1
+
+
+def test_adapter_register_row_policy_requires_registered_table():
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_allowed_tables"] = None
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.register_row_policy("dom", _policy(), context=_ADMIN)
+    assert sink.commits == 0
+
+
+def test_adapter_list_row_policies_tenant_scoped():
+    sink = _make_sink()
+    sink.plan["SELECT permission_id, table_name, subject_type, subject_id, row_predicate_template, allowed, created_at"] = [
+        {"permission_id": 1, "table_name": "orders", "subject_type": "user",
+         "subject_id": "u1", "row_predicate_template": "owner_id = :user_id",
+         "allowed": 1, "created_at": None}]
+    rows = _store(sink).list_row_policies("dom", context=_ADMIN)
+    assert rows[0]["subject_id"] == "u1"
+    assert sink.last_params == ("t", "dom")
+
+
+def test_adapter_delete_row_policy_commits():
+    sink = _make_sink()
+    sink.rowcount = 1
+    store = _store(sink)
+    store.delete_row_policy("dom", 7, context=_ADMIN)
+    assert any(s.startswith("DELETE FROM sql_domain_permissions") for s, _ in sink.calls)
+    assert sink.last_params == ("t", "dom", 7)
+    assert sink.commits == 1

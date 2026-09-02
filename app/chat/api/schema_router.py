@@ -29,6 +29,11 @@ class SchemaAdminService(Protocol):
                          *, context: RequestContext) -> Any: ...
     def register_joins(self, domain: str, request: "JoinsRequest",
                        *, context: RequestContext) -> Any: ...
+    def list_row_policies(self, domain: str, *, context: RequestContext) -> Any: ...
+    def register_row_policy(self, domain: str, request: "RowPolicyRequest",
+                            *, context: RequestContext) -> Any: ...
+    def delete_row_policy(self, domain: str, permission_id: int,
+                          *, context: RequestContext) -> Any: ...
     def publish(self, domain: str, request: "PublishRequest | None" = None,
                 *, context: RequestContext) -> Any: ...
 
@@ -63,6 +68,14 @@ class ColumnsRequest(BaseModel):
 class JoinsRequest(BaseModel):
     table: str = Field(min_length=1, max_length=128)
     joins: list[dict] = Field(default_factory=list, max_length=100)
+
+
+class RowPolicyRequest(BaseModel):
+    table: str = Field(min_length=1, max_length=128)
+    subject_type: str = Field(min_length=1, max_length=16)
+    subject_id: str = Field(min_length=1, max_length=64)
+    predicate_template: str = Field(min_length=1, max_length=2000)
+    allowed: bool = True
 
 
 class _AnonymousPrincipal:
@@ -179,5 +192,24 @@ def create_router(service_provider: Callable[[], SchemaAdminService],
                        schema: SchemaAdminService = Depends(service),
                        principal: object = Depends(principal)):
         return _jsonable(schema.register_joins(domain, body, context=_context(request, principal)))
+
+    @router.get("/domains/{domain}/policies")
+    def list_row_policies(domain: str, request: Request,
+                          schema: SchemaAdminService = Depends(service),
+                          principal: object = Depends(principal)):
+        return _jsonable(schema.list_row_policies(domain, context=_context(request, principal)))
+
+    @router.post("/domains/{domain}/policies")
+    def register_row_policy(domain: str, body: RowPolicyRequest, request: Request,
+                            schema: SchemaAdminService = Depends(service),
+                            principal: object = Depends(principal)):
+        return _jsonable(schema.register_row_policy(domain, body, context=_context(request, principal)))
+
+    @router.delete("/domains/{domain}/policies/{permission_id}")
+    def delete_row_policy(domain: str, permission_id: int, request: Request,
+                          schema: SchemaAdminService = Depends(service),
+                          principal: object = Depends(principal)):
+        return _jsonable(schema.delete_row_policy(domain, permission_id,
+                                                  context=_context(request, principal)))
 
     return router

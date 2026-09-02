@@ -50,6 +50,15 @@ class SchemaTable:
 
 
 @dataclass(frozen=True)
+class RowPolicyRegistration:
+    table_name: str
+    subject_type: str
+    subject_id: str
+    predicate_template: str
+    allowed: bool = True
+
+
+@dataclass(frozen=True)
 class SchemaDomain:
     domain_id: str
     domain_name: str
@@ -107,6 +116,26 @@ class SchemaRegistry:
         validate_identifier(domain_id, "数据域ID"); validate_identifier(table_name, "表名")
         for j in joins: self._validate_join(j)
         return self._port.register_joins(domain_id, table_name, joins, context=context)
+
+    def register_row_policy(self, domain_id: str, policy: RowPolicyRegistration,
+                            *, context) -> None:
+        validate_identifier(domain_id, "数据域ID")
+        validate_identifier(policy.table_name, "表名")
+        if policy.subject_type not in ("user", "role", "department"):
+            raise ValidationError("subject_type 只允许 user/role/department")
+        if not policy.subject_id or len(policy.subject_id) > 64:
+            raise ValidationError("subject_id 无效")
+        from .nl2sql.row_policy import compile_template
+        compile_template(policy.predicate_template)
+        return self._port.register_row_policy(domain_id, policy, context=context)
+
+    def list_row_policies(self, domain_id: str, *, context) -> list[dict]:
+        validate_identifier(domain_id, "数据域ID")
+        return self._port.list_row_policies(domain_id, context=context)
+
+    def delete_row_policy(self, domain_id: str, permission_id: int, *, context) -> None:
+        validate_identifier(domain_id, "数据域ID")
+        return self._port.delete_row_policy(domain_id, permission_id, context=context)
 
     def publish(self, domain_id: str, *, context, version: str | None = None,
                 reason: str | None = None) -> dict | None:
