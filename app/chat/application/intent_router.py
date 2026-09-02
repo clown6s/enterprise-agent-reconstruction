@@ -47,6 +47,17 @@ _DATA_RE = re.compile(
     r"同比|环比|排名|排行|本月|上月|今年|去年|最近|趋势|明细|报表|数据"
 )
 _NUMBER_RE = re.compile(r"(?:\d+(?:\.\d+)?|[一二两三四五六七八九十百千万亿]+)\s*(?:万|元|个|笔|单|件|天|月|年|%)")
+# “怎么做/如何做”也常用于技术知识问答（例如“怎么做日志脱敏”）。
+# 只有业务办理/审批类对象才应保留 SOP 倾向。
+_KNOWLEDGE_ACTION_RE = re.compile(
+    r"日志脱敏|脱敏|隐私保护|加密|解密|哈希|散列|权限校验|鉴权|认证|"
+    r"提示词|向量|嵌入|索引|检索|模型|训练|部署|配置|调优|解析|架构|"
+    r"代码|接口|API|算法|原理|机制|设计|开发|实现|排查|监控|日志"
+)
+_BUSINESS_SOP_RE = re.compile(
+    r"采购申请|报销|审批|请假|入职|离职|合同|付款|开票|用印|流程|表单|"
+    r"办理|提交|申请|手续|业务"
+)
 
 # Both SOP and NL2SQL must cross this floor for a sentence to qualify as a
 # genuine split/mixed request; incidental keywords alone are not enough.
@@ -82,6 +93,15 @@ class RuleIntentRouter:
         if _NUMBER_RE.search(query):
             scores[Intent.NL2SQL] += 2.0
             evidence[Intent.NL2SQL].append("numeric_or_time_pattern")
+
+        # “怎么做/如何做”需要结合宾语判断：技术对象是知识问答，
+        # 业务办理对象才是 SOP，不能只凭疑问句式路由。
+        if (re.search(r"怎么做|如何做|怎么实现|如何实现", query)
+                and _KNOWLEDGE_ACTION_RE.search(query)
+                and not _BUSINESS_SOP_RE.search(query)):
+            scores[Intent.KNOWLEDGE_QA] += 3.0
+            scores[Intent.SOP] = max(0.0, scores[Intent.SOP] - 2.0)
+            evidence[Intent.KNOWLEDGE_QA].append("knowledge_action_pattern")
 
         # 命名/概念识别优先于描述中的流程词。比如“下一步该做什么，
         # 这个循环叫什么”是在问术语，不是在请求执行 SOP。

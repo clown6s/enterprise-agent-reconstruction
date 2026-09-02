@@ -62,6 +62,9 @@ def _cleanup(pool: MysqlPool, domain_id: str) -> None:
     """删除临时域，保证脚本可重复执行。"""
     def op(conn):
         with conn.cursor() as c:
+            c.execute("DELETE l FROM sql_schema_change_logs l JOIN sql_schema_versions v ON v.tenant_id=l.tenant_id AND v.version_id=l.version_id WHERE l.tenant_id=%s AND l.domain_id=%s", (TENANT, domain_id))
+            c.execute("DELETE j FROM sql_allowed_joins j JOIN sql_schema_versions v ON v.tenant_id=j.tenant_id AND v.version_id=j.version_id WHERE j.tenant_id=%s AND v.domain_id=%s", (TENANT, domain_id))
+            c.execute("DELETE FROM sql_schema_versions WHERE tenant_id=%s AND domain_id=%s", (TENANT, domain_id))
             c.execute("DELETE FROM sql_domain_permissions WHERE tenant_id=%s AND domain_id=%s",
                       (TENANT, domain_id))
             c.execute("DELETE FROM sql_allowed_columns WHERE tenant_id=%s AND domain_id=%s",
@@ -109,9 +112,13 @@ def main() -> int:
         ]
         registry.register_columns(domain_id, "orders", columns, context=ctx)
 
-        # 3. 发布（校验后置 active）。
+        # 3. 发布（校验后置 active，写入版本 + 变更日志）。
         print("[3/5] publish ...")
-        registry.publish(domain_id, context=ctx)
+        pub = registry.publish(domain_id, context=ctx, reason="smoke 发布")
+        if not pub or not pub.get("snapshot_hash"):
+            print("  !!! 发布未返回版本快照")
+            return 3
+        print(f"  version_no={pub.get('version_no')} hash={pub['snapshot_hash'][:12]}...")
         before = set(catalog.domains(context=ctx))
         if DOMAIN_NAME not in before:
             print("  !!! 发布后 catalog 未读到该域")

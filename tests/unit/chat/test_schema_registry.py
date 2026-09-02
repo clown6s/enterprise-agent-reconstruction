@@ -188,21 +188,50 @@ def test_publish_requires_at_least_one_table():
     assert sink.commits == 0
 
 
-def test_publish_activates_domain():
+def test_publish_writes_version_and_change_log():
     sink = _make_sink()
-    sink.plan["SELECT 1 FROM sql_data_domains"] = {"1": 1}
-    sink.plan["SELECT COUNT(*) AS n FROM sql_allowed_tables"] = {"n": 2}
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = {
+        "domain_name": "orders", "description": "订单", "default_time_column": "created_at",
+        "max_rows": 1000, "max_execution_seconds": 10}
+    sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
+        {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1,
+         "allowed_joins": json.dumps([{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])}]
+    sink.plan["SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns"] = [
+        {"column_name": "amount", "business_name": "金额", "data_type": "decimal", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 1, "sensitive": 0,
+         "masking_rule": None, "description": None}]
+    sink.plan["SELECT COALESCE(MAX(version_no), 0) AS n FROM sql_schema_versions"] = {"n": 0}
     store = _store(sink)
-    store.publish("dom", context=_ADMIN)
-    update = [s for s, _ in sink.calls if s.startswith("UPDATE sql_data_domains")]
+    result = store.publish("dom", context=_ADMIN, version=None, reason="首次发布")
+    assert result["version_no"] == 1
+    assert result["snapshot_hash"]
+    update = [p for s, p in sink.calls if s.startswith("UPDATE sql_data_domains")]
     assert len(update) == 1
-    assert sink.last_params == ("u", "t", "dom")  # updated_by, tenant, domain
+    assert update[0] == ("u", "t", "dom")
+    assert any(s.startswith("INSERT INTO sql_schema_versions") for s, _ in sink.calls)
+    assert any(s.startswith("INSERT INTO sql_schema_change_logs") for s, _ in sink.calls)
+    assert any(s.startswith("INSERT INTO sql_allowed_joins") for s, _ in sink.calls)
     assert sink.commits == 1
+
+
+def test_publish_rejects_invalid_version():
+    sink = _make_sink()
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = {
+        "domain_name": "orders", "description": "订单", "default_time_column": None,
+        "max_rows": 1000, "max_execution_seconds": 10}
+    sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
+        {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1, "allowed_joins": None}]
+    sink.plan["SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns"] = []
+    sink.plan["SELECT COALESCE(MAX(version_no), 0) AS n FROM sql_schema_versions"] = {"n": 0}
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.publish("dom", context=_ADMIN, version="abc")
+    assert sink.commits == 0
 
 
 def test_publish_rejects_unknown_domain():
     sink = _make_sink()
-    sink.plan["SELECT 1 FROM sql_data_domains"] = None
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = None
     store = _store(sink)
     with pytest.raises(ValidationError):
         store.publish("dom", context=_ADMIN)

@@ -79,8 +79,12 @@ class SchemaAdminService:
         return {"domain_id": domain, "table": table, "count": len(joins)}
 
     def publish(self, domain, request=None, *, context):
-        self._registry.publish(domain, context=self._context(context))
-        return {"domain_id": domain, "status": "active"}
+        version = getattr(request, "version", None) if request else None
+        reason = getattr(request, "comment", None) if request else None
+        result = self._registry.publish(domain, context=self._context(context),
+                                        version=version, reason=reason or None)
+        return {"domain_id": domain, "status": "active",
+                **({} if result is None else result)}
 
     def close(self):
         closer = getattr(self._registry, "close", None)

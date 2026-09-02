@@ -37,6 +37,7 @@ def test_empty_is_clarification():
     ("怎么做采购申请的审批", Intent.SOP),
     ("这个月销售额排名", Intent.NL2SQL),
     ("报销标准是什么", Intent.KNOWLEDGE_QA),
+    ("怎么做日志脱敏来保护隐私", Intent.KNOWLEDGE_QA),
     ("气道对各种刺激特别敏感，这是哮喘的什么基本特征", Intent.KNOWLEDGE_QA),
     ("大模型Agent先思考、执行、观察结果再继续思考，这个反复循环的过程叫什么？", Intent.KNOWLEDGE_QA),
     ("给Agent接上搜索、执行代码、读写文件这些外部能力，这些能力统称什么", Intent.KNOWLEDGE_QA),

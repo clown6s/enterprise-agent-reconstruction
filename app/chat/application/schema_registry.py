@@ -108,9 +108,15 @@ class SchemaRegistry:
         for j in joins: self._validate_join(j)
         return self._port.register_joins(domain_id, table_name, joins, context=context)
 
-    def publish(self, domain_id: str, *, context) -> None:
+    def publish(self, domain_id: str, *, context, version: str | None = None,
+                reason: str | None = None) -> dict | None:
         validate_identifier(domain_id, "数据域ID")
-        return self._port.publish(domain_id, context=context)
+        if version is not None and (not version.strip() or len(version) > 64):
+            raise ValidationError("版本标识无效")
+        if reason is not None and len(reason) > 500:
+            raise ValidationError("发布原因过长")
+        return self._port.publish(domain_id, context=context, version=version,
+                                  reason=reason)
 
     @classmethod
     def _validate_domain(cls, d):

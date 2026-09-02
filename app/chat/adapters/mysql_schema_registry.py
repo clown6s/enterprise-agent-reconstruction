@@ -84,16 +84,56 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         return self._pool.run(op)
 
     @mysql_errors
-    def publish(self, domain_id, *, context):
+    def publish(self, domain_id, *, context, version=None, reason=None):
         tenant, user = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
-                c.execute("SELECT 1 FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s", (tenant,domain_id))
-                if not c.fetchone(): raise ValidationError("数据域不存在")
-                c.execute("SELECT COUNT(*) AS n FROM sql_allowed_tables WHERE tenant_id=%s AND domain_id=%s", (tenant,domain_id))
-                if not c.fetchone()["n"]: raise ValidationError("数据域至少需要一张表")
-                c.execute("UPDATE sql_data_domains SET status='active',updated_by=%s WHERE tenant_id=%s AND domain_id=%s", (user,tenant,domain_id))
+                c.execute("SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
+                domain = c.fetchone()
+                if not domain:
+                    raise ValidationError("数据域不存在")
+                c.execute("SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables WHERE tenant_id=%s AND domain_id=%s ORDER BY table_name", (tenant, domain_id))
+                tables = c.fetchall()
+                if not tables:
+                    raise ValidationError("数据域至少需要一张表")
+                snapshot = {"domain": dict(domain), "tables": []}
+                for table in tables:
+                    c.execute("SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns WHERE tenant_id=%s AND domain_id=%s AND table_name=%s ORDER BY column_name", (tenant, domain_id, table["table_name"]))
+                    snapshot["tables"].append({"table": dict(table), "columns": c.fetchall()})
+                canonical = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+                import hashlib
+                from uuid import uuid4
+                snapshot_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if version is None:
+                    c.execute("SELECT COALESCE(MAX(version_no), 0) AS n FROM sql_schema_versions WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
+                    version_no = int(c.fetchone()["n"]) + 1
+                else:
+                    try:
+                        version_no = int(version)
+                    except (TypeError, ValueError) as exc:
+                        raise ValidationError("版本必须是正整数") from exc
+                    if version_no <= 0:
+                        raise ValidationError("版本必须是正整数")
+                version_id = str(uuid4())
+                c.execute("UPDATE sql_schema_versions SET status='superseded' WHERE tenant_id=%s AND domain_id=%s AND status='published'", (tenant, domain_id))
+                c.execute("INSERT INTO sql_schema_versions (tenant_id,version_id,domain_id,version_no,status,snapshot_hash,created_by,published_by,change_reason,published_at) VALUES (%s,%s,%s,%s,'published',%s,%s,%s,%s,NOW(6))", (tenant, version_id, domain_id, version_no, snapshot_hash, user, user, reason))
+                for item in snapshot["tables"]:
+                    raw = item["table"].get("allowed_joins")
+                    if isinstance(raw, str):
+                        try: raw = json.loads(raw)
+                        except (TypeError, ValueError): raw = []
+                    for join in (raw if isinstance(raw, list) else []):
+                        if not isinstance(join, dict):
+                            continue
+                        target = join.get("table") or join.get("target")
+                        columns = join.get("columns") or {}
+                        if target and isinstance(columns, dict):
+                            for left, right in columns.items():
+                                c.execute("INSERT INTO sql_allowed_joins (tenant_id,join_id,version_id,left_domain_id,left_table_name,left_column_name,right_domain_id,right_table_name,right_column_name,join_type,description) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (tenant, str(uuid4()), version_id, domain_id, item["table"]["table_name"], left, domain_id, target, right, (join.get("join_type") or "left").lower(), join.get("description")))
+                c.execute("UPDATE sql_data_domains SET status='active',updated_by=%s WHERE tenant_id=%s AND domain_id=%s", (user, tenant, domain_id))
+                c.execute("INSERT INTO sql_schema_change_logs (tenant_id,change_id,version_id,domain_id,action,changed_by,change_summary) VALUES (%s,%s,%s,%s,'publish',%s,%s)", (tenant, str(uuid4()), version_id, domain_id, user, json.dumps({"version_no": version_no, "snapshot_hash": snapshot_hash, "reason": reason or ""}, ensure_ascii=False)))
             conn.commit()
+            return {"version_id": version_id, "version_no": version_no, "snapshot_hash": snapshot_hash}
         return self._pool.run(op)
 
     @mysql_errors
