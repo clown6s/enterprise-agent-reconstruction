@@ -177,6 +177,27 @@ def test_schema_allowed_tables():
     assert store.allowed_tables("orders", context=_CTX) == {"orders", "order_items"}
 
 
+def test_schema_allowed_columns():
+    sink = _make_sink()
+    sink.plan["SELECT domain_id FROM sql_data_domains"] = {"domain_id": "d-1"}
+    sink.plan["SELECT table_name, column_name FROM sql_allowed_columns"] = [
+        {"table_name": "orders", "column_name": "amount"},
+        {"table_name": "orders", "column_name": "region"},
+        {"table_name": "customers", "column_name": "name"}]
+    store = _store(MysqlSchemaCatalog, sink)
+    assert store.allowed_columns("orders", context=_CTX) == {
+        "orders": {"amount", "region"},
+        "customers": {"name"},
+    }
+
+
+def test_schema_allowed_columns_unknown_domain():
+    sink = _make_sink()
+    sink.plan["SELECT domain_id FROM sql_data_domains"] = None  # 域不存在
+    store = _store(MysqlSchemaCatalog, sink)
+    assert store.allowed_columns("orders", context=_CTX) == {}
+
+
 def test_schema_describe_builds_lines():
     sink = _make_sink()
     sink.plan["SELECT domain_id, description FROM sql_data_domains"] = {

@@ -137,11 +137,12 @@ class SchemaRegistry:
         validate_identifier(domain_id, "数据域ID")
         return self._port.delete_row_policy(domain_id, permission_id, context=context)
 
-    def publish(self, domain_id: str, *, context, version: str | None = None,
+    def publish(self, domain_id: str, *, context, version: int | None = None,
                 reason: str | None = None) -> dict | None:
         validate_identifier(domain_id, "数据域ID")
-        if version is not None and (not version.strip() or len(version) > 64):
-            raise ValidationError("版本标识无效")
+        if version is not None and (isinstance(version, bool) or
+                                    not isinstance(version, int) or version <= 0):
+            raise ValidationError("版本必须是正整数")
         if reason is not None and len(reason) > 500:
             raise ValidationError("发布原因过长")
         return self._port.publish(domain_id, context=context, version=version,

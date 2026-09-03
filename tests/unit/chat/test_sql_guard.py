@@ -104,3 +104,132 @@ def test_sensitive_column_in_literal_not_false_positive():
     validate_sql("SELECT amount FROM orders WHERE note='customer_phone'",
                  allowed_tables={"orders"},
                  blocked_columns={"orders": {"customer_phone"}})
+
+
+def test_allowed_columns_none_skips_column_check():
+    validate_sql("SELECT anything FROM orders", allowed_tables={"orders"})
+
+
+def test_allowed_columns_empty_dict_skips_column_check():
+    validate_sql("SELECT anything FROM orders", allowed_tables={"orders"},
+                 allowed_columns={})
+
+
+def test_allows_column_in_allowlist():
+    validate_sql("SELECT amount, region FROM orders",
+                 allowed_tables={"orders"},
+                 allowed_columns={"orders": {"amount", "region"}})
+
+
+def test_blocks_column_not_in_allowlist():
+    with pytest.raises(SqlPolicyError):
+        validate_sql("SELECT secret FROM orders",
+                     allowed_tables={"orders"},
+                     allowed_columns={"orders": {"amount", "region"}})
+
+
+def test_blocks_unauthorized_aliased_column():
+    with pytest.raises(SqlPolicyError):
+        validate_sql("SELECT o.card_no FROM orders o",
+                     allowed_tables={"orders"},
+                     allowed_columns={"orders": {"amount"}})
+
+
+def test_allows_aggregate_function_and_format_columns():
+    validate_sql(
+        "SELECT SUM(amount) AS total, COUNT(id), "
+        "DATE_FORMAT(created_at, '%Y-%m') FROM orders",
+        allowed_tables={"orders"},
+        allowed_columns={"orders": {"amount", "id", "created_at"}})
+
+
+def test_allows_order_by_output_alias():
+    # total_amount 是 SUM(amount) 的输出别名，ORDER BY 引用它应放行
+    validate_sql(
+        "SELECT region, SUM(amount) AS total_amount FROM orders "
+        "GROUP BY region ORDER BY total_amount DESC",
+        allowed_tables={"orders"},
+        allowed_columns={"orders": {"amount", "region"}})
+
+
+def test_allows_having_output_alias():
+    validate_sql(
+        "SELECT region, SUM(amount) AS total_amount FROM orders "
+        "GROUP BY region HAVING total_amount > 100",
+        allowed_tables={"orders"},
+        allowed_columns={"orders": {"amount", "region"}})
+
+
+def test_blocks_output_alias_in_where():
+    # WHERE 中同名标识符是物理列引用，不能借 SELECT 别名放行
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT SUM(amount) AS total_amount FROM orders "
+            "WHERE total_amount > 0",
+            allowed_tables={"orders"},
+            allowed_columns={"orders": {"amount"}})
+
+
+def test_join_columns_checked_per_table():
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT o.id, c.phone FROM orders o JOIN customers c ON o.id=c.id",
+            allowed_tables={"orders", "customers"},
+            allowed_columns={"orders": {"id"}, "customers": {"name"}})
+
+
+def test_join_columns_allowed_per_table():
+    validate_sql(
+        "SELECT o.amount, c.name FROM orders o "
+        "LEFT JOIN customers c ON o.customer_id=c.id",
+        allowed_tables={"orders", "customers"},
+        allowed_columns={"orders": {"amount", "customer_id"},
+                         "customers": {"id", "name"}})
+
+
+def test_cte_allows_allowed_column():
+    validate_sql(
+        "WITH recent AS (SELECT amount FROM orders) SELECT amount FROM recent",
+        allowed_tables={"orders"},
+        allowed_columns={"orders": {"amount"}})
+
+
+def test_cte_blocks_column_not_allowed():
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "WITH r AS (SELECT secret FROM orders) SELECT amount FROM r",
+            allowed_tables={"orders"},
+            allowed_columns={"orders": {"amount"}})
+
+
+def test_derived_table_columns_checked_inner():
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT x.amount FROM (SELECT secret AS amount FROM orders) x",
+            allowed_tables={"orders"},
+            allowed_columns={"orders": {"amount"}})
+
+
+def test_subquery_columns_checked():
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT amount FROM orders WHERE id IN "
+            "(SELECT secret FROM order_items)",
+            allowed_tables={"orders", "order_items"},
+            allowed_columns={"orders": {"amount", "id"},
+                             "order_items": {"id"}})
+
+
+def test_union_blocks_column_not_allowed_anywhere():
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT amount FROM orders UNION SELECT secret FROM products",
+            allowed_tables={"orders", "products"},
+            allowed_columns={"orders": {"amount"}, "products": {"amount"}})
+
+
+def test_union_allows_allowed_columns():
+    validate_sql(
+            "SELECT amount FROM orders UNION SELECT amount FROM products",
+            allowed_tables={"orders", "products"},
+            allowed_columns={"orders": {"amount"}, "products": {"amount"}})

@@ -11,6 +11,16 @@ import re
 
 from ...domain.exceptions import SqlPolicyError
 
+try:  # sqlglot backs column-allowlist validation
+    import sqlglot
+    from sqlglot import exp as _exp
+except Exception as _sqlglot_err:  # pragma: no cover - optional dependency
+    sqlglot = None
+    _exp = None
+    _SQLGLOT_ERROR = _sqlglot_err
+else:
+    _SQLGLOT_ERROR = None
+
 _BLOCKED_KEYWORDS = (
     "insert", "update", "delete", "drop", "alter", "truncate", "create",
     "grant", "revoke", "call", "exec", "merge", "replace",
@@ -97,6 +107,135 @@ def referenced_tables(sql: str) -> set[str]:
     return _referenced_tables(sql)
 
 
+def _parse_select_trees(sql: str) -> list:
+    """Parse literal-stripped SQL into exactly one SELECT AST (MySQL dialect).
+
+    Rejects multi-statement inputs; ``row_rewrite`` already depends on the same
+    parser, so a thin dependency is fine here. A trailing ``;`` is trimmed so
+    it does not trip sqlglot's "single statement" need.
+    """
+    if sqlglot is None or _exp is None:
+        raise SqlPolicyError("SQL 解析器不可用，无法进行列级校验")
+    source = re.sub(r";\s*$", "", sql)
+    try:
+        statements = sqlglot.parse(source, read="mysql")
+    except Exception as exc:
+        raise SqlPolicyError("SQL 无法解析，已拒绝执行") from exc
+    if len(statements) != 1:
+        raise SqlPolicyError("只允许单条 SELECT 查询")
+    return [statements[0]]
+
+
+def _collect_output_aliases(tree) -> set[str]:
+    """Names exposed as output aliases by this SELECT's projection.
+
+    ``SUM(amount) AS total_amount`` registers ``total_amount`` (not
+    ``amount``); a bare ``region`` also registers ``region`` so that
+    ``ORDER BY region`` resolves. These are NOT physical columns and must not
+    be validated against the table allowlist when referenced in GROUP/ORDER/
+    HAVING.
+    """
+    aliases: set[str] = set()
+    for select in tree.find_all(_exp.Select):
+        for expr in getattr(select, "expressions", ()) or ():
+            name = None
+            if isinstance(expr, _exp.Alias):
+                name = getattr(expr, "alias", None)
+            elif isinstance(expr, _exp.Column):
+                name = getattr(expr, "name", None)
+            if name:
+                aliases.add(str(name).lower())
+    return aliases
+
+
+def _is_output_alias_reference(col, output_aliases: set[str]) -> bool:
+    """True when ``col`` is an unqualified reference to a SELECT output alias.
+
+    Only valid inside GROUP BY / ORDER BY / HAVING (where SELECT aliases are
+    visible). In WHERE / JOIN ON / the SELECT list itself the same identifier
+    is a physical column and must be validated.
+    """
+    name = str(getattr(col, "name", "") or "").lower()
+    if name not in output_aliases:
+        return False
+    node = getattr(col, "parent", None)
+    while node is not None and not isinstance(node, _exp.Select):
+        if isinstance(node, (_exp.Order, _exp.Ordered, _exp.Group, _exp.Having)):
+            return True
+        node = getattr(node, "parent", None)
+    return False
+
+
+def _validate_allowed_columns(trees: list, allowed_columns) -> None:
+    """Reject column references not present in the per-table allowlist.
+
+    Recursively walks every SELECT branch (JOIN, CTE, subquery, UNION) with the
+    sqlglot AST. Qualified columns resolve to a physical table; unqualified
+    columns resolve against the union of every allowed table so a legitimately
+    ambiguous name is not a false positive. Columns bound to a derived table /
+    CTE alias are already guarded inside that virtual source and asserted here.
+    SELECT output aliases referenced in GROUP/ORDER/HAVING are exempt.
+    """
+    normalized = {}
+    for table, cols in allowed_columns.items():
+        key = str(table).lower()
+        allowed = {str(c).lower() for c in cols} if cols else set()
+        if key not in normalized:
+            normalized[key] = set()
+        normalized[key].update(allowed)
+    if not normalized:
+        return
+
+    all_allowed: set[str] = set()
+    for cols in normalized.values():
+        all_allowed.update(cols)
+
+    for tree in trees:
+        # Virtual sources that expose their columns as aliases rather than as a
+        # physical table: CTE names and derived-table (Subquery) aliases. A
+        # Table's own ALIAS is physical and must NOT be treated virtual.
+        virtual: set[str] = set()
+        for cte in tree.find_all(_exp.CTE):
+            alias = cte.alias if hasattr(cte, "alias") else None
+            if alias is not None:
+                virtual.add(str(alias).lower())
+        for alias in tree.find_all(_exp.TableAlias):
+            if isinstance(getattr(alias, "parent", None), _exp.Subquery):
+                name = getattr(alias, "name", None)
+                if name:
+                    virtual.add(str(name).lower())
+
+        physical: dict[str, str] = {}  # usable name/alias -> canonical table key
+        for table in tree.find_all(_exp.Table):
+            name = str(getattr(table, "name", "") or "").lower()
+            if not name or name in virtual:
+                continue
+            physical.setdefault(name, name)
+            table_alias = getattr(table, "alias", None)
+            if table_alias:
+                physical.setdefault(str(table_alias).lower(), name)
+
+        output_aliases = _collect_output_aliases(tree)
+        for col in tree.find_all(_exp.Column):
+            qualifier = getattr(col, "table", None)
+            column_name = str(getattr(col, "name", "") or "").lower()
+            q = str(qualifier).lower() if qualifier else ""
+            if q in virtual:
+                continue
+            # SELECT 输出别名（如 SUM(amount) AS total_amount）只能在
+            # ORDER BY / GROUP BY / HAVING 中引用，不应当作物理列校验；
+            # WHERE / JOIN ON / SELECT 列表内出现的同名标识符仍是物理列。
+            if not q and _is_output_alias_reference(col, output_aliases):
+                continue
+            base = physical.get(q) if q else None
+            if base is not None:
+                if column_name not in normalized.get(base, set()):
+                    raise SqlPolicyError(
+                        f"表 {base} 引用了未授权字段: {column_name}")
+            elif column_name not in all_allowed:
+                raise SqlPolicyError(f"引用了未授权字段: {column_name}")
+
+
 _POLICY_UNSAFE = re.compile(r"\bunion\b|\(\s*select\b|\bwith\b", re.I)
 
 
@@ -110,6 +249,7 @@ def is_policy_safe(sql: str) -> bool:
 
 
 def validate_sql(sql: str, *, allowed_tables: set[str] | None = None,
+                 allowed_columns: dict[str, set[str]] | None = None,
                  blocked_columns: dict[str, set[str]] | None = None,
                  max_length: int = 4000) -> str:
     if not isinstance(sql, str) or not sql.strip():
@@ -147,4 +287,6 @@ def validate_sql(sql: str, *, allowed_tables: set[str] | None = None,
             for ident in re.findall(r"[A-Za-z_][\w$]*", stripped):
                 if ident.lower() in blocked:
                     raise SqlPolicyError(f"SQL 引用了敏感字段: {ident}")
+    if allowed_columns is not None and allowed_columns:
+        _validate_allowed_columns(_parse_select_trees(sql), allowed_columns)
     return sql

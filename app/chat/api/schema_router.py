@@ -56,7 +56,7 @@ class IntrospectRequest(BaseModel):
 
 
 class PublishRequest(BaseModel):
-    version: str | None = Field(default=None, max_length=64)
+    version: int | None = Field(default=None, gt=0, le=1000000)
     comment: str = Field(default="", max_length=4000)
 
 

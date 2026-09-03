@@ -653,6 +653,369 @@ curl -X POST http://127.0.0.1:8000/chat ^
 9. POST /chat 验证自然语言查询
 ```
 
+### 4.6 完整可运行的 JOIN 示例（books × book_authors）
+
+下面是从建表到验证的**完整、可直接整段复制**的例子。两张真实表：
+
+```text
+books        书籍表
+book_authors 作者表
+```
+
+关联字段：
+
+```text
+books.author_id = book_authors.author_id
+```
+
+#### 重要：`tenant_id` 必须登记，且 `sensitive=false`
+
+系统生成的 SQL 会包含 `WHERE tenant_id = '<租户>'`。列级 Guard 要求 SQL 中出现的每个字段都已登记，所以两张表都必须登记 `tenant_id`。
+
+**但 `tenant_id` 不能标 `sensitive=true`**，否则会被敏感字段拦截误拒。正确配置：
+
+```json
+{
+  "column_name": "tenant_id",
+  "data_type": "varchar",
+  "business_name": "租户标识",
+  "description": "系统租户隔离字段，仅用于服务端过滤",
+  "selectable": false,
+  "filterable": false,
+  "sortable": false,
+  "aggregatable": false,
+  "sensitive": false
+}
+```
+
+`tenant_id` 的隔离不靠 `sensitive` 标记，而由服务端认证上下文强制注入 SQL，LLM 无法覆盖。
+
+#### 步骤 1：创建业务表
+
+```sql
+USE enterprise_agent;
+
+CREATE TABLE IF NOT EXISTS book_authors (
+    tenant_id VARCHAR(64) NOT NULL,
+    author_id VARCHAR(64) NOT NULL,
+    author_name VARCHAR(128) NOT NULL,
+    country VARCHAR(64) NOT NULL,
+    PRIMARY KEY (tenant_id, author_id),
+    UNIQUE KEY uk_book_authors_name (tenant_id, author_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS books (
+    tenant_id VARCHAR(64) NOT NULL,
+    book_id VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    published_year INT NOT NULL,
+    author_id VARCHAR(64) NOT NULL,
+    PRIMARY KEY (tenant_id, book_id),
+    KEY idx_books_tenant_author (tenant_id, author_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+#### 步骤 2：插入测试数据
+
+```sql
+INSERT INTO book_authors
+    (tenant_id, author_id, author_name, country)
+VALUES
+    ('tenant-test', 'A01', '刘慈欣', '中国'),
+    ('tenant-test', 'A02', 'J.K.罗琳', '英国'),
+    ('tenant-test', 'A03', '村上春树', '日本'),
+    ('tenant-test', 'A04', '莫言', '中国')
+ON DUPLICATE KEY UPDATE
+    author_name = VALUES(author_name),
+    country = VALUES(country);
+
+INSERT INTO books
+    (tenant_id, book_id, title, price, published_year, author_id)
+VALUES
+    ('tenant-test', 'B001', '三体', 68.00, 2008, 'A01'),
+    ('tenant-test', 'B002', '球状闪电', 55.00, 2004, 'A01'),
+    ('tenant-test', 'B003', '哈利·波特与魔法石', 45.00, 1997, 'A02'),
+    ('tenant-test', 'B004', '挪威的森林', 52.00, 1987, 'A03'),
+    ('tenant-test', 'B005', '蛙', 60.00, 2009, 'A04'),
+    ('tenant-test', 'B006', '三体Ⅱ·黑暗森林', 72.00, 2008, 'A01'),
+    ('tenant-test', 'B007', '哈利·波特与火焰杯', 48.00, 2000, 'A02')
+ON DUPLICATE KEY UPDATE
+    title = VALUES(title),
+    price = VALUES(price),
+    published_year = VALUES(published_year),
+    author_id = VALUES(author_id);
+```
+
+#### 步骤 3：给只读账号授权
+
+```sql
+GRANT SELECT ON enterprise_agent.books
+TO 'nl2sql_readonly'@'%';
+
+GRANT SELECT ON enterprise_agent.book_authors
+TO 'nl2sql_readonly'@'%';
+
+FLUSH PRIVILEGES;
+```
+
+确认只有 SELECT（不应出现 INSERT/UPDATE/DELETE/DROP/ALTER/CREATE）：
+
+```sql
+SHOW GRANTS FOR 'nl2sql_readonly'@'%';
+```
+
+#### 步骤 4：创建数据域
+
+所有请求统一包含：
+
+```http
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains
+```
+
+```json
+{
+  "name": "library",
+  "description": "书籍和作者数据，通过 books.author_id 关联 book_authors.author_id",
+  "keywords": [
+    "书籍",
+    "作者",
+    "图书",
+    "书名",
+    "作家"
+  ]
+}
+```
+
+响应中的 `domain_id`（本例为 `library`）作为后续 URL 参数。
+
+#### 步骤 5：探测两张真实表
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/introspect
+```
+
+```json
+{
+  "tables": [
+    "books",
+    "book_authors"
+  ],
+  "include_columns": true
+}
+```
+
+#### 步骤 6：登记 `books` 表
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/tables
+```
+
+```json
+{
+  "table": "books",
+  "description": "书籍主表，真实表名是 books，作者关联字段是 author_id",
+  "required_tenant_filter": true
+}
+```
+
+#### 步骤 7：登记 `book_authors` 表
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/tables
+```
+
+```json
+{
+  "table": "book_authors",
+  "description": "作者信息表，真实表名是 book_authors，主键字段是 author_id",
+  "required_tenant_filter": true
+}
+```
+
+#### 步骤 8：登记 `books` 字段（含 tenant_id）
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/columns
+```
+
+```json
+{
+  "table": "books",
+  "columns": [
+    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": false, "sortable": false, "aggregatable": false, "sensitive": false},
+    {"column_name": "book_id", "data_type": "varchar", "business_name": "书籍编号", "description": "书籍唯一编号", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
+    {"column_name": "title", "data_type": "varchar", "business_name": "书名", "description": "书籍名称", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
+    {"column_name": "price", "data_type": "decimal", "business_name": "价格", "description": "书籍价格", "selectable": true, "filterable": true, "sortable": true, "aggregatable": true, "sensitive": false},
+    {"column_name": "published_year", "data_type": "int", "business_name": "出版年份", "description": "书籍出版年份", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
+    {"column_name": "author_id", "data_type": "varchar", "business_name": "作者编号", "description": "关联作者的编号，仅用于 JOIN", "selectable": false, "filterable": true, "sortable": false, "aggregatable": false, "sensitive": false}
+  ]
+}
+```
+
+#### 步骤 9：登记 `book_authors` 字段（含 tenant_id）
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/columns
+```
+
+```json
+{
+  "table": "book_authors",
+  "columns": [
+    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": false, "sortable": false, "aggregatable": false, "sensitive": false},
+    {"column_name": "author_id", "data_type": "varchar", "business_name": "作者编号", "description": "作者唯一编号，仅用于 JOIN", "selectable": false, "filterable": true, "sortable": false, "aggregatable": false, "sensitive": false},
+    {"column_name": "author_name", "data_type": "varchar", "business_name": "作者姓名", "description": "作者名称", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
+    {"column_name": "country", "data_type": "varchar", "business_name": "国家", "description": "作者所属国家", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false}
+  ]
+}
+```
+
+#### 步骤 10：登记 JOIN
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/joins
+```
+
+```json
+{
+  "table": "books",
+  "joins": [
+    {
+      "table": "book_authors",
+      "columns": {
+        "author_id": "author_id"
+      },
+      "join_type": "LEFT"
+    }
+  ]
+}
+```
+
+表示：
+
+```sql
+LEFT JOIN book_authors
+    ON books.author_id = book_authors.author_id
+```
+
+#### 步骤 11：查看已登记 JOIN
+
+```http
+GET http://127.0.0.1:8000/admin/schema/domains/library/joins
+```
+
+预期：
+
+```json
+[
+  {
+    "source_table": "books",
+    "table": "book_authors",
+    "columns": {
+      "author_id": "author_id"
+    },
+    "join_type": "LEFT"
+  }
+]
+```
+
+#### 步骤 12：配置行权限（可选）
+
+每张受保护表都要配置策略，例如：
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/policies
+```
+
+```json
+{
+  "table": "books",
+  "subject_type": "user",
+  "subject_id": "user-test-001",
+  "predicate_template": "tenant_id = :tenant_id",
+  "allowed": true
+}
+```
+
+```json
+{
+  "table": "book_authors",
+  "subject_type": "user",
+  "subject_id": "user-test-001",
+  "predicate_template": "tenant_id = :tenant_id",
+  "allowed": true
+}
+```
+
+`subject_type=role` 时，`subject_id` 填 `auth_roles.role_name`（如 `employee`），不填角色 ID。
+
+#### 步骤 13：发布数据域
+
+```http
+POST http://127.0.0.1:8000/admin/schema/domains/library/publish
+```
+
+```json
+{
+  "version": 1,
+  "comment": "发布书籍作者 JOIN 数据域"
+}
+```
+
+`version` 为正整数（或省略让系统自动递增）。预期：
+
+```json
+{
+  "domain_id": "library",
+  "status": "active",
+  "version_no": 1,
+  "snapshot_hash": "..."
+}
+```
+
+#### 步骤 14：通过 Chat 验证 JOIN
+
+```http
+POST http://127.0.0.1:8000/chat
+```
+
+```json
+{
+  "question": "列出书名、价格、作者姓名和国家",
+  "conversation_id": "library-join-test"
+}
+```
+
+预期 SQL：
+
+```sql
+SELECT
+    b.title,
+    b.price,
+    a.author_name,
+    a.country
+FROM books AS b
+LEFT JOIN book_authors AS a
+    ON b.author_id = a.author_id
+WHERE b.tenant_id = 'tenant-test'
+```
+
+#### 常见错误对照
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `SQL 引用了未授权字段: tenant_id` | SQL 用了 `tenant_id` 但没登记该列 | 登记 `tenant_id` |
+| `SQL 引用了敏感字段: tenant_id` | `tenant_id` 被标成 `sensitive=true` | 改成 `sensitive=false` |
+| `Input should be a valid string` on `version` | `version` 传了字符串或缺失 | 用正整数或省略 |
+| `SQL 引用了未授权表: xxx` | 用了 allowlist 之外的表名 | 只使用已登记的真实表名 |
+| `Unknown column 'x'` | 引用了不存在/未登记的列 | 按真实表字段登记 |
+
 ---
 
 ## 5. 只读权限授权

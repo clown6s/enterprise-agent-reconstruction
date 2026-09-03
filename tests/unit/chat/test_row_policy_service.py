@@ -73,3 +73,18 @@ def test_unparseable_query_with_policy_fails_closed_before_execution():
     with pytest.raises(SqlPolicyError):
         _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
     assert executor.calls == []
+
+
+def test_retry_failure_raises_sanitized_policy_error():
+    """重试执行也失败时，必须转成脱敏的 SqlPolicyError，而不是把原始异常抛给上层变 500。"""
+    policy = (BoundPolicy("owner_id = %s", ("u1",)),)
+    catalog = _Catalog(policy)
+    # 首次 + 重试都失败，LLM 两次都给出候选
+    executor = _Executor(failures=2)
+    llm = _LLM(["```sql\nSELECT amount FROM orders\n```",
+                "```sql\nSELECT amount FROM orders WHERE amount > 0\n```"])
+    with pytest.raises(SqlPolicyError) as exc_info:
+        _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
+    assert len(executor.calls) == 2
+    # 必须是业务异常，且错误文本不泄露原始 RuntimeError 之外的敏感信息
+    assert exc_info.type is SqlPolicyError

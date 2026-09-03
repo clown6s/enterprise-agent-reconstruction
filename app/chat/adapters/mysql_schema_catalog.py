@@ -158,6 +158,31 @@ class MysqlSchemaCatalog(SchemaCatalog):
         return self._pool.run(operation)
 
     @mysql_errors
+    def allowed_columns(self, domain: str, *, context) -> dict[str, set[str]]:
+        """Per-table allowlist of real column names from sql_allowed_columns."""
+        tenant_id, _ = identity(context)
+        def operation(conn):
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT domain_id FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_name=%s AND status='active' LIMIT 1",
+                    (tenant_id, domain),
+                )
+                item = cur.fetchone()
+                if item is None:
+                    return {}
+                cur.execute(
+                    "SELECT table_name, column_name FROM sql_allowed_columns "
+                    "WHERE tenant_id=%s AND domain_id=%s ORDER BY table_name, column_name",
+                    (tenant_id, item["domain_id"]),
+                )
+                allowed: dict[str, set[str]] = {}
+                for row in cur.fetchall():
+                    allowed.setdefault(row["table_name"], set()).add(row["column_name"])
+                return allowed
+        return self._pool.run(operation)
+
+    @mysql_errors
     def blocked_columns(self, domain: str, *, context) -> dict[str, set[str]]:
         """Sensitive columns that must not appear in generated SQL, per table."""
         tenant_id, _ = identity(context)

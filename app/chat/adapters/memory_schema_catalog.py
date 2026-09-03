@@ -10,6 +10,7 @@ class SchemaDomain:
     description: str
     tables: frozenset[str]
     keywords: tuple[str, ...] = ()
+    columns: dict[str, frozenset[str]] | None = None
 
 
 class MemorySchemaCatalog(SchemaCatalog):
@@ -29,6 +30,13 @@ class MemorySchemaCatalog(SchemaCatalog):
     def allowed_tables(self, domain: str, *, context=None) -> set[str]:
         item = self._domains.get(domain)
         return set(item.tables) if item else set()
+
+    def allowed_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:
+        """Per-table column allowlist; {} means no column-level restriction."""
+        item = self._domains.get(domain)
+        if item is None or not item.columns:
+            return {}
+        return {table: set(cols) for table, cols in item.columns.items()}
 
     def blocked_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:
         return {}

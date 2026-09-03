@@ -121,3 +121,54 @@ def test_chat_result_carries_trace_id():
                                                 tenant_id="t", user_id="u"))
     assert result.trace_id == "trace-abc"
     assert result.status.value == "answered"
+
+
+def test_memory_catalog_allowed_columns():
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "订单", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount", "region"})})])
+    assert catalog.allowed_columns("orders") == {"orders": {"amount", "region"}}
+    assert catalog.allowed_columns("unknown") == {}
+    # 未配置 columns 的旧式数据域不施加任何列级限制
+    plain = MemorySchemaCatalog([SchemaDomain(
+        "orders", "订单", frozenset({"orders"}), ("订单",))])
+    assert plain.allowed_columns("orders") == {}
+
+
+def test_sql_service_enforces_allowed_columns():
+    from app.chat.application.context import RequestContext
+    from app.chat.domain.exceptions import SqlPolicyError
+    import pytest
+    llm = FakeLLM()
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "orders(amount)", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"region"})})])
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(FakeRetriever(), llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm, FakeRetriever()),
+        Nl2SqlService(llm, catalog, FakeSql()),
+    )
+    ctx = RequestContext(tenant_id="tenant-test", user_id="user-test-001",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    # FakeLLM 返回 SELECT amount，而 amount 不在允许列里 -> 拒绝
+    with pytest.raises(SqlPolicyError):
+        service.ask("统计订单金额", conversation_id="q", context=ctx)
+
+
+def test_sql_service_allows_allowed_column():
+    from app.chat.application.context import RequestContext
+    llm = FakeLLM()
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "orders(amount)", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(FakeRetriever(), llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm, FakeRetriever()),
+        Nl2SqlService(llm, catalog, FakeSql()),
+    )
+    ctx = RequestContext(tenant_id="tenant-test", user_id="user-test-001",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    result = service.ask("统计订单金额", conversation_id="q", context=ctx)
+    assert result.mode.value == "nl2sql"
