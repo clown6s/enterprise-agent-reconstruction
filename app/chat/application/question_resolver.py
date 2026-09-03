@@ -1,7 +1,7 @@
-"""Follow-up resolution: anaphora/ellipsis into self-contained questions.
+"""追问消解：把指代/省略改写为完整自洽的问题。
 
-Rule-first and explainable; an optional LLM backend resolves only cases the rules
-cannot. The resolved question remains plain text (a data value), never an instruction.
+规则优先且可解释；可选的 LLM 后端只处理规则无法覆盖的情况。改写后的问题
+始终是纯文本数据值，绝不作为指令处理。
 """
 from ..domain.models import ChatMessage, Intent, ResolvedQuestion, SessionState
 

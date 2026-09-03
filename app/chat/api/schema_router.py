@@ -1,8 +1,7 @@
-"""HTTP adapter for governed SQL schema administration.
+"""面向受管控 SQL schema 管理的 HTTP 适配器。
 
-The application service is injected by the composition root.  This keeps the
-HTTP adapter independent of storage (and allows the service/port to be added
-without changing this API contract).
+应用服务由组合根注入。这使 HTTP 适配器与存储解耦（并且允许在不改动本
+API 契约的情况下新增服务/端口）。
 """
 from dataclasses import asdict, is_dataclass
 from typing import Any, Callable, Protocol
@@ -14,7 +13,7 @@ from ..application.context import RequestContext
 
 
 class SchemaAdminService(Protocol):
-    """Port expected by this router (implementations belong to application)."""
+    """本路由器所期望的端口（具体实现属于应用层）。"""
 
     def list_domains(self, *, context: RequestContext) -> Any: ...
     def create_domain(self, request: "DomainCreateRequest", *, context: RequestContext) -> Any: ...
@@ -60,14 +59,33 @@ class PublishRequest(BaseModel):
     comment: str = Field(default="", max_length=4000)
 
 
+class ColumnEntry(BaseModel):
+    column_name: str = Field(min_length=1, max_length=128)
+    data_type: str = Field(min_length=1, max_length=64)
+    business_name: str = ""
+    description: str | None = None
+    selectable: bool = True
+    filterable: bool = True
+    sortable: bool = False
+    aggregatable: bool = False
+    sensitive: bool = False
+    masking_rule: str | None = None
+
+
+class JoinEntry(BaseModel):
+    table: str = Field(min_length=1, max_length=128)
+    columns: dict[str, str] = Field(min_length=1)
+    join_type: str = "INNER"
+
+
 class ColumnsRequest(BaseModel):
     table: str = Field(min_length=1, max_length=128)
-    columns: list[dict] = Field(min_length=1, max_length=500)
+    columns: list[ColumnEntry] = Field(min_length=1, max_length=500)
 
 
 class JoinsRequest(BaseModel):
     table: str = Field(min_length=1, max_length=128)
-    joins: list[dict] = Field(default_factory=list, max_length=100)
+    joins: list[JoinEntry] = Field(default_factory=list, max_length=100)
 
 
 class RowPolicyRequest(BaseModel):
@@ -88,7 +106,7 @@ class _AnonymousPrincipal:
 
 
 def _context(request: Request, principal: object) -> RequestContext:
-    """Build trusted context from the authenticated principal, never the body."""
+    """从已认证主体构建可信上下文，绝不使用请求体中的身份信息。"""
     return RequestContext(
         trace_id=request.headers.get("X-Trace-Id", "") or "",
         tenant_id=getattr(principal, "tenant_id", ""),
@@ -103,7 +121,7 @@ def _context(request: Request, principal: object) -> RequestContext:
 
 
 def _anonymous(_request: Request) -> object:
-    """Only useful for direct construction in unit tests."""
+    """仅用于单元测试中的直接构造。"""
     return _AnonymousPrincipal()
 
 
@@ -119,11 +137,11 @@ def _jsonable(value: Any) -> Any:
 
 def create_router(service_provider: Callable[[], SchemaAdminService],
                   principal_provider: Callable[[Request], object] | None = None) -> APIRouter:
-    """Create the ``/admin/schema`` router.
+    """创建 ``/admin/schema`` 路由器。
 
-    ``principal_provider`` should normally be created with
-    ``make_principal_provider(auth, "schema:admin")`` by ``main.py``.  It is
-    intentionally injected so this module does not own authentication policy.
+    ``principal_provider`` 通常应由 ``main.py`` 使用
+    ``make_principal_provider(auth, "schema:admin")`` 创建。这里有意采用注入方式，
+    使本模块不负责认证策略。
     """
     router = APIRouter(prefix="/admin/schema", tags=["schema-admin"])
     dependency = principal_provider or _anonymous

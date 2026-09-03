@@ -69,14 +69,14 @@ class SchemaAdminService:
         table = getattr(request, "table")
         columns = []
         for item in getattr(request, "columns", ()):
-            columns.append(SchemaColumn(**item))
+            columns.append(SchemaColumn(**item.model_dump()))
         self._registry.register_columns(domain, table, columns, context=context)
         return {"domain_id": domain, "table": table, "count": len(columns)}
 
     def register_joins(self, domain, request, *, context):
         context = self._context(context)
         table = getattr(request, "table")
-        joins = [SchemaJoin(**item) for item in getattr(request, "joins", ())]
+        joins = [SchemaJoin(**item.model_dump()) for item in getattr(request, "joins", ())]
         self._registry.register_joins(domain, table, joins, context=context)
         return {"domain_id": domain, "table": table, "count": len(joins)}
 

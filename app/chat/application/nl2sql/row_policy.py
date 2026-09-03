@@ -1,9 +1,8 @@
-"""Restricted row-level policy templates and DB-API parameter binding.
+"""受限制的行级权限模板与 DB-API 参数绑定。
 
-Templates are predicate fragments using only trusted context placeholders:
-``:tenant_id``, ``:user_id``, ``:role_names`` and ``:department_ids``.
-Values are always returned separately as DB-API parameters; never interpolate
-identity values into SQL text.
+模板是只使用受信任上下文占位符的谓词片段：``:tenant_id``、``:user_id``、
+``:role_names`` 与 ``:department_ids``。值始终作为 DB-API 参数单独返回，
+绝不把身份值拼接进 SQL 文本。
 """
 from dataclasses import dataclass
 import re
@@ -31,13 +30,13 @@ _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 
 @dataclass(frozen=True)
 class BoundPolicy:
-    """Predicate SQL containing ``%s`` markers and ordered parameter values."""
+    """包含 ``%s`` 占位符的谓词 SQL 及有序参数值。"""
     sql: str
     params: tuple = ()
 
 
 def compile_template(template: str) -> str:
-    """Validate a policy predicate template, raising on unsafe syntax."""
+    """校验权限谓词模板，发现不安全语法时抛出异常。"""
     if not isinstance(template, str) or not template.strip():
         raise SqlPolicyError("行级权限模板为空")
     template = template.strip()
@@ -76,7 +75,7 @@ def _extract_policy_columns(template: str) -> set[str]:
 
 
 def validate_policy_columns(template: str, columns: dict[str, bool],
-                            *, sensitive: set[str] = frozenset()) -> set[str]:
+                            *, sensitive: set[str] | frozenset[str] = frozenset()) -> set[str]:
     """校验策略引用的列属于已登记的明文可过滤列。
 
     ``columns`` 为列名到是否可过滤的映射；``sensitive`` 为敏感列集合。
@@ -101,10 +100,10 @@ def validate_policy_columns(template: str, columns: dict[str, bool],
 def bind_policy(template: str, *, tenant_id: str | None = None,
                 user_id: str | None = None, role_names=(),
                 department_ids=()) -> BoundPolicy:
-    """Compile and bind a policy against trusted identity attributes.
+    """基于受信任的身份属性编译并绑定权限。
 
-    List placeholders expand to a parenthesized marker list. Empty lists use
-    ``(NULL)`` so an ``IN :list`` predicate safely matches no rows.
+    列表占位符展开为带括号的占位符列表。空列表使用 ``(NULL)``，使
+    ``IN :list`` 谓词安全地不匹配任何行。
     """
     template = compile_template(template)
     values = {"tenant_id": tenant_id, "user_id": user_id,

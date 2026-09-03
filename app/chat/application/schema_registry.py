@@ -1,8 +1,7 @@
-"""Schema Registry MVP DTOs and application service.
+"""Schema Registry MVP 的 DTO 与应用服务。
 
-The service contains no persistence or framework code; MySQL concerns live in
-``MysqlSchemaRegistry``.  A registry has one mutable definition per domain and
-publishing changes its status to active after validation.
+本服务不含持久化或框架代码；MySQL 相关逻辑位于 ``MysqlSchemaRegistry`` 中。
+每个数据域在注册表中只有一份可变定义，发布会在校验通过后把其状态改为启用。
 """
 from dataclasses import dataclass, field
 import re
@@ -71,7 +70,7 @@ class SchemaDomain:
 
 
 class SchemaRegistry:
-    """Pure validation/orchestration service over a SchemaRegistryPort."""
+    """基于 SchemaRegistryPort 的纯校验/编排服务。"""
     def __init__(self, port):
         self._port = port
 

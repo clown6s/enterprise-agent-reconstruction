@@ -1,4 +1,4 @@
-"""AST-based row-level security rewriting for SELECT statements."""
+"""基于 AST 的 SELECT 语句行级安全重写。"""
 from __future__ import annotations
 
 import re
@@ -16,11 +16,11 @@ _MARKER = re.compile(r"__RLS_MARKER_[A-Za-z0-9]+_[0-9]+__")
 def rewrite_with_row_policies(
     sql: str, policies_by_table: dict[str, tuple[BoundPolicy, ...]]
 ) -> tuple[str, tuple]:
-    """Wrap every governed physical table in a filtered derived table.
+    """把每个受管控的物理表包装为带过滤条件的派生表。
 
-    ``BoundPolicy.sql`` contains DB-API ``%s`` markers, which sqlglot cannot
-    parse as placeholders.  Unique identifier markers are used during AST
-    construction and restored after serialization; values remain in params.
+    ``BoundPolicy.sql`` 包含 DB-API 的 ``%s`` 占位符，sqlglot 无法将其解析为
+    占位符。因此在 AST 构造期间使用唯一标识符标记，序列化后再替换回去；
+    参数值始终保留在 params 中。
     """
     if not policies_by_table:
         return sql, ()

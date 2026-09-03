@@ -23,7 +23,7 @@ from .tenant_rewrite import physical_tables
 _SQL_EXTRACT = re.compile(r"```(?:sql|mysql)?\s*(select[\s\S]*?)\s*```", re.I)
 _ERROR_URL = re.compile(r"\b[a-z][\w+.-]*://\S+", re.I)
 _ERROR_IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
-_ERROR_CREDENTIAL = re.compile(r"(?:'[^']*@[^']*'|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b)")
+_ERROR_CREDENTIAL = re.compile(r"'[^']*@[^']*'|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _ERROR_SENSITIVE_FIELD = re.compile(
     r"\b(password|passwd|pwd|token|secret|api[_-]?key|authorization)\b"
     r"\s*[=:]\s*[^,;\s]+", re.I)
@@ -179,8 +179,7 @@ class Nl2SqlService:
             policies = self._row_policies_for(candidate, domain, context)
             return candidate, policies
         # 重试链路的任意异常都应回退到首次错误，避免覆盖原始诊断。
-        # noinspection PyBroadException
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     @staticmethod

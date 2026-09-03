@@ -1,11 +1,10 @@
-"""Conservative read-only SQL policy enforcement without an external SQL parser.
+"""不依赖外部 SQL 解析器的保守只读 SQL 策略校验。
 
-This is defense-in-depth, not the only layer: the executor also runs on a
-dedicated read-only account with row/time/scan limits.
+这是纵深防御的一层，而不是唯一防线：执行器还会使用专用只读账号，
+并限制返回行数、执行时间和扫描范围。
 
-Table allowlisting is strict: every table referenced by the SQL (FROM, JOIN,
-comma lists) must be in the allowlist. A single allowed table can no longer
-"cover" an unrelated unauthorized table referenced elsewhere in the query.
+表白名单校验严格：SQL 引用的每张表（FROM、JOIN、逗号分隔的表列表）
+都必须位于白名单中。单个允许的表不能再覆盖查询其他位置引用的未授权表。
 """
 import re
 
@@ -54,15 +53,14 @@ _FROM_TABLE = re.compile(
 
 
 def _strip_literals(sql: str) -> str:
-    """Replace string literals with spaces so table refs are not matched inside them."""
+    """把字符串字面量替换为空格，避免字面量内部被误当作表引用。"""
     return _STRIPPED.sub(" ", sql)
 
 
 def _cte_names(sql: str) -> set[str]:
-    """Collect table names introduced by WITH ... AS (...) CTEs.
+    """收集 WITH ... AS (...) 形式 CTE 引入的表名。
 
-    CTE names are locally-defined aliases, not physical tables, so they must
-    not be treated as unauthorized references.
+    CTE 名称是局部定义的别名，不是物理表，因而不能当作未授权引用处理。
     """
     names: set[str] = set()
     for m in re.finditer(r"\bWITH\b(?:\s+RECURSIVE\b)?\s*"
@@ -75,16 +73,16 @@ def _cte_names(sql: str) -> set[str]:
 
 
 def _bare_table(name: str) -> str:
-    """Strip a schema qualifier: ``db.orders`` -> ``orders``."""
+    """去掉 schema 限定前缀：``db.orders`` -> ``orders``。"""
     return name.split(".")[-1].lower()
 
 
 def _referenced_tables(sql: str) -> set[str]:
-    """Heuristically extract physical table references from FROM/JOIN clauses.
+    """从 FROM/JOIN 子句启发式地提取物理表引用。
 
-    Only identifiers that appear inside a FROM/JOIN table-list scope are
-    treated as tables. Column lists and function arguments are not scanned, so
-    ``SELECT MAX(amount) FROM orders`` does not turn ``amount`` into a table.
+    只有出现在 FROM/JOIN 表列表作用域内的标识符才被视为表。列列表和函数
+    参数不会被扫描，因此 ``SELECT MAX(amount) FROM orders`` 不会把
+    ``amount`` 误当作表。
     """
     stripped = _strip_literals(sql)
     tables: set[str] = set()
@@ -104,16 +102,16 @@ def _referenced_tables(sql: str) -> set[str]:
 
 
 def referenced_tables(sql: str) -> set[str]:
-    """Publicly expose the physical tables referenced by a SELECT."""
+    """对外暴露一条 SELECT 引用的物理表。"""
     return _referenced_tables(sql)
 
 
 def _parse_select_trees(sql: str) -> list:
-    """Parse literal-stripped SQL into exactly one SELECT AST (MySQL dialect).
+    """把去除字面量后的 SQL 解析为恰好一条 SELECT 的 AST（MySQL 方言）。
 
-    Rejects multi-statement inputs; ``row_rewrite`` already depends on the same
-    parser, so a thin dependency is fine here. A trailing ``;`` is trimmed so
-    it does not trip sqlglot's "single statement" need.
+    拒绝多条语句输入；``row_rewrite`` 已依赖同一解析器，因此这里引入一个
+    轻量依赖是合理的。结尾多余的 ``;`` 会被去掉，以免触发 sqlglot 对
+    “单条语句”的要求。
     """
     if sqlglot is None or _exp is None:
         raise SqlPolicyError("SQL 解析器不可用，无法进行列级校验")
@@ -128,13 +126,12 @@ def _parse_select_trees(sql: str) -> list:
 
 
 def _collect_output_aliases(tree) -> set[str]:
-    """Names exposed as output aliases by this SELECT's projection.
+    """收集该 SELECT 投影暴露为输出别名的名称。
 
-    ``SUM(amount) AS total_amount`` registers ``total_amount`` (not
-    ``amount``); a bare ``region`` also registers ``region`` so that
-    ``ORDER BY region`` resolves. These are NOT physical columns and must not
-    be validated against the table allowlist when referenced in GROUP/ORDER/
-    HAVING.
+    ``SUM(amount) AS total_amount`` 登记的是 ``total_amount``（而非
+    ``amount``）；裸列 ``region`` 也会登记 ``region``，以便 ``ORDER BY
+    region`` 能被解析。这些并非物理列，因此在 GROUP/ORDER/HAVING 中被引用时
+    不得按表白名单校验。
     """
     aliases: set[str] = set()
     for select in tree.find_all(_exp.Select):
@@ -150,11 +147,10 @@ def _collect_output_aliases(tree) -> set[str]:
 
 
 def _is_output_alias_reference(col, output_aliases: set[str]) -> bool:
-    """True when ``col`` is an unqualified reference to a SELECT output alias.
+    """判断 ``col`` 是否为对 SELECT 输出别名的无限定引用。
 
-    Only valid inside GROUP BY / ORDER BY / HAVING (where SELECT aliases are
-    visible). In WHERE / JOIN ON / the SELECT list itself the same identifier
-    is a physical column and must be validated.
+    仅在 GROUP BY / ORDER BY / HAVING 中成立（这些位置能看见 SELECT 别名）。
+    在 WHERE / JOIN ON / SELECT 列表本身里，同名标识符是物理列，必须校验。
     """
     name = str(getattr(col, "name", "") or "").lower()
     if name not in output_aliases:
@@ -168,14 +164,12 @@ def _is_output_alias_reference(col, output_aliases: set[str]) -> bool:
 
 
 def _validate_allowed_columns(trees: list, allowed_columns) -> None:
-    """Reject column references not present in the per-table allowlist.
+    """拒绝引用不在各表白名单中的列。
 
-    Recursively walks every SELECT branch (JOIN, CTE, subquery, UNION) with the
-    sqlglot AST. Qualified columns resolve to a physical table; unqualified
-    columns resolve against the union of every allowed table so a legitimately
-    ambiguous name is not a false positive. Columns bound to a derived table /
-    CTE alias are already guarded inside that virtual source and asserted here.
-    SELECT output aliases referenced in GROUP/ORDER/HAVING are exempt.
+    使用 sqlglot AST 递归遍历每个 SELECT 分支（JOIN、CTE、子查询、UNION）。
+    限定列解析到物理表；未限定列在所有允许表的并集中解析，避免合法的同名列
+    被误报。派生表或 CTE 别名绑定的列已在虚拟来源内部受保护，这里也会再次
+    校验。GROUP/ORDER/HAVING 中引用的 SELECT 输出别名不参与校验。
     """
     normalized = {}
     for table, cols in allowed_columns.items():
@@ -241,10 +235,10 @@ _POLICY_UNSAFE = re.compile(r"\bunion\b|\(\s*select\b|\bwith\b", re.I)
 
 
 def is_policy_safe(sql: str) -> bool:
-    """True when a single-table SELECT can be safely augmented with row policies.
+    """判断单表 SELECT 是否可以安全追加行级策略。
 
-    Multi-table (JOIN/comma), UNION, subquery and CTE shapes are rejected so a
-    row predicate cannot be applied to the wrong rows.
+    多表（JOIN/逗号分隔）、UNION、子查询和 CTE 结构会被拒绝，避免行级条件
+    被错误应用到不对应的数据行。
     """
     return len(_referenced_tables(sql)) == 1 and not _POLICY_UNSAFE.search(sql)
 
