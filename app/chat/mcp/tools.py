@@ -36,10 +36,6 @@ class ChatTools:
     def __init__(self, service: ChatService):
         self.service = service
 
-    def _context(self, tenant_id: str, user_id: str) -> RequestContext:
-        tenant_id, user_id = _identity(tenant_id, user_id)
-        return RequestContext(tenant_id=tenant_id, user_id=user_id)
-
     async def chat_ask(self, question: str, conversation_id: str,
                        confirmed: bool = False, *, context: RequestContext) -> dict:
         context = _identity(context)

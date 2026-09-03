@@ -44,7 +44,7 @@ def _service():
     return ChatService(
         RuleIntentRouter(), MemoryConversationStore(),
         RagAnswerer(retriever, llm, ContextBuilder()),
-        SopService(MemorySopStore(default_sops()), llm, retriever),
+        SopService(MemorySopStore(default_sops()), llm),
         Nl2SqlService(llm, catalog, FakeSql()),
     )
 
@@ -88,7 +88,7 @@ def test_domain_limits_reach_executor():
     service = ChatService(
         RuleIntentRouter(), MemoryConversationStore(),
         RagAnswerer(retriever, llm, ContextBuilder()),
-        SopService(MemorySopStore(default_sops()), llm, retriever),
+        SopService(MemorySopStore(default_sops()), llm),
         Nl2SqlService(llm, catalog, recording, max_rows=1000, timeout_s=10.0),
     )
     ctx = RequestContext(tenant_id="tenant-test", user_id="user-test-001",
@@ -172,3 +172,31 @@ def test_sql_service_allows_allowed_column():
                          authenticated=True, permissions=("chat:ask", "sql:read"))
     result = service.ask("统计订单金额", conversation_id="q", context=ctx)
     assert result.mode.value == "nl2sql"
+
+
+def test_sop_service_rejects_missing_llm():
+    import pytest
+    with pytest.raises(TypeError, match="llm"):
+        SopService(MemorySopStore(default_sops()), None)
+
+
+def test_sop_state_isolated_by_identity():
+    from app.chat.application.context import RequestContext
+    store = MemorySopStore(default_sops())
+    state = SopEngine().begin(default_sops()[0])
+    first = RequestContext(tenant_id="tenant-a", user_id="user-a")
+    second = RequestContext(tenant_id="tenant-a", user_id="user-b")
+    store.save_state("same", state, context=first)
+    assert store.get_state("same", context=first) == state
+    assert store.get_state("same", context=second) is None
+
+
+def test_sop_terminal_step_is_idempotent():
+    definition = default_sops()[0]
+    engine = SopEngine()
+    state = engine.begin(definition)
+    state = engine.advance(definition, state)
+    state = engine.advance(definition, state)
+    state = engine.advance(definition, state, confirmed=True)
+    repeated = engine.advance(definition, state, confirmed=True)
+    assert repeated.completed_steps.count("s3") == 1

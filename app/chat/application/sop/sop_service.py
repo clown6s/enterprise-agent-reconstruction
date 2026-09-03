@@ -1,4 +1,4 @@
-"""SOP query and execution orchestration against the SOP store and engine."""
+"""SOP 查询与执行编排：衔接 SOP 存储、状态机与 LLM 渲染。"""
 from contextlib import nullcontext
 
 from ...domain.exceptions import SopError
@@ -6,25 +6,36 @@ from ...domain.models import ChatMessage, ChatResult, ChatStatus, Citation, Inte
 from ...security.context_boundary import build_messages, sanitize_answer
 from ..context import RequestContext
 from ..context_builder import ContextBuilder
-from ..ports import DocumentRetriever, LLM, SopStore
+from ..ports import LLM, SopStore
 from .sop_engine import SopEngine
 
 
 class SopService:
     def __init__(self, store: SopStore, llm: LLM,
-                 retriever: DocumentRetriever | None = None,
                  engine: SopEngine | None = None,
                  context_builder: ContextBuilder | None = None,
                  trace_provider=None):
+        # 必需依赖在构造阶段校验，避免错误延迟到请求期间才暴露为 NoneType 类异常。
+        for name, value, methods in (
+            ("store", store, ("find", "search", "get_state", "save_state")),
+            ("llm", llm, ("chat",)),
+        ):
+            if value is None:
+                raise TypeError(f"SopService 的 {name} 不能为空")
+            missing = [m for m in methods if not callable(getattr(value, m, None))]
+            if missing:
+                raise TypeError(f"SopService 的 {name} 缺少可调用方法: {', '.join(missing)}")
         self.store = store
         self.llm = llm
-        self.retriever = retriever
         self.engine = engine or SopEngine()
         self.context_builder = context_builder or ContextBuilder()
         self.trace_provider = trace_provider
 
     def _span(self, name: str, **attributes):
-        return self.trace_provider.span(name, **attributes) if self.trace_provider else nullcontext()
+        provider = getattr(self.trace_provider, "span", None)
+        if not callable(provider):
+            return nullcontext()
+        return provider(name, **attributes)
 
     def handle(self, query: str, conversation_id: str,
                history: list[ChatMessage] | None = None,
@@ -40,9 +51,9 @@ class SopService:
             if definition is not None:
                 return self._advance(definition, state, conversation_id, confirmed=confirmed, context=context)
 
-        # 否则先通过结构化搜索定位 SOP。
+        # 结构化 SOP 定义只来自 store；文档检索不产生 SOP 定义。
         definitions = self.store.search(query, context=context)
-        definition = definitions[0] if definitions else self._retrieve_sop(query)
+        definition = definitions[0] if definitions else None
         if definition is None:
             return ChatResult(
                 answer="未找到相关 SOP，请提供更具体的流程或步骤关键词。",
@@ -60,7 +71,10 @@ class SopService:
         context = context or RequestContext()
         step = self.engine.current(definition, state)
         if step.requires_confirmation and not confirmed:
-            return self._render_step(definition, step, state, conversation_id,
+            # 未确认时落库为等待确认状态，避免重启/多实例后丢失该状态。
+            waiting_state = self.engine.advance(definition, state, confirmed=False)
+            self.store.save_state(conversation_id, waiting_state, context=context)
+            return self._render_step(definition, step, waiting_state, conversation_id,
                                      high_risk=True, awaiting=True, context=context)
         next_state = self.engine.advance(definition, state, confirmed=confirmed)
         self.store.save_state(conversation_id, next_state, context=context)
@@ -75,12 +89,6 @@ class SopService:
             )
         next_step = self.engine.current(definition, next_state)
         return self._render_step(definition, next_step, next_state, conversation_id, context=context)
-
-    def _retrieve_sop(self, query: str):
-        if self.retriever is None:
-            return None
-        items = self.retriever.retrieve(query, top_k=5)
-        return None  # 文档检索仅提供佐证；结构化定义来自 store
 
     def _render_step(self, definition, step, state, conversation_id, *,
                      high_risk=False, awaiting=False,

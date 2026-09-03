@@ -10,6 +10,7 @@ comma lists) must be in the allowlist. A single allowed table can no longer
 import re
 
 from ...domain.exceptions import SqlPolicyError
+from .tenant_rewrite import assert_readonly
 
 try:  # sqlglot 支撑列白名单校验
     import sqlglot
@@ -258,9 +259,7 @@ def validate_sql(sql: str, *, allowed_tables: set[str] | None = None,
     if len(sql) > max_length:
         raise SqlPolicyError(f"SQL 过长（{len(sql)} > {max_length}）")
     lower = sql.lower()
-    # 允许只读 CTE，但最终语句必须是 SELECT；写操作仍由关键字检查拒绝。
-    if not re.match(r"^\s*(?:with\b[\s\S]*\)\s*)?select\b", sql, re.I):
-        raise SqlPolicyError("只允许 SELECT 查询")
+    assert_readonly(sql)
     for keyword in _BLOCKED_KEYWORDS:
         if re.search(rf"\b{keyword}\b", lower):
             raise SqlPolicyError(f"禁止关键字: {keyword}")

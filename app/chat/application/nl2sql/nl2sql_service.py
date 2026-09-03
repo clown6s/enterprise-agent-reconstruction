@@ -18,12 +18,9 @@ from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
 from .row_policy import BoundPolicy
 from .row_rewrite import rewrite_with_row_policies
 from .sql_guard import referenced_tables, validate_sql
+from .tenant_rewrite import inject_tenant_filter
 
 _SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
-# 在这些关键字之前插入 tenant 条件，避免追加到 GROUP/ORDER/LIMIT 之后。
-_CLAUSE_BOUNDARY = re.compile(r"\b(GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|FOR\s+UPDATE)\b", re.I)
-_TENANT_FILTER = re.compile(
-    r"\btenant_id\s*=\s*(?:'[^']*'|\"[^\"]*\"|[A-Za-z0-9_.:-]+)", re.I)
 
 
 class Nl2SqlService:
@@ -142,19 +139,8 @@ class Nl2SqlService:
 
     @staticmethod
     def _enforce_tenant(sql: str, tenant_id: str) -> str:
-        """覆盖模型租户条件，只使用认证上下文中的 tenant_id。"""
-        if not tenant_id:
-            raise SqlPolicyError("缺少认证租户，拒绝执行查询")
-        escaped = tenant_id.replace("'", "''")
-        predicate = f"tenant_id = '{escaped}'"
-        # 直接替换模型生成的租户谓词，避免留下 WHERE AND 等残片。
-        if _TENANT_FILTER.search(sql):
-            return _TENANT_FILTER.sub(predicate, sql, count=1)
-        boundary = _CLAUSE_BOUNDARY.search(sql)
-        prefix, suffix = (sql[:boundary.start()], sql[boundary.start():]) if boundary else (sql, "")
-        if re.search(r"\bWHERE\b", prefix, re.I):
-            return f"{prefix} AND {predicate} {suffix}".strip()
-        return f"{prefix} WHERE {predicate} {suffix}".strip()
+        """基于 AST 为每个物理表注入认证租户条件，覆盖模型自加的谓词。"""
+        return inject_tenant_filter(sql, tenant_id)
 
     def _row_policies_for(self, sql: str, domain: str, context,
                           ) -> dict[str, tuple[BoundPolicy, ...]]:

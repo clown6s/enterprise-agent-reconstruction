@@ -1,10 +1,10 @@
-"""Read-only MySQL executor adapter for NL2SQL."""
-import re
+"""NL2SQL 的只读 MySQL 执行器适配器。"""
 import uuid
 
 import pymysql
 
 from ..application.nl2sql.row_rewrite import rewrite_with_row_policies
+from ..application.nl2sql.tenant_rewrite import assert_readonly
 from ..application.ports import ReadonlySqlExecutor
 from ..domain.models import SqlResult
 
@@ -20,14 +20,21 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
 
     def query(self, sql: str, *, timeout_s: float = 10.0,
               max_rows: int = 1000, row_policies=()) -> SqlResult:
-        # 即使调用方绕过服务层，此边界也强制要求 SQL 守卫。
-        if not re.match(r"^\s*select\b", sql, re.I):
-            raise ValueError("只读执行器仅允许 SELECT")
+        """执行单条只读查询，并在数据库会话中施加时间限制。"""
+        assert_readonly(sql)
+        if timeout_s <= 0:
+            raise ValueError("查询超时必须为正数")
+        if max_rows < 1:
+            raise ValueError("最大返回行数必须为正数")
         sql, params = self._apply_row_policies(sql, row_policies)
-        connection = pymysql.connect(**self._config)
+        timeout_ms = max(1, int(timeout_s * 1000))
+        config = dict(self._config, read_timeout=timeout_s,
+                      write_timeout=timeout_s)
+        connection = pymysql.connect(**config)
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SET SESSION TRANSACTION READ ONLY")
+                cursor.execute("SET SESSION MAX_EXECUTION_TIME = %s", (timeout_ms,))
                 if params:
                     cursor.execute(sql, params)
                 else:

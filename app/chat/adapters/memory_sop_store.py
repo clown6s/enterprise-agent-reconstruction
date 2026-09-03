@@ -9,7 +9,13 @@ class MemorySopStore(SopStore):
     def __init__(self, definitions: list[SopDefinition] | None = None):
         self._lock = threading.Lock()
         self._definitions = {f"{d.sop_id}:{d.version}": d for d in (definitions or [])}
-        self._states: dict[str, SopExecutionState] = {}
+        self._states: dict[tuple[str, str, str], SopExecutionState] = {}
+
+    @staticmethod
+    def _state_key(conversation_id: str, context) -> tuple[str, str, str]:
+        tenant_id = getattr(context, "tenant_id", "") if context is not None else ""
+        user_id = getattr(context, "user_id", "") if context is not None else ""
+        return tenant_id, user_id, conversation_id
 
     def register(self, definition: SopDefinition) -> None:
         with self._lock:
@@ -32,8 +38,8 @@ class MemorySopStore(SopStore):
 
     def get_state(self, conversation_id: str, *, context=None) -> SopExecutionState | None:
         with self._lock:
-            return self._states.get(conversation_id)
+            return self._states.get(self._state_key(conversation_id, context))
 
     def save_state(self, conversation_id: str, state: SopExecutionState, *, context=None) -> None:
         with self._lock:
-            self._states[conversation_id] = state
+            self._states[self._state_key(conversation_id, context)] = state

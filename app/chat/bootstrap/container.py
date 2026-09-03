@@ -89,7 +89,7 @@ def build_chat(*, retriever, llm=None, conversation=None,
     return ChatService(
         router=router, conversation=conversation,
         rag=RagAnswerer(chat_retriever, llm, context_builder, trace_provider),
-        sop=SopService(sop_store, llm, chat_retriever,
+        sop=SopService(sop_store, llm,
                       context_builder=context_builder, trace_provider=trace_provider),
         nl2sql=Nl2SqlService(llm, schema_catalog, sql_executor,
                              trace_provider=trace_provider),

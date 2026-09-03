@@ -27,13 +27,16 @@ class SopEngine:
         step = self.current(definition, state)
         if step.requires_confirmation and not confirmed:
             return replace(state, awaiting_confirmation=True)
+        completed_steps = (state.completed_steps
+                           if step.step_id in state.completed_steps
+                           else state.completed_steps + (step.step_id,))
         if not step.next_steps:
-            # 终态步骤：保持但将 awaiting_confirmation 标记为 False（已完成）
+            # 终态步骤保持当前位置，并且重复请求不会重复记录步骤。
             return replace(state, awaiting_confirmation=False,
-                           completed_steps=state.completed_steps + (step.step_id,))
+                           completed_steps=completed_steps)
         next_id = step.next_steps[0]
         return replace(state, current_step_id=next_id, awaiting_confirmation=False,
-                       completed_steps=state.completed_steps + (step.step_id,))
+                       completed_steps=completed_steps)
 
     def is_high_risk(self, step: SopStep) -> bool:
         return step.requires_confirmation or any(
