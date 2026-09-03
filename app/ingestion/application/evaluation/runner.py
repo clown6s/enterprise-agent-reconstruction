@@ -1,5 +1,5 @@
-from collections.abc import Iterable
-from typing import Protocol
+from collections.abc import Callable, Iterable
+from typing import Protocol, cast
 
 from ..retrieve import RetrievalResult
 from .models import RetrievalCase
@@ -9,7 +9,7 @@ from .metrics import (hit_rate_at_k, noise_rate, recall_at_k, reciprocal_rank,
 
 class Retriever(Protocol):
     def execute_hybrid(self, query: str, *, top_k: int = 10,
-                       filter: str = "") -> Iterable[RetrievalResult]: ...
+                       f: str = "") -> Iterable[RetrievalResult]: ...
 
 
 class RetrievalEvaluationRunner:
@@ -22,7 +22,10 @@ class RetrievalEvaluationRunner:
         if (not ks or any(not isinstance(k, int) or isinstance(k, bool) or k < 1 for k in ks)):
             raise ValueError("ks 必须包含正整数")
         ks = tuple(sorted(set(ks)))
-        retrieve = getattr(self.retriever, "execute_hybrid", None)
+        retrieve = cast(
+            Callable[..., Iterable[RetrievalResult]],
+            getattr(self.retriever, "execute_hybrid", None),
+        )
         if not callable(retrieve):
             raise ValueError("检索器不支持 execute_hybrid")
         details = []

@@ -1,1 +1,1 @@
-"""Chat application use cases."""
+"""聊天应用用例。"""

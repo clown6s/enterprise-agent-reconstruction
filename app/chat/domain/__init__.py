@@ -1,1 +1,1 @@
-"""Chat domain models and policies."""
+"""聊天领域模型与策略。"""

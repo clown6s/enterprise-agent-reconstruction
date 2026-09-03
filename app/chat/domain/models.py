@@ -1,4 +1,4 @@
-"""Chat domain models independent of frameworks and infrastructure."""
+"""与框架和基础设施无关的聊天领域模型。"""
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -47,7 +47,7 @@ class Citation:
 
 @dataclass(frozen=True)
 class RetrievalItem:
-    """A single retrieved chunk (decoupled from ingestion's result type)."""
+    """单个检索到的片段（与 ingestion 的结果类型解耦）。"""
     text: str
     score: float
     document_id: str
@@ -144,11 +144,12 @@ class SqlResult:
     rows: tuple[tuple[Any, ...], ...]
     query_id: str
     row_count: int
+    truncated: bool = False
 
 
 @dataclass(frozen=True)
 class SessionState:
-    """Structured state for multi-turn routing and follow-up resolution."""
+    """用于多轮路由和追问解析的结构化状态。"""
     last_intent: Intent | None = None
     last_domain: str | None = None
     last_query_id: str | None = None

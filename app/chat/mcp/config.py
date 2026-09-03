@@ -1,4 +1,4 @@
-"""MCP server policy/transport settings (no construction here)."""
+"""MCP 服务端策略 / 传输配置（此处不进行装配）。"""
 from dataclasses import dataclass
 
 

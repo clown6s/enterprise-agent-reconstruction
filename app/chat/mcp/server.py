@@ -1,7 +1,7 @@
-"""Build an MCP server exposing chat capabilities as tools.
+"""构建把聊天能力暴露为工具的 MCP 服务端。
 
-The server is a pure adapter: mounting it must not construct live services.
-Authentication is resolved from the MCP transport headers, never tool arguments.
+该服务端是纯适配器：挂载时绝不能构造实时服务。认证信息从 MCP 传输层请求头
+解析，绝不从工具参数中获取。
 """
 from ..application.chat_service import ChatService
 from ..application.context import RequestContext
@@ -35,7 +35,7 @@ def _request_context(ctx, auth) -> RequestContext:
 
 def build_server(service, *, auth=None, policy: McpPolicy | None = None,
                 rate_limiter=None) -> "MCPServer":
-    """Create an MCP server with verified identity and optional rate limiting."""
+    """创建带有已认证身份与可选限流的 MCP 服务端。"""
     from mcp.server.mcpserver import Context, MCPServer
 
     def request_context_and_limit(ctx, tool_name):
@@ -89,7 +89,7 @@ def build_server(service, *, auth=None, policy: McpPolicy | None = None,
 def build_http_app(service, *, auth=None, policy: McpPolicy | None = None,
                    rate_limiter=None, path: str = "/", stateless: bool = False,
                    host: str = "127.0.0.1", max_request_body_size: int = 4 * 1024 * 1024):
-    """Return a Streamable HTTP ASGI app for mounting under ``/mcp``."""
+    """返回一个用于挂载在 ``/mcp`` 下的 Streamable HTTP ASGI 应用。"""
     server = build_server(service, auth=auth, policy=policy,
                           rate_limiter=rate_limiter)
     return server.streamable_http_app(

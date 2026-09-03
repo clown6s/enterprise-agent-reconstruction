@@ -1,30 +1,30 @@
-"""Chat-specific errors; HTTP translation remains in the API layer."""
+"""聊天领域专属异常；HTTP 翻译仍留在 API 层。"""
 from app.ingestion.domain.exceptions import AppError, InfrastructureError, ProcessingError, ValidationError
 
 
 class ChatError(AppError):
-    """Base error for chat application failures."""
+    """聊天应用失败的基类异常。"""
 
 
 class LlmError(InfrastructureError):
-    """The configured LLM provider failed."""
+    """已配置的 LLM 提供商调用失败。"""
 
 
 class ConversationError(InfrastructureError):
-    """Conversation persistence failed."""
+    """会话持久化失败。"""
 
 
 class SopError(ProcessingError):
-    """SOP definition or execution state is invalid."""
+    """SOP 定义或执行状态无效。"""
 
 
 class SqlGenerationError(ProcessingError):
-    """The model did not produce a usable SQL candidate."""
+    """模型未能生成可用的 SQL 候选。"""
 
 
 class SqlPolicyError(ValidationError):
-    """Generated SQL violates the read-only policy."""
+    """生成的 SQL 违反只读策略。"""
 
 
 class SessionConflictError(ValidationError):
-    """Concurrent update lost the optimistic lock on session state."""
+    """并发更新丢失了会话状态的乐观锁。"""

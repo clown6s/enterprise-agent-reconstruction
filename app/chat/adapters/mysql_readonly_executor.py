@@ -41,10 +41,13 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
                     cursor.execute(sql)
                 description = cursor.description or ()
                 columns = tuple(item[0] for item in description)
-                rows = tuple(tuple(row) for row in cursor.fetchmany(max_rows))
+                fetched = tuple(tuple(row) for row in cursor.fetchmany(max_rows + 1))
+                truncated = len(fetched) > max_rows
+                rows = fetched[:max_rows]
             connection.rollback()
             return SqlResult(columns=columns, rows=rows,
-                             query_id=str(uuid.uuid4()), row_count=len(rows))
+                             query_id=str(uuid.uuid4()), row_count=len(rows),
+                             truncated=truncated)
         finally:
             connection.close()
 

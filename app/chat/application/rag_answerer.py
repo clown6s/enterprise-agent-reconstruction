@@ -1,4 +1,4 @@
-"""RAG execution: retrieve -> bounded context -> LLM -> citations."""
+"""RAG 执行：检索 → 有界上下文 → LLM → 引用。"""
 import json
 import re
 from contextlib import nullcontext

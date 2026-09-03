@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ..application.chat_service import ChatService
 from ..application.context import RequestContext
 from ..domain.models import ChatResult
+from .trace_context import resolve_trace_id
 
 
 class ChatRequest(BaseModel):
@@ -48,13 +49,14 @@ def create_router(service_provider: Callable[[], ChatService],
             if not rate_limiter.allow(key):
                 from fastapi import HTTPException
                 raise HTTPException(status_code=429, detail="请求过于频繁，请稍后重试")
+        # 优先取中间件绑定的 trace_id，保证审计记录与日志/ES 链路一致。
+        trace_id = resolve_trace_id(http_request)
         if principal is None:
             # 向后兼容的直接测试/伪造对象构造。
-            context = RequestContext(
-                trace_id=http_request.headers.get("X-Trace-Id", "") or "")
+            context = RequestContext(trace_id=trace_id)
         else:
             context = RequestContext(
-                trace_id=http_request.headers.get("X-Trace-Id", "") or "",
+                trace_id=trace_id,
                 tenant_id=principal.tenant_id, user_id=principal.user_id,
                 roles=principal.roles, permissions=principal.permissions,
                 authenticated=True,

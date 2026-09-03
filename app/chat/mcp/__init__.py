@@ -1,1 +1,1 @@
-"""Chat MCP server adapters."""
+"""聊天 MCP 服务端适配器。"""

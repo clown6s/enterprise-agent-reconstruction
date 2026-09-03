@@ -1,4 +1,4 @@
-"""Chat composition root: concrete adapters are wired here only."""
+"""聊天组合根：仅在此处装配具体适配器。"""
 import os
 
 from .config import read_settings, read_storage_settings
@@ -32,7 +32,7 @@ from app.observability.trace_provider import OtelTraceProvider
 
 
 def build_schema_admin():
-    """Build the isolated schema administration service without chat/LLM setup."""
+    """构建与聊天/LLM 装配无关的独立 schema 管理服务。"""
     storage = read_storage_settings()
     if storage.backend != "mysql":
         raise RuntimeError("Schema Registry 管理接口需要 MySQL 存储")

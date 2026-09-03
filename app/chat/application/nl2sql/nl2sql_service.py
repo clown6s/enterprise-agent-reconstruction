@@ -68,7 +68,8 @@ class Nl2SqlService:
             domain_max_rows, domain_timeout_s = self.catalog.domain_limits(
                 domain, context=context)
             max_rows = min(self.max_rows, domain_max_rows)
-            timeout_s = domain_timeout_s
+            # 超时同样钳制到服务层上限，避免某数据域配了过大的值绕过默认限制。
+            timeout_s = min(self.timeout_s, domain_timeout_s)
         previous_context = ""
         if state is not None and getattr(state, "extra", None):
             previous_question = state.extra.get("last_question")
@@ -103,6 +104,7 @@ class Nl2SqlService:
                                blocked_columns=blocked_columns)
         row_policies = self._row_policies_for(sql, domain, context)
         result = None
+        retried = False
         try:
             with self._span("nl2sql.execute_sql"):
                 result = self.executor.query(sql, timeout_s=timeout_s,
@@ -121,6 +123,7 @@ class Nl2SqlService:
                     result = self.executor.query(rewritten, timeout_s=timeout_s,
                                                  max_rows=max_rows,
                                                  row_policies=retry_policies)
+                retried = True
             except Exception as retry_exc:
                 # 重试也失败：同样转成脱敏业务异常，避免底层数据库
                 # 异常冒泡成 500 Internal Server Error。
@@ -132,7 +135,10 @@ class Nl2SqlService:
             conversation_id=conversation_id,
             sql={"query": sql, "query_id": result.query_id,
                  "domain": domain, "columns": list(result.columns),
-                 "row_count": result.row_count},
+                 "row_count": result.row_count, "truncated": result.truncated,
+                 # 如实携带执行状态，供审计记录真实链路（重试仍成功）。
+                 "generation_status": "executed", "guard_status": "allowed",
+                 "execution_status": "success", "execution_retried": retried},
             trace_id=context.trace_id,
         )
 
@@ -217,12 +223,17 @@ class Nl2SqlService:
             return f"查询执行成功，但没有符合条件的数据。"
         preview = [{key: self._jsonable(value) for key, value in
                     zip(result.columns, row)} for row in result.rows[:5]]
+        # 结果被截断时如实提示，避免把"已返回的前 N 行"误报为全部行数。
+        count_note = (
+            f"结果超过 {result.row_count} 行，以下仅为前 {result.row_count} 行。"
+            if result.truncated else f"共 {result.row_count} 行。"
+        )
         messages = [
             ChatMessage("system", SYSTEM_POLICY),
             ChatMessage("user",
                         f"原问题：{query}\n数据域：{domain}\n查询结果：\n"
                         f"{json.dumps(preview, ensure_ascii=False)}\n"
-                        f"共 {result.row_count} 行。请用中文简洁解释结果，只依据给定数据。"),
+                        f"{count_note} 请用中文简洁解释结果，只依据给定数据。"),
         ]
         try:
             with self._span("nl2sql.llm_explain"):

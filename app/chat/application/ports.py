@@ -1,4 +1,4 @@
-"""Chat application ports. Implementations live outside this package."""
+"""聊天应用端口。实现位于本包之外。"""
 from typing import Protocol
 
 from ..domain.models import (
@@ -15,7 +15,7 @@ from ..domain.models import (
 
 
 class LLM(Protocol):
-    """A chat-capable language model with structured-output support."""
+    """支持结构化输出的聊天语言模型。"""
 
     def chat(self, messages: list[ChatMessage]) -> str: ...
     def close(self) -> None: ...
@@ -104,20 +104,20 @@ class TraceProvider(Protocol):
 
 
 class AuditLogger(Protocol):
-    """Append-only audit sink; failures must not change business results."""
+    """只追加的审计写入端；失败绝不能改变业务结果。"""
     def record(self, event: AuditEvent) -> None: ...
     def close(self) -> None: ...
 
 
 class SessionStateStore(Protocol):
-    """Persistent structured multi-turn state per (tenant, conversation)."""
+    """按（租户、会话）保存的结构化多轮状态。"""
     def get(self, conversation_id: str, *, context) -> SessionState | None: ...
     def save(self, conversation_id: str, state: SessionState, *, context) -> None: ...
     def close(self) -> None: ...
 
 
 class QuestionResolver(Protocol):
-    """Resolve anaphora / elided follow-ups into a self-contained question."""
+    """把指代 / 省略的追问解析为自包含的问题。"""
     def resolve(self, question: str, history: list[ChatMessage] | None,
                 state: SessionState | None) -> ResolvedQuestion: ...
 

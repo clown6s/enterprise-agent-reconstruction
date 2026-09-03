@@ -1,4 +1,4 @@
-"""Trust boundaries for model context and output."""
+"""模型上下文与输出的信任边界。"""
 import re
 
 from ..domain.models import ChatMessage, Citation, RetrievalItem
@@ -43,11 +43,10 @@ def find_injection(text: str) -> tuple[str, ...]:
 
 
 def sanitize_answer(answer: str, citations: tuple[Citation, ...]) -> tuple[str, tuple[str, ...]]:
-    """Validate citation markers and return the answer plus warnings.
+    """校验引用标记，并返回回答及警告。
 
-    The caller must use :func:`referenced_citations` when it needs the subset
-    actually cited by the model; all retrieved citations are never implicitly
-    treated as cited.
+    当调用方需要模型实际引用的那一部分时，必须使用 :func:`referenced_citations`；
+    所有检索到的引用绝不会被隐式视为已引用。
     """
     warnings: list[str] = []
     if any(re.search(pattern, answer) for pattern in _SECRET_PATTERNS):
@@ -63,7 +62,7 @@ def sanitize_answer(answer: str, citations: tuple[Citation, ...]) -> tuple[str, 
 
 
 def referenced_citations(answer: str, citations: tuple[Citation, ...]) -> tuple[Citation, ...]:
-    """Map valid ``[n]`` markers to citations, preserving marker order."""
+    """把合法的 ``[n]`` 标记映射到引用，并保持标记顺序。"""
     indexes = []
     for value in re.findall(r"\[(\d+)\]", answer):
         index = int(value) - 1

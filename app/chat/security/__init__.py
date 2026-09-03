@@ -1,1 +1,1 @@
-"""Chat security boundary helpers."""
+"""聊天安全边界辅助工具。"""

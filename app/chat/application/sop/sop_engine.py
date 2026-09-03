@@ -1,4 +1,4 @@
-"""SOP execution state machine. The engine, not the LLM, decides valid next steps."""
+"""SOP 执行状态机。由引擎（而非 LLM）决定合法的下一步。"""
 from dataclasses import replace
 
 from ...domain.exceptions import SopError

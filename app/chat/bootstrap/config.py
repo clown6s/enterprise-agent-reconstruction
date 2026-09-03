@@ -1,4 +1,4 @@
-"""Chat configuration; no adapter construction belongs here."""
+"""聊天配置；这里不构造任何适配器。"""
 import os
 from dataclasses import dataclass
 
@@ -20,11 +20,10 @@ class ChatSettings:
 
 @dataclass(frozen=True)
 class StorageSettings:
-    """Where conversation/SOP/schema state lives.
+    """会话 / SOP / schema 状态的存储位置。
 
-    ``backend`` is ``memory`` or ``mysql``. Defaults to ``memory`` until
-    authentication supplies a trusted tenant/user; switching to ``mysql``
-    before that exposes cross-tenant risk.
+    ``backend`` 取值为 ``memory`` 或 ``mysql``。在认证提供可信的租户 / 用户之前
+    默认是 ``memory``；过早切换到 ``mysql`` 会引入跨租户风险。
     """
     backend: str = "mysql"
     mysql_host: str = ""
@@ -36,7 +35,7 @@ class StorageSettings:
 
 @dataclass(frozen=True)
 class McpSettings:
-    """MCP transport and exposed-tool policy."""
+    """MCP 传输与对外暴露工具的策略。"""
     transport: str = "stdio"
     host: str = "127.0.0.1"
     port: int = 8001

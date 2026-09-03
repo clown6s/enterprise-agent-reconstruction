@@ -1,4 +1,4 @@
-"""Default seed data for memory-based stores (SOPs and schema catalog)."""
+"""面向内存存储的默认种子数据（SOP 与 schema catalog）。"""
 from ..domain.models import SopDefinition, SopStep
 
 

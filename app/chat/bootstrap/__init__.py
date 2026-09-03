@@ -1,1 +1,1 @@
-"""Chat composition root."""
+"""聊天组合根。"""

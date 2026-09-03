@@ -157,7 +157,11 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @mysql_errors
     def allowed_columns(self, domain: str, *, context) -> dict[str, set[str]]:
-        """每张表来自 sql_allowed_columns 的真实列名白名单。"""
+        """每张表来自 sql_allowed_columns 的真实列名白名单。
+
+        只放行 ``selectable`` 的列：标记为不可选择的列（内部/技术字段）
+        不应被生成进 SELECT，与 describe 渲染的 [select] 标志保持一致。
+        """
         tenant_id, _ = identity(context)
         def operation(conn):
             with conn.cursor() as cur:
@@ -171,7 +175,8 @@ class MysqlSchemaCatalog(SchemaCatalog):
                     return {}
                 cur.execute(
                     "SELECT table_name, column_name FROM sql_allowed_columns "
-                    "WHERE tenant_id=%s AND domain_id=%s ORDER BY table_name, column_name",
+                    "WHERE tenant_id=%s AND domain_id=%s AND `selectable`=1 "
+                    "ORDER BY table_name, column_name",
                     (tenant_id, item["domain_id"]),
                 )
                 allowed: dict[str, set[str]] = {}

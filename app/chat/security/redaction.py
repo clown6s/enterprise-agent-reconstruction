@@ -1,4 +1,4 @@
-"""Deterministic redaction for logs, audit payloads, and error responses."""
+"""面向日志、审计载荷和错误响应的确定性脱敏。"""
 import re
 
 _PATTERNS = (
@@ -13,7 +13,7 @@ _PATTERNS = (
 
 
 def redact(value: str, *, max_length: int | None = None) -> str:
-    """Redact common secrets/PII and optionally cap output length."""
+    """对常见密钥 / 个人身份信息脱敏，并可按需限制输出长度。"""
     if not isinstance(value, str):
         value = str(value)
     for pattern, replacement in _PATTERNS:

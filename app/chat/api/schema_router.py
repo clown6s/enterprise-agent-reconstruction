@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ..application.context import RequestContext
+from .trace_context import resolve_trace_id
 
 
 class SchemaAdminService(Protocol):
@@ -108,7 +109,7 @@ class _AnonymousPrincipal:
 def _context(request: Request, principal: object) -> RequestContext:
     """从已认证主体构建可信上下文，绝不使用请求体中的身份信息。"""
     return RequestContext(
-        trace_id=request.headers.get("X-Trace-Id", "") or "",
+        trace_id=resolve_trace_id(request),
         tenant_id=getattr(principal, "tenant_id", ""),
         user_id=getattr(principal, "user_id", ""),
         roles=tuple(getattr(principal, "roles", ()) or ()),

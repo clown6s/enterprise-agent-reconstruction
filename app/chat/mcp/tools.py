@@ -31,7 +31,7 @@ def _result_dict(result) -> dict:
 
 
 class ChatTools:
-    """Application-facing tool facade with identity and input validation."""
+    """面向应用的工具门面，负责身份与输入校验。"""
 
     def __init__(self, service: ChatService):
         self.service = service
