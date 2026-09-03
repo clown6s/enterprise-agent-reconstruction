@@ -10,9 +10,11 @@ import re
 from contextlib import nullcontext
 from datetime import date, datetime
 
+import structlog
+
 from ...domain.exceptions import LlmError, SqlGenerationError, SqlPolicyError
 from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
-from ...security.context_boundary import SYSTEM_POLICY
+from ...security.context_boundary import SYSTEM_POLICY, find_injection
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
 from .row_policy import BoundPolicy
@@ -20,7 +22,13 @@ from .row_rewrite import rewrite_with_row_policies
 from .sql_guard import validate_sql
 from .tenant_rewrite import physical_tables
 
+
+logger = structlog.get_logger(__name__)
+
+
 _SQL_EXTRACT = re.compile(r"```(?:sql|mysql)?\s*(select[\s\S]*?)\s*```", re.I)
+# schema 提示文本的整行上限：域很大时避免整段塞给 LLM 浪费 token。
+_MAX_SCHEMA_PROMPT_LINES = 120
 _ERROR_URL = re.compile(r"\b[a-z][\w+.-]*://\S+", re.I)
 _ERROR_IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
 _ERROR_CREDENTIAL = re.compile(r"'[^']*@[^']*'|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
@@ -47,6 +55,22 @@ class Nl2SqlService:
                context: RequestContext | None = None,
                state=None) -> ChatResult:
         context = context or RequestContext()
+        # 先做提示注入检测：命中即拒绝，避免不可信的用户内容进入生成链路，
+        # 也防止其引导模型改写 SQL 绕过守卫（sql_guard 无法看见该改写）。
+        injected = find_injection(query)
+        if injected:
+            logger.warning("nl2sql_injection_blocked", markers=injected,
+                           trace_id=context.trace_id)
+            raise SqlPolicyError("检测到可疑内容，已拒绝执行")
+        # 行级权限强制要求 tenant_id，匿名请求无法安全执行。
+        # 在此提前返回友好提示，避免后续在 _row_policies_for 抛异常变成 500。
+        if not context.tenant_id:
+            return ChatResult(
+                answer="查询业务数据需要登录。请先完成认证后再提问。",
+                status=ChatStatus.CLARIFICATION, mode=Intent.NL2SQL,
+                conversation_id=conversation_id, warnings=("auth_required",),
+                trace_id=context.trace_id,
+            )
         with self._span("nl2sql.resolve_domain"):
             domain = (getattr(state, "last_domain", None)
                       if (state is not None and self.catalog.describe(
@@ -76,6 +100,11 @@ class Nl2SqlService:
             if previous_question:
                 previous_context = f"上轮已确认的问题（仅用于理解本轮追问）：{previous_question}\n"
         allowed_table_list = ", ".join(sorted(allowed))
+        # 按行截断 schema 提示文本：域很大时避免整段塞给 LLM 浪费 token，
+        # 允许表名已在上方显式列出，截断不会影响表名约束。
+        schema_lines = schema.splitlines()
+        if len(schema_lines) > _MAX_SCHEMA_PROMPT_LINES:
+            schema = "\n".join(schema_lines[:_MAX_SCHEMA_PROMPT_LINES]) + "\n…（schema 过长已截断）"
         prompt = (
             f"数据库方言：MySQL 8.x。{previous_context}数据域：{domain}\n"
             f"允许使用的真实表名（必须逐字使用，禁止改名、缩写、猜测同义表名）：{allowed_table_list}\n"
@@ -185,7 +214,10 @@ class Nl2SqlService:
             policies = self._row_policies_for(candidate, domain, context)
             return candidate, policies
         # 重试链路的任意异常都应回退到首次错误，避免覆盖原始诊断。
-        except Exception:  # noqa: BLE001
+        # 记录失败原因，便于区分"模型未重写"还是"重写后被守卫/策略拦截"。
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("nl2sql_retry_failed", original_error=type(error).__name__,
+                           retry_error=type(exc).__name__)
             return None
 
     @staticmethod

@@ -7,7 +7,7 @@ from ..domain.models import (AuditEvent, ChatMessage, ChatResult, ChatStatus, In
                              ConversationRelation, IntentDecision, SessionState)
 from .context import RequestContext
 from .ports import (AuditLogger, ConversationStore, ConversationUnderstanding,
-                    IntentRouter)
+                    IntentRouter, SessionStateStore)
 from .rag_answerer import RagAnswerer
 from .sop.sop_service import SopService
 from .nl2sql.nl2sql_service import Nl2SqlService
@@ -19,7 +19,8 @@ class ChatService:
     def __init__(self, router: IntentRouter, conversation: ConversationStore,
                  rag: RagAnswerer, sop: SopService, nl2sql: Nl2SqlService,
                  audit: AuditLogger | None = None,
-                 session_state=None, question_resolver=None,
+                 session_state: SessionStateStore | None = None,
+                 question_resolver=None,
                  understanding: ConversationUnderstanding | None = None):
         self.router = router
         self.conversation = conversation
@@ -147,9 +148,11 @@ class ChatService:
                     "query_id": sql_info.get("query_id"),
                     "columns": sql_info.get("columns", []),
                     "row_count": sql_info.get("row_count"),
-                    "generation_status": "executed",
-                    "guard_status": "allowed",
-                    "execution_status": "success",
+                    "truncated": bool(sql_info.get("truncated", False)),
+                    "generation_status": sql_info.get("generation_status", "executed"),
+                    "guard_status": sql_info.get("guard_status", "allowed"),
+                    "execution_status": sql_info.get("execution_status", "success"),
+                    "execution_retried": bool(sql_info.get("execution_retried", False)),
                 },
             ))
         self._audit(AuditEvent(
@@ -206,10 +209,8 @@ class ChatService:
                               relation=None, topic=None, resolved_question=None):
         if self.session_state is None:
             return
-        previous = None
-        getter = getattr(self.session_state, "get", None)
-        if callable(getter):
-            previous = getter(conversation_id, context=context)
+        previous: SessionState | None = self.session_state.get(
+            conversation_id, context=context)
         sql = result.sql or {}
         sop = result.sop or {}
         # 新主题不继承旧数据域；只有当前结果明确提供 domain 才保存。
@@ -230,9 +231,8 @@ class ChatService:
             },
             version_no=(previous.version_no if previous else 1),
         )
-        saver = getattr(self.session_state, "save", None)
-        if callable(saver):
-            saver(conversation_id, state, context=context)
+        if self.session_state is not None:
+            self.session_state.save(conversation_id, state, context=context)
 
     def close(self) -> None:
         """释放执行器所持有的资源（LLM、检索器和存储）。"""
