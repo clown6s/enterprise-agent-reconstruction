@@ -1,4 +1,4 @@
-"""MCP tool handlers; transport concerns stay outside chat application."""
+"""MCP 工具处理器，传输层逻辑与聊天应用层保持分离。"""
 from dataclasses import asdict
 
 from ..application.chat_service import ChatService
@@ -73,6 +73,8 @@ class ChatTools:
     async def readonly_sql_query(self, question: str,
                                  *, context: RequestContext) -> dict:
         context = _identity(context)
+        if not context.can("sql:read"):
+            raise PermissionError("MCP 请求缺少 sql:read 权限")
         if not isinstance(question, str) or not question.strip():
             raise ValueError("question 不能为空")
         result = await run_sync(self.service.nl2sql.answer,

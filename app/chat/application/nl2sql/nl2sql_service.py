@@ -21,6 +21,12 @@ from .sql_guard import validate_sql
 from .tenant_rewrite import physical_tables
 
 _SQL_EXTRACT = re.compile(r"```(?:sql|mysql)?\s*(select[\s\S]*?)\s*```", re.I)
+_ERROR_URL = re.compile(r"\b[a-z][\w+.-]*://\S+", re.I)
+_ERROR_IP = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+_ERROR_CREDENTIAL = re.compile(r"(?:'[^']*@[^']*'|\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b)")
+_ERROR_SENSITIVE_FIELD = re.compile(
+    r"\b(password|passwd|pwd|token|secret|api[_-]?key|authorization)\b"
+    r"\s*[=:]\s*[^,;\s]+", re.I)
 
 
 class Nl2SqlService:
@@ -57,16 +63,10 @@ class Nl2SqlService:
         with self._span("nl2sql.load_schema"):
             schema = self.catalog.describe(domain, context=context)
             allowed = self.catalog.allowed_tables(domain, context=context)
-            allowed_column_loader = getattr(self.catalog, "allowed_columns", None)
-            allowed_columns = (allowed_column_loader(domain, context=context)
-                               if callable(allowed_column_loader) else {})
-            column_loader = getattr(self.catalog, "blocked_columns", None)
-            blocked_columns = (column_loader(domain, context=context)
-                               if callable(column_loader) else {})
-            limits_loader = getattr(self.catalog, "domain_limits", None)
-            domain_max_rows, domain_timeout_s = (limits_loader(domain, context=context)
-                                                 if callable(limits_loader)
-                                                 else (self.max_rows, self.timeout_s))
+            allowed_columns = self.catalog.allowed_columns(domain, context=context)
+            blocked_columns = self.catalog.blocked_columns(domain, context=context)
+            domain_max_rows, domain_timeout_s = self.catalog.domain_limits(
+                domain, context=context)
             max_rows = min(self.max_rows, domain_max_rows)
             timeout_s = domain_timeout_s
         previous_context = ""
@@ -143,11 +143,9 @@ class Nl2SqlService:
         tenant_id = context.tenant_id
         if not tenant_id:
             raise SqlPolicyError("缺少认证租户，拒绝执行查询")
-        loader = getattr(self.catalog, "row_policies", None)
         policies_by_table: dict[str, tuple[BoundPolicy, ...]] = {}
         for table in tables:
-            resolved = (loader(domain, table, context=context)
-                        if callable(loader) else ())
+            resolved = self.catalog.row_policies(domain, table, context=context) or ()
             policies = [BoundPolicy("tenant_id = %s", (tenant_id,))]
             policies.extend(resolved or ())
             policies_by_table[table.lower()] = tuple(policies)
@@ -160,7 +158,8 @@ class Nl2SqlService:
     def _retry_on_error(self, query: str, domain: str, sql: str, error: Exception,
                         allowed_tables: set[str], context,
                         blocked_columns: dict | None = None,
-                        allowed_columns: dict | None = None) -> tuple[str, tuple] | None:
+                        allowed_columns: dict | None = None
+                        ) -> tuple[str, dict[str, tuple[BoundPolicy, ...]]] | None:
         """针对可修复的 SQL 执行错误，请模型最多重写一次（复用同一安全 pipeline）。"""
         prompt = (
             "上一条 MySQL SELECT 执行失败。只返回修正后的单条 SELECT 代码块，"
@@ -179,13 +178,19 @@ class Nl2SqlService:
                                     blocked_columns=blocked_columns)
             policies = self._row_policies_for(candidate, domain, context)
             return candidate, policies
+        # 重试链路的任意异常都应回退到首次错误，避免覆盖原始诊断。
+        # noinspection PyBroadException
         except Exception:
             return None
 
     @staticmethod
     def _safe_error(error: Exception) -> str:
-        """保留可排查错误类型和短消息，不返回连接凭据。"""
-        text = str(error).replace("password", "[redacted]").replace("PASSWORD", "[redacted]")
+        """保留错误类型和诊断结构，同时移除连接凭据及网络地址。"""
+        text = str(error)
+        text = _ERROR_SENSITIVE_FIELD.sub("[敏感字段]=[已脱敏]", text)
+        text = _ERROR_CREDENTIAL.sub("'[凭据已脱敏]'", text)
+        text = _ERROR_URL.sub("[地址已脱敏]", text)
+        text = _ERROR_IP.sub("[地址已脱敏]", text)
         return f"只读查询失败: {type(error).__name__}: {text[:240]}"
 
     @staticmethod

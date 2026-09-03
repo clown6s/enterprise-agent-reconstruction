@@ -94,3 +94,13 @@ def test_chat_tools_rejects_missing_identity():
     with pytest.raises(PermissionError):
         asyncio.run(tools.chat_ask(
             "报销标准是什么", "c1", context=RequestContext()))
+
+
+def test_readonly_sql_requires_sql_read_permission():
+    import asyncio
+    from app.chat.application.context import RequestContext
+    from app.chat.mcp.tools import ChatTools
+    tools = ChatTools(_service())
+    context = RequestContext(tenant_id="ten-1", user_id="u-1", authenticated=True)
+    with pytest.raises(PermissionError, match="sql:read"):
+        asyncio.run(tools.readonly_sql_query("查询订单", context=context))

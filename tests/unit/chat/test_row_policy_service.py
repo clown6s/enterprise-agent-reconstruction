@@ -26,7 +26,9 @@ class _Catalog:
     def resolve_domain(self, query, *, context): return "orders"
     def describe(self, domain, *, context): return "orders(amount, owner_id)"
     def allowed_tables(self, domain, *, context): return self.tables
+    def allowed_columns(self, domain, *, context): return {t: {"amount", "owner_id"} for t in self.tables}
     def blocked_columns(self, domain, *, context): return {}
+    def domain_limits(self, domain, *, context): return 1000, 10
     def row_policies(self, domain, table_name, *, context):
         self.policy_calls.append(table_name)
         return self.policy
@@ -76,6 +78,18 @@ def test_unparseable_query_with_policy_fails_closed_before_execution():
     with pytest.raises(SqlPolicyError):
         _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
     assert executor.calls == []
+
+
+def test_safe_error_redacts_network_and_credentials():
+    error = RuntimeError(
+        "connect https://db.example:3306 from 10.20.30.40 "
+        "password=secret token=abc user@example.com")
+    safe = Nl2SqlService._safe_error(error)
+    assert "https://db.example" not in safe
+    assert "10.20.30.40" not in safe
+    assert "secret" not in safe
+    assert "abc" not in safe
+    assert "user@example.com" not in safe
 
 
 def test_retry_failure_raises_sanitized_policy_error():
