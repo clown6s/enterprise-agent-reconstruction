@@ -5,7 +5,7 @@ from app.chat.application.nl2sql.row_policy import bind_policy, compile_template
 from app.chat.domain.exceptions import SqlPolicyError
 
 
-# --- template validation (fail closed) ---
+# --- 模板校验（失败即关闭）---
 
 def test_accepts_tenant_and_user_scalars():
     p = bind_policy("tenant_id = :tenant_id AND owner_id = :user_id",
@@ -65,8 +65,8 @@ def test_missing_scalar_value_fails_closed():
 
 
 def test_double_colon_cast_does_not_create_placeholder_token():
-    # ``::int`` (a cast) must not be read as a bare ``:int`` placeholder; the
-    # negative lookbehind keeps it from turning into an unauthorized token.
+    # ``::int``（一次类型转换）绝不能被视为裸 ``:int`` 占位符；
+    # 负向零宽断言可防止它变成未授权的标记。
     p = bind_policy("amount::int = :tenant_id", tenant_id="t1")
     assert p.sql == "amount::int = %s"
     assert p.params == ("t1",)

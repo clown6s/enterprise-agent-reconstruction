@@ -85,7 +85,7 @@ def test_structured_rag_selects_only_used_citations():
     audit = FakeAudit()
     svc = _service(audit, FakeLLM('{"answer":"答案","used_citations":[2],"grounded":true}'))
     result = svc.ask("报销标准是什么", conversation_id="c", context=_CTX)
-    # Only citation #2 returned, not both.
+    # 只返回了引用 #2，而不是两个。
     assert [c.chunk_id for c in result.citations] == ["d1:2"]
     assert result.citation_audit is not None
     assert result.citation_audit.sent == (1, 2)

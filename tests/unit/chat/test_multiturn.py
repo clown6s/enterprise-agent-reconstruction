@@ -43,6 +43,6 @@ def test_session_state_store_roundtrip_and_isolation():
     store.save("conv-1", state, context=_CTX)
     loaded = store.get("conv-1", context=_CTX)
     assert loaded is not None and loaded.last_domain == "orders"
-    # different user cannot see it
+    # 不同的用户看不到它
     other = RequestContext(tenant_id="t", user_id="other", authenticated=True)
     assert store.get("conv-1", context=other) is None

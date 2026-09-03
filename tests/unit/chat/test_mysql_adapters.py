@@ -94,7 +94,7 @@ def _store(cls, sink, **_kwargs):
     return cls(pool)
 
 
-# --- conversation ---
+# --- 会话 ---
 
 def test_conversation_get_or_create_inserts_when_missing():
     sink = _make_sink()
@@ -126,12 +126,12 @@ def test_conversation_recent_params():
     assert sink.last_params == ("t", "c1", 10)
 
 
-# --- sop state ---
+# --- SOP 状态 ---
 
 def test_sop_save_state_optimistic_lock_ok():
     sink = _make_sink()
     sink.rowcount = 1
-    # SELECT ... FOR UPDATE returns an existing row to trigger UPDATE path
+    # SELECT ... FOR UPDATE 返回已有行以触发 UPDATE 路径
     sink.plan["SELECT execution_id, version_no FROM sop_execution_states"] = {
         "execution_id": "e-1", "version_no": 3}
     store = _store(MysqlSopStore, sink)
@@ -139,13 +139,13 @@ def test_sop_save_state_optimistic_lock_ok():
     store.save_state("conv", state, context=_CTX)
     update = [s for s, _ in sink.calls if s.startswith("UPDATE sop_execution_states")]
     assert len(update) == 1
-    # optimistic lock passes version_no=3
+    # 乐观锁传入 version_no=3
     assert sink.last_params[6] == 3
 
 
 def test_sop_save_state_optimistic_lock_conflict():
     sink = _make_sink()
-    sink.rowcount = 0  # UPDATE affects zero rows => another request beat us
+    sink.rowcount = 0  # UPDATE 影响 0 行 => 另一个请求抢先了
     sink.plan["SELECT execution_id, version_no FROM sop_execution_states"] = {
         "execution_id": "e-1", "version_no": 3}
     store = _store(MysqlSopStore, sink)
@@ -166,7 +166,7 @@ def test_sop_get_state_maps_waiting_confirmation():
     assert state.awaiting_confirmation is True
 
 
-# --- schema catalog ---
+# --- 模式目录 ---
 
 def test_schema_allowed_tables():
     sink = _make_sink()
@@ -243,7 +243,7 @@ def test_adapters_require_authenticated_context():
     from app.chat.domain.exceptions import ValidationError
     store = MysqlConversationStore(_FakePool(sink))
     with pytest.raises(ValidationError):
-        store.get_or_create("c1", context=RequestContext())  # unauthenticated
+        store.get_or_create("c1", context=RequestContext())  # 未认证
 
 def test_build_chat_allows_explicit_test_doubles(monkeypatch):
     monkeypatch.setenv("CHAT_STORAGE", "mysql")
@@ -266,6 +266,6 @@ def test_build_chat_allows_explicit_test_doubles(monkeypatch):
 def test_mysql_store_does_not_require_process_identity():
     sink = _make_sink()
     store = MysqlConversationStore(_FakePool(sink))
-    # Identity is supplied per request, not read from CHAT_* environment variables.
+    # 身份按请求提供，不从 CHAT_* 环境变量读取。
     with pytest.raises(ValidationError):
         store.get_or_create("c1", context=RequestContext())

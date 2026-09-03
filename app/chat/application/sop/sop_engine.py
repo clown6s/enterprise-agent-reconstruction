@@ -28,7 +28,7 @@ class SopEngine:
         if step.requires_confirmation and not confirmed:
             return replace(state, awaiting_confirmation=True)
         if not step.next_steps:
-            # terminal step: stay but mark awaiting_confirmation False (completed)
+            # 终态步骤：保持但将 awaiting_confirmation 标记为 False（已完成）
             return replace(state, awaiting_confirmation=False,
                            completed_steps=state.completed_steps + (step.step_id,))
         next_id = step.next_steps[0]

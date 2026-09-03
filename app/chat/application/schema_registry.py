@@ -169,7 +169,7 @@ class SchemaRegistry:
         if j.join_type.upper() not in {"INNER", "LEFT", "RIGHT"}: raise ValidationError("JOIN类型无效")
         if not j.columns or any(not isinstance(k, str) or not isinstance(v, str) or not _IDENTIFIER.fullmatch(k) or not _IDENTIFIER.fullmatch(v) for k,v in j.columns.items()): raise ValidationError("JOIN列映射无效")
 
-# Friendly DTO aliases used by API callers.
+# 供 API 调用者使用的友好 DTO 别名。
 ColumnDTO = SchemaColumn
 JoinDTO = SchemaJoin
 TableDTO = SchemaTable

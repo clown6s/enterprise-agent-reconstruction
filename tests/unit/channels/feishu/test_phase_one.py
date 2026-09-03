@@ -66,7 +66,7 @@ def test_channel_processes_text_once():
     )
     channel._on_message(_event())
     channel._work_loop_once = None
-    # Process the queued work synchronously to make the test deterministic.
+    # 同步处理队列中的工作，使测试具有确定性。
     item = channel._queue.get_nowait()
     channel._handle(item.event)
     assert client.replies == [("m1", "回答")]

@@ -74,7 +74,7 @@ def _domain():
             SchemaColumn("amount", "decimal", business_name="金额"),)),))
 
 
-# --- pure service validation ---
+# --- 纯服务校验 ---
 
 def test_service_register_domain_validates_identifier():
     svc = SchemaRegistry(object())
@@ -94,13 +94,13 @@ def test_service_register_joins_validates_join_type():
         svc.register_joins("dom", "tbl", [SchemaJoin("t2", {"a": "b"}, "CROSS")], context=_ADMIN)
 
 
-# --- adapter permission gate ---
+# --- 适配器权限门 ---
 
 def test_adapter_requires_schema_admin_permission():
     sink = _make_sink()
     store = _store(sink)
     with pytest.raises(ValidationError):
-        store.publish("dom", context=_CTX)  # no schema:admin
+        store.publish("dom", context=_CTX)  # 无 schema:admin 权限
     assert sink.calls == []
 
 
@@ -111,7 +111,7 @@ def test_adapter_requires_authenticated_context():
         store.introspect(context=RequestContext())
 
 
-# --- introspect ---
+# --- 内省 ---
 
 def test_introspect_filters_identifiers_and_builds_tables():
     sink = _make_sink()
@@ -133,7 +133,7 @@ def test_introspect_rejects_bad_identifier():
         store.introspect(tables=["orders; DROP"], context=_ADMIN)
 
 
-# --- register + publish flow ---
+# --- 注册 + 发布流程 ---
 
 def test_register_domain_commits_and_upserts():
     sink = _make_sink()
@@ -143,7 +143,7 @@ def test_register_domain_commits_and_upserts():
     assert len(insert) == 1
     assert sink.last_params[0:3] == ("t", "orders_dom", "orders")
     assert sink.commits == 1
-    # keywords written
+    # 已写入的关键字
     assert any(s.startswith("INSERT INTO sql_domain_keywords") for s, _ in sink.calls)
 
 
@@ -237,7 +237,7 @@ def test_publish_rejects_unknown_domain():
         store.publish("dom", context=_ADMIN)
 
 
-# --- row policy admin ---
+# --- 行策略管理 ---
 
 def _policy():
     from app.chat.application.schema_registry import RowPolicyRegistration

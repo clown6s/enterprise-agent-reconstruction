@@ -15,7 +15,7 @@ _EXCLUDE_MARKERS = ("那家", "那个公司", "那么远")
 
 class QuestionResolver:
     def __init__(self, llm=None):
-        self._llm = llm  # optional fallback backend exposing .chat(messages)->str
+        self._llm = llm  # 可选回退后端，暴露 .chat(messages)->str
 
     def resolve(self, question: str, history: list[ChatMessage] | None,
                 state: SessionState | None) -> ResolvedQuestion:
@@ -27,7 +27,7 @@ class QuestionResolver:
         if state is None or state.last_intent is None:
             return ResolvedQuestion(question=question, reason="无会话上下文")
 
-        # Pure continuation cues with no new content.
+        # 纯续接提示，不包含新内容。
         if self._is_pure_continuation(question) or self._is_comparison_query(question):
             if state.current_sop_id:
                 return ResolvedQuestion(
@@ -41,7 +41,7 @@ class QuestionResolver:
                                     intent_hint=state.last_intent,
                                     reason="延续上轮意图")
 
-        # Reference/ellipsis: prefix last subject when question is referential.
+        # 引用/省略：当问句为指代性时，为最后一个主题添加前缀。
         if (prev and (any(m in question for m in _REFERENCE_MARKERS)
                       or question.startswith("和") or question.startswith("跟"))):
             if not any(m in question for m in _EXCLUDE_MARKERS):

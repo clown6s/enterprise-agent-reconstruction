@@ -70,9 +70,9 @@ def rewrite_with_row_policies(
             fragments.append(f"({fragment})")
         predicate = " AND ".join(fragments)
 
-        # Use the original table identifier, but deliberately omit its alias
-        # inside the derived table so both qualified and unqualified policies
-        # can refer to the physical table.
+        # 使用原始表标识符，但刻意省略其别名
+        # （在派生表内部），使限定与未限定的策略
+        # 都能引用物理表。
         inner_table = table.copy()
         inner_table.set("alias", None)
         try:

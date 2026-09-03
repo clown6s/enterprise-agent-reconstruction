@@ -132,8 +132,8 @@ class ChatService:
                 "used_details": list(result.citation_audit.used_details),
                 "unused_details": list(result.citation_audit.unused_details),
             }
-        # NL2SQL has a dedicated audit row in MySQL.  Keep it as a best-effort
-        # side effect: AuditLogger failures must never change the answer path.
+        # NL2SQL 在 MySQL 中有专属的审计行。将其视为尽力而为的
+        # 副作用：AuditLogger 失败绝不能改变回答路径。
         if result.mode == Intent.NL2SQL:
             sql_info = result.sql or {}
             self._audit(AuditEvent(

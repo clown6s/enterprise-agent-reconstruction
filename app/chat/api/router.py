@@ -49,7 +49,7 @@ def create_router(service_provider: Callable[[], ChatService],
                 from fastapi import HTTPException
                 raise HTTPException(status_code=429, detail="请求过于频繁，请稍后重试")
         if principal is None:
-            # Backward-compatible direct test/fake construction.
+            # 向后兼容的直接测试/伪造对象构造。
             context = RequestContext(
                 trace_id=http_request.headers.get("X-Trace-Id", "") or "")
         else:
@@ -75,7 +75,7 @@ def create_router(service_provider: Callable[[], ChatService],
                     duration_ms=int((time.perf_counter() - started) * 1000),
                 )
             except Exception:
-                # Metrics must never turn a successful answer into a failure.
+                # 指标绝不能把成功回答变成失败。
                 pass
         return _serialize(result)
 

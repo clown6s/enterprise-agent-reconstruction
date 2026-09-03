@@ -129,8 +129,8 @@ def create_router(service_provider: Callable[[], SchemaAdminService],
     dependency = principal_provider or _anonymous
 
     def principal(request: Request) -> object:
-        # Keep the FastAPI signature stable even when callers inject a simple
-        # unannotated callable (common in unit tests).
+        # 即使调用方注入一个简单的
+        # 无注解可调用对象（单元测试中常见），也保持 FastAPI 签名稳定。
         return dependency(request)
 
     def service() -> SchemaAdminService:

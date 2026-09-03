@@ -124,7 +124,7 @@ class MysqlSchemaCatalog(SchemaCatalog):
             if not isinstance(spec, dict):
                 continue
             join_type = (spec.get("type") or spec.get("join_type") or "LEFT").upper()
-            # Registry format: {"table": target, "columns": {left_col: right_col}}
+            # 注册表格式： {"table": target, "columns": {left_col: right_col}}
             registry_target = spec.get("table")
             columns = spec.get("columns")
             if registry_target and isinstance(columns, dict) and columns:

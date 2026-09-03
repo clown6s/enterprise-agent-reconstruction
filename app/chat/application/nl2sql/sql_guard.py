@@ -11,10 +11,10 @@ import re
 
 from ...domain.exceptions import SqlPolicyError
 
-try:  # sqlglot backs column-allowlist validation
+try:  # sqlglot 支撑列白名单校验
     import sqlglot
     from sqlglot import exp as _exp
-except Exception as _sqlglot_err:  # pragma: no cover - optional dependency
+except Exception as _sqlglot_err:  # pragma: no cover - 可选依赖
     sqlglot = None
     _exp = None
     _SQLGLOT_ERROR = _sqlglot_err
@@ -26,24 +26,24 @@ _BLOCKED_KEYWORDS = (
     "grant", "revoke", "call", "exec", "merge", "replace",
 )
 _FORBIDDEN_PATTERNS = (
-    re.compile(r";\s*[a-zA-Z]"),          # multi-statement
-    re.compile(r"--"),                    # comment
-    re.compile(r"/\*"),                   # block comment
+    re.compile(r";\s*[a-zA-Z]"),          # 多条语句
+    re.compile(r"--"),                    # SQL 注释
+    re.compile(r"/\*"),                   # 块注释
     re.compile(r"\binto\s+outfile\b", re.I),
     re.compile(r"\binto\s+dumpfile\b", re.I),
-    re.compile(r"\bselect\s+\*", re.I),   # no select *
+    re.compile(r"\bselect\s+\*", re.I),   # 禁止 select *
 )
 
-# A table reference: an (optionally schema-qualified) identifier that
-# immediately follows FROM / JOIN or a comma in a table list.
+# 表引用：一个（可选带 schema 前缀的）标识符，
+# 紧跟 FROM / JOIN 或表列表中的逗号之后。
 _STRIPPED = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
 _SCHEMA_QUALIFIED = re.compile(r"^[A-Za-z_][\w$]*\.[A-Za-z_][\w$]*$")
 _CLAUSE_KEYWORD = re.compile(
     r"\b(WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|"
     r"JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|INNER\s+JOIN|CROSS\s+JOIN|"
     r"UNION|ON|AND|OR|SET|VALUES|RETURNING)\b", re.I)
-# Splits a single table position into [schema.]table + optional alias,
-# without consuming the trailing clause keyword.
+# 将单个表位置拆分为 [schema.]table + 可选别名，
+# 而不消费尾随的子句关键字。
 _FROM_TABLE = re.compile(
     r"(?P<name>[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)"
     r"(?:\s+(?:AS\s+)?(?P<alias>[A-Za-z_][\w$]*))?"
@@ -93,8 +93,8 @@ def _referenced_tables(sql: str) -> set[str]:
         tail = stripped[m.end():]
         end = _CLAUSE_KEYWORD.search(tail)
         scope = tail[:end.start()] if end else tail
-        # Split the table list on top-level commas, but ignore any segment that
-        # is still inside a function/expression (e.g. a JOIN ON with a call).
+        # 在顶层逗号处拆分表列表，但忽略任何
+        # 仍位于函数/表达式内部的片段（例如带调用的 JOIN ON）。
         for piece in scope.split(","):
             fm = _FROM_TABLE.match(piece.strip())
             if fm and not re.search(r"\(", piece):
@@ -191,9 +191,9 @@ def _validate_allowed_columns(trees: list, allowed_columns) -> None:
         all_allowed.update(cols)
 
     for tree in trees:
-        # Virtual sources that expose their columns as aliases rather than as a
-        # physical table: CTE names and derived-table (Subquery) aliases. A
-        # Table's own ALIAS is physical and must NOT be treated virtual.
+        # 虚拟来源将列作为别名暴露，而非作为
+        # 物理表：CTE 名称和派生表（Subquery）别名。
+        # 表自身的 ALIAS 是物理的，绝不能视为虚拟。
         virtual: set[str] = set()
         for cte in tree.find_all(_exp.CTE):
             alias = cte.alias if hasattr(cte, "alias") else None
@@ -205,7 +205,7 @@ def _validate_allowed_columns(trees: list, allowed_columns) -> None:
                 if name:
                     virtual.add(str(name).lower())
 
-        physical: dict[str, str] = {}  # usable name/alias -> canonical table key
+        physical: dict[str, str] = {}  # 可用名称/别名 -> 规范表键
         for table in tree.find_all(_exp.Table):
             name = str(getattr(table, "name", "") or "").lower()
             if not name or name in virtual:

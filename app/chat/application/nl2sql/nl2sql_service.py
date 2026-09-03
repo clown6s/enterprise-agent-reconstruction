@@ -170,8 +170,8 @@ class Nl2SqlService:
                 policies_by_table[table.lower()] = tuple(resolved)
         if not policies_by_table:
             return {}
-        # Validate rewriteability here (executor re-applies); unsafe shapes fail
-        # closed before any execution attempt.
+        # 在此校验可改写性（执行器会再次应用）；不安全的形态会在
+        # 任何执行尝试之前直接失败。
         rewrite_with_row_policies(sql, policies_by_table)
         return policies_by_table
 

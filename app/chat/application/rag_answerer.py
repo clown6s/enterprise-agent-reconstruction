@@ -109,7 +109,7 @@ class RagAnswerer:
                 candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", candidate, flags=re.I)
             data = json.loads(candidate)
         except (TypeError, ValueError, json.JSONDecodeError):
-            # Legacy providers may return prose with [n]; accept only valid markers.
+            # 旧版 provider 可能返回带 [n] 的文本；仅接受合法的标记。
             used = []
             for value in re.findall(r"\[(\d+)\]", raw or ""):
                 index = int(value)

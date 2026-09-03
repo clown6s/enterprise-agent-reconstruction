@@ -20,7 +20,7 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
 
     def query(self, sql: str, *, timeout_s: float = 10.0,
               max_rows: int = 1000, row_policies=()) -> SqlResult:
-        # The SQL guard is mandatory at this boundary too, even if callers bypass service.
+        # 即使调用方绕过服务层，此边界也强制要求 SQL 守卫。
         if not re.match(r"^\s*select\b", sql, re.I):
             raise ValueError("只读执行器仅允许 SELECT")
         sql, params = self._apply_row_policies(sql, row_policies)

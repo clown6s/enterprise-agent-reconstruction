@@ -5,7 +5,7 @@ from ..domain.models import ChatMessage, Intent, IntentDecision
 from .ports import IntentClassifier
 
 
-# Weights are evidence, not permissions. Execution layers perform their own checks.
+# 权重是证据，不是权限。执行层会自行进行检查。
 _TERMS = {
     Intent.NL2SQL: (
         ("统计", 3), ("查询", 2), ("查一下", 2), ("看一下", 1), ("多少", 3),
@@ -59,8 +59,8 @@ _BUSINESS_SOP_RE = re.compile(
     r"办理|提交|申请|手续|业务"
 )
 
-# Both SOP and NL2SQL must cross this floor for a sentence to qualify as a
-# genuine split/mixed request; incidental keywords alone are not enough.
+# 一句话要够格作为
+# 真正的拆分/混合请求，SOP 与 NL2SQL 都必须跨过此门槛；仅凭偶发关键字是不够的。
 _MIX_FLOOR = 3.0
 
 
@@ -80,7 +80,7 @@ class RuleIntentRouter:
         for intent, terms in _TERMS.items():
             evidence[intent].extend(term for term, _ in terms if term in query)
 
-        # Structural signals catch natural paraphrases absent from the keyword list.
+        # 结构信号能捕捉关键字列表中未出现的自然改写表达。
         if _PROCESS_RE.search(query):
             scores[Intent.SOP] += 1.5
             evidence[Intent.SOP].append("process_pattern")
@@ -126,9 +126,9 @@ class RuleIntentRouter:
         total = sum(scores.values())
         confidence = top_score / total if total else 0.0
 
-        # A process + data request in one utterance are separate tasks — but only
-        # when BOTH carry a *dedicated* signal. A bare number ("五万") inside a
-        # pure SOP is not real NL2SQL evidence and must not trigger a split.
+        # 一句话中的流程 + 数据请求是相互独立的任务——但只有
+        # 当二者都携带*专用*信号时。纯粹的 SOP 中出现一个裸数字（“五万”）
+        # 并不是真正的 NL2SQL 证据，绝不能触发拆分。
         sop_dedicated = bool(evidence[Intent.SOP])
         nl2sql_dedicated = "data_pattern" in evidence[Intent.NL2SQL] or any(
             t in query for t in ("统计", "查询", "多少", "几笔", "几单", "合计",

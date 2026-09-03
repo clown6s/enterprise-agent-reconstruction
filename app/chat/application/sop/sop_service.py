@@ -40,7 +40,7 @@ class SopService:
             if definition is not None:
                 return self._advance(definition, state, conversation_id, confirmed=confirmed, context=context)
 
-        # Otherwise locate a SOP by structured search first.
+        # 否则先通过结构化搜索定位 SOP。
         definitions = self.store.search(query, context=context)
         definition = definitions[0] if definitions else self._retrieve_sop(query)
         if definition is None:
@@ -80,7 +80,7 @@ class SopService:
         if self.retriever is None:
             return None
         items = self.retriever.retrieve(query, top_k=5)
-        return None  # document retrieval only grounds; structured definitions come from store
+        return None  # 文档检索仅提供佐证；结构化定义来自 store
 
     def _render_step(self, definition, step, state, conversation_id, *,
                      high_risk=False, awaiting=False,

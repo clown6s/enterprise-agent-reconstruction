@@ -13,7 +13,7 @@ class _LLM:
         self.candidates = iter(candidates)
     def chat(self, messages):
         prompt = messages[-1].content
-        if "单条 SELECT" in prompt:  # initial and retry prompts both contain this
+        if "单条 SELECT" in prompt:  # 初次与重试提示都包含此内容
             return next(self.candidates)
         return "查询结果如上。"
 

@@ -40,14 +40,14 @@ def main() -> int:
     except KeyError:
         pass
 
-    # 1. Create
+    # 1. 创建
     synonyms.add_rule(TEST_RULE_ID, TEST_SYNONYMS)
     rules = synonyms.list_rules()
     if not any(r.get("id") == TEST_RULE_ID for r in rules):
         return _fail("新增失败")
     print("[OK] 新增")
 
-    # 2. Update
+    # 2. 更新
     synonyms.update_rule(TEST_RULE_ID, "冒烟测试词 => 测试词X")
     rules = synonyms.list_rules()
     rule = next((r for r in rules if r.get("id") == TEST_RULE_ID), None)
@@ -55,15 +55,15 @@ def main() -> int:
         return _fail("更新失败")
     print("[OK] 更新")
 
-    # 3. Reload
+    # 3. 重载
     synonyms.reload()
     print("[OK] reload")
 
-    # 4. Read (list) again
+    # 4. 再次读取（列表）
     synonyms.list_rules()
     print("[OK] 再次读取")
 
-    # 5. Delete
+    # 5. 删除
     synonyms.delete_rule(TEST_RULE_ID)
     rules = synonyms.list_rules()
     if any(r.get("id") == TEST_RULE_ID for r in rules):

@@ -104,7 +104,7 @@ def test_sop_engine_requires_confirmation():
     engine = SopEngine()
     state = engine.begin(definition)          # s1
     state = engine.advance(definition, state)  # s2
-    state = engine.advance(definition, state)  # s3 (requires confirmation)
+    state = engine.advance(definition, state)  # s3（需要确认）
     # 在 s3 上未经确认继续 → 挂起等待确认
     state = engine.advance(definition, state)
     assert state.awaiting_confirmation is True

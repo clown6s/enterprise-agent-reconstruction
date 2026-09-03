@@ -21,7 +21,7 @@ class MysqlAuditLogger(AuditLogger):
 
     @mysql_errors
     def record(self, event: AuditEvent) -> None:
-        # Require a tenant for durable audit rows; anonymous events remain logs only.
+        # 持久化审计行要求 tenant；匿名事件仅保留为日志。
         if not event.tenant_id or not event.user_id:
             logger.warning("audit_event_without_identity", event_id=event.event_id,
                            trace_id=event.trace_id, stage=event.stage)
