@@ -74,7 +74,7 @@ class MysqlAuditLogger(AuditLogger):
                     "detected_domain,intent_confidence,generation_status,generated_sql,"
                     "normalized_sql,sql_hash,guard_status,guard_reason,execution_status,"
                     "query_id,row_count,duration_ms,error_code,error_message) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (event.tenant_id, event.event_id, event.user_id, event.conversation_id,
                      event.trace_id, payload.get("question", ""), payload.get("domain"),
                      payload.get("confidence"), payload.get("generation_status", "executed"),

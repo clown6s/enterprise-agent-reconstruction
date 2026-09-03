@@ -132,6 +132,27 @@ class ChatService:
                 "used_details": list(result.citation_audit.used_details),
                 "unused_details": list(result.citation_audit.unused_details),
             }
+        # NL2SQL has a dedicated audit row in MySQL.  Keep it as a best-effort
+        # side effect: AuditLogger failures must never change the answer path.
+        if result.mode == Intent.NL2SQL:
+            sql_info = result.sql or {}
+            self._audit(AuditEvent(
+                event_id=str(uuid.uuid4()), trace_id=context.trace_id,
+                stage="nl2sql", status=result.status.value,
+                tenant_id=context.tenant_id, user_id=context.user_id,
+                conversation_id=conversation_id, mode=result.mode.value,
+                payload={
+                    "question": question,
+                    "domain": sql_info.get("domain"),
+                    "sql": sql_info.get("query"),
+                    "query_id": sql_info.get("query_id"),
+                    "columns": sql_info.get("columns", []),
+                    "row_count": sql_info.get("row_count"),
+                    "generation_status": "executed",
+                    "guard_status": "allowed",
+                    "execution_status": "success",
+                },
+            ))
         self._audit(AuditEvent(
             event_id=str(uuid.uuid4()), trace_id=context.trace_id, stage="request",
             status=result.status.value, tenant_id=context.tenant_id, user_id=context.user_id,
