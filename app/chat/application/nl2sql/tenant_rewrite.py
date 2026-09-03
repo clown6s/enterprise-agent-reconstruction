@@ -36,43 +36,19 @@ def assert_readonly(sql: str) -> str:
     return sql.strip().rstrip(";").strip()
 
 
-def inject_tenant_filter(sql: str, tenant_id: str) -> str:
-    """为每个物理表包裹认证租户过滤条件。"""
-    if not tenant_id:
-        raise SqlPolicyError("缺少认证租户，拒绝执行查询")
+def physical_tables(sql: str) -> set[str]:
+    """提取 SQL 引用的物理表名（排除 CTE 名称与派生表虚拟来源）。"""
     try:
         tree = sqlglot.parse_one(sql, read="mysql")
     except Exception as exc:
         raise SqlPolicyError("SQL 无法解析，已拒绝执行") from exc
-
     cte_names = {
         cte.alias_or_name.lower()
         for cte in tree.find_all(exp.CTE)
         if cte.alias_or_name
     }
-    table_nodes = [table for table in tree.find_all(exp.Table)
-                   if table.name.lower() not in cte_names]
-    if not table_nodes:
-        raise SqlPolicyError("未找到可注入租户的物理表，拒绝执行")
-
-    escaped = tenant_id.replace("'", "''")
-    predicate = f"tenant_id = '{escaped}'"
-    for table in table_nodes:
-        original = table.copy()
-        original.set("alias", None)
-        try:
-            inner = sqlglot.parse_one(
-                f"SELECT * FROM {original.sql(dialect='mysql')} WHERE {predicate}",
-                read="mysql",
-            )
-        except Exception as exc:
-            raise SqlPolicyError("租户过滤无法安全重写，已拒绝执行") from exc
-        alias = table.alias or table.name
-        table.replace(exp.Subquery(
-            this=inner,
-            alias=exp.TableAlias(this=exp.to_identifier(alias)),
-        ))
-    try:
-        return tree.sql(dialect="mysql")
-    except Exception as exc:
-        raise SqlPolicyError("租户过滤重写失败，已拒绝执行") from exc
+    tables: set[str] = set()
+    for table in tree.find_all(exp.Table):
+        if table.name.lower() not in cte_names:
+            tables.add(table.name.lower())
+    return tables

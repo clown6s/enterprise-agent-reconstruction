@@ -60,7 +60,10 @@ def test_initial_and_retry_both_use_same_bound_policy_pipeline():
     result = _service(llm, catalog, executor).answer("查订单", "c1", _CTX)
     assert result.status.value == "answered"
     assert len(executor.calls) == 2
-    expected = {"orders": policy}
+    expected = {"orders": (
+        BoundPolicy("tenant_id = %s", ("t1",)),
+        *policy,
+    )}
     assert executor.calls[0][1] == expected
     assert executor.calls[1][1] == expected
 

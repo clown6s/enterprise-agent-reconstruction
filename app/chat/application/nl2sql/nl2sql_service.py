@@ -17,8 +17,8 @@ from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
 from .row_policy import BoundPolicy
 from .row_rewrite import rewrite_with_row_policies
-from .sql_guard import referenced_tables, validate_sql
-from .tenant_rewrite import inject_tenant_filter
+from .sql_guard import validate_sql
+from .tenant_rewrite import physical_tables
 
 _SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
 
@@ -101,7 +101,6 @@ class Nl2SqlService:
             sql = validate_sql(sql, allowed_tables=allowed,
                                allowed_columns=allowed_columns,
                                blocked_columns=blocked_columns)
-        sql = self._enforce_tenant(sql, context.tenant_id)
         row_policies = self._row_policies_for(sql, domain, context)
         result = None
         try:
@@ -137,27 +136,24 @@ class Nl2SqlService:
             trace_id=context.trace_id,
         )
 
-    @staticmethod
-    def _enforce_tenant(sql: str, tenant_id: str) -> str:
-        """基于 AST 为每个物理表注入认证租户条件，覆盖模型自加的谓词。"""
-        return inject_tenant_filter(sql, tenant_id)
-
     def _row_policies_for(self, sql: str, domain: str, context,
                           ) -> dict[str, tuple[BoundPolicy, ...]]:
-        """Resolve per-table row policies; fail closed if not safely applicable."""
-        tables = referenced_tables(sql)
+        """为每张物理表合并认证租户条件和行级权限策略。"""
+        tables = physical_tables(sql)
+        tenant_id = context.tenant_id
+        if not tenant_id:
+            raise SqlPolicyError("缺少认证租户，拒绝执行查询")
         loader = getattr(self.catalog, "row_policies", None)
-        if not callable(loader):
-            return {}
         policies_by_table: dict[str, tuple[BoundPolicy, ...]] = {}
         for table in tables:
-            resolved = loader(domain, table, context=context)
-            if resolved:
-                policies_by_table[table.lower()] = tuple(resolved)
+            resolved = (loader(domain, table, context=context)
+                        if callable(loader) else ())
+            policies = [BoundPolicy("tenant_id = %s", (tenant_id,))]
+            policies.extend(resolved or ())
+            policies_by_table[table.lower()] = tuple(policies)
         if not policies_by_table:
-            return {}
-        # 在此校验可改写性（执行器会再次应用）；不安全的形态会在
-        # 任何执行尝试之前直接失败。
+            raise SqlPolicyError("查询未引用物理表，拒绝执行")
+        # 在此预校验可改写性，确保执行器收到的安全策略能够应用。
         rewrite_with_row_policies(sql, policies_by_table)
         return policies_by_table
 
@@ -181,7 +177,6 @@ class Nl2SqlService:
             candidate = validate_sql(candidate, allowed_tables=allowed_tables,
                                     allowed_columns=allowed_columns,
                                     blocked_columns=blocked_columns)
-            candidate = self._enforce_tenant(candidate, context.tenant_id)
             policies = self._row_policies_for(candidate, domain, context)
             return candidate, policies
         except Exception:

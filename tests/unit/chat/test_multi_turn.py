@@ -9,6 +9,7 @@ from app.chat.application.conversation_understanding import RuleConversationUnde
 from app.chat.application.context_builder import ContextBuilder
 from app.chat.application.intent_router import RuleIntentRouter
 from app.chat.application.nl2sql.nl2sql_service import Nl2SqlService
+from app.chat.application.nl2sql.row_policy import BoundPolicy
 from app.chat.application.rag_answerer import RagAnswerer
 from app.chat.application.sop.sop_service import SopService
 from app.chat.bootstrap.defaults import default_sops
@@ -41,9 +42,11 @@ class EmptyRetriever:
 class FakeSql:
     def __init__(self):
         self.sql = []
+        self.policies = []
 
     def query(self, sql, **kwargs):
         self.sql.append(sql)
+        self.policies.append(kwargs.get("row_policies") or ())
         return SqlResult(("total_budget",), ((250000.0,),), f"q-{len(self.sql)}", 1)
 
 
@@ -76,7 +79,16 @@ def test_nl2sql_follow_up_reuses_domain_and_requeries():
     assert first.mode.value == "nl2sql"
     assert second.mode.value == "nl2sql"
     assert len(sql.sql) == 2
-    assert "tenant_id = 'tenant-test'" in sql.sql[1]
+    # 租户条件改为参数化策略传递，不再作为字面量写进 SQL 文本。
+    assert all("tenant_id = 'tenant-test'" not in item for item in sql.sql)
+    tenant_params = tuple(
+        p.params[0]
+        for per_table in sql.policies
+        for policies in per_table.values()
+        for p in policies
+        if p.sql == "tenant_id = %s"
+    )
+    assert tenant_params == ("tenant-test", "tenant-test")
     assert any("上轮已确认的问题" in prompt for prompt in llm.prompts)
 
 
