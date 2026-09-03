@@ -1,1 +1,1 @@
-"""Chat infrastructure adapters."""
+"""聊天基础设施适配器。"""

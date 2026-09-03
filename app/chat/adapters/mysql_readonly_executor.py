@@ -50,12 +50,11 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
 
     @staticmethod
     def _apply_row_policies(sql: str, row_policies) -> tuple[str, tuple]:
-        """Combine bound predicates into derived tables with parameters.
+        """把绑定后的谓词组合为带参数的派生表。
 
-        Governed physical tables (any row policy registered) are replaced by
-        filtered derived tables via AST rewrite; unsupported shapes fail closed
-        rather than returning ungoverned SQL. Empty input preserves the legacy
-        no-policy fast path.
+        受管控的物理表（已登记任意行权限策略）会经 AST 重写为带过滤条件的
+        派生表；不支持的形态直接拒绝执行，而不是返回未受管控的 SQL。
+        空输入保留原有的无策略快路径。
         """
         if not row_policies:
             return sql, ()

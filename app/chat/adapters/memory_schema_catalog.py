@@ -1,4 +1,4 @@
-"""In-memory schema catalog; production can replace it with a governed store."""
+"""内存 Schema catalog；生产环境可替换为受管控的存储。"""
 from dataclasses import dataclass
 
 from ..application.ports import SchemaCatalog
@@ -32,7 +32,7 @@ class MemorySchemaCatalog(SchemaCatalog):
         return set(item.tables) if item else set()
 
     def allowed_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:
-        """Per-table column allowlist; {} means no column-level restriction."""
+        """按表维护的列白名单；空字典表示不限制列级访问。"""
         item = self._domains.get(domain)
         if item is None or not item.columns:
             return {}
@@ -42,7 +42,7 @@ class MemorySchemaCatalog(SchemaCatalog):
         return {}
 
     def row_policies(self, domain: str, table_name: str, *, context=None) -> tuple:
-        """The memory catalog intentionally has no row-policy storage."""
+        """内存 catalog 按设计不保存行级权限策略。"""
         return ()
 
     def domain_limits(self, domain: str, *, context=None) -> tuple[int, int]:

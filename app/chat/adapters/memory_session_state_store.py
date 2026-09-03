@@ -1,4 +1,4 @@
-"""In-memory session state store for tests off the database."""
+"""脱离数据库运行的内存会话状态存储，用于测试。"""
 from dataclasses import replace
 import threading
 

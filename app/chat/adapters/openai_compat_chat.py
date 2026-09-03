@@ -1,4 +1,4 @@
-"""OpenAI-compatible chat adapter (works against SiliconFlow or DeepSeek)."""
+"""OpenAI 兼容聊天适配器（适用于 SiliconFlow 或 DeepSeek）。"""
 import time
 
 import httpx
@@ -10,10 +10,10 @@ from app.observability.tracing import span
 
 
 class OpenAiCompatChat:
-    """Chat completions over the OpenAI-compatible /chat/completions endpoint.
+    """通过 OpenAI 兼容的 /chat/completions 端点完成聊天请求。
 
-    Only maps messages to the wire format; credentials and endpoint are injected
-    by the composition root, mirroring the SiliconFlow embedder/reranker adapters.
+    这里只负责把消息映射为网络传输格式；凭据和端点由组合根注入，
+    与 SiliconFlow 嵌入器及重排器适配器保持一致。
     """
 
     def __init__(self, api_key: str, *, base_url: str, model: str,

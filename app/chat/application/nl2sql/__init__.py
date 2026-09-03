@@ -1,1 +1,1 @@
-"""NL2SQL application services."""
+"""NL2SQL 应用服务。"""

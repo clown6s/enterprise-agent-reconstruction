@@ -1,4 +1,4 @@
-"""MySQL audit adapter for chat, RAG, SOP and NL2SQL events."""
+"""聊天、RAG、SOP 和 NL2SQL 事件的 MySQL 审计适配器。"""
 import hashlib
 import json
 import uuid

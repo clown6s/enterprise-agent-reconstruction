@@ -1,1 +1,1 @@
-"""Chat HTTP API adapters."""
+"""聊天 HTTP API 适配器。"""

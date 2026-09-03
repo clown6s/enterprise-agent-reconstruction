@@ -1,7 +1,7 @@
-"""MySQL implementation of SOP definitions, versions and execution state.
+"""SOP 定义、版本和执行状态的 MySQL 实现。
 
-Stateless with respect to identity: tenant/user come from the per-request
-``context`` so a shared pool serves many authenticated users in isolation.
+存储相对身份是无状态的：租户和用户来自每次请求的 ``context``，因此共享连接池
+可以隔离地服务多个已认证用户。
 """
 import json
 

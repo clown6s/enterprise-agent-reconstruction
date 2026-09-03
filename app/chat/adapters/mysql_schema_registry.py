@@ -1,4 +1,4 @@
-"""MySQL persistence adapter for the Schema Registry MVP."""
+"""Schema Registry MVP 的 MySQL 持久化适配器。"""
 import json
 from ..application.context import identity
 from ..application.ports import SchemaRegistryPort

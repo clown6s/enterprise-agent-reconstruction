@@ -1,6 +1,6 @@
-"""Adapt the ingestion retriever into the chat DocumentRetriever port.
+"""将 ingestion 检索器适配为聊天应用的 DocumentRetriever 端口。
 
-This wrapper is the only place chat is aware of ingestion's retrieve API.
+此包装器是聊天应用感知 ingestion 检索接口的唯一位置。
 """
 from app.ingestion.application.retrieve import RetrieveDocuments
 

@@ -1,4 +1,4 @@
-"""In-memory usage meter; records counts only, never raw content."""
+"""内存用量计量器；只记录计数，绝不记录原始内容。"""
 from collections import defaultdict
 import threading
 

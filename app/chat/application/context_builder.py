@@ -1,4 +1,4 @@
-"""Build bounded, cited context for the language model."""
+"""为语言模型构建有界且带引用的上下文。"""
 from ..domain.models import Citation, RetrievalItem
 from ..security.context_boundary import untrusted_context
 

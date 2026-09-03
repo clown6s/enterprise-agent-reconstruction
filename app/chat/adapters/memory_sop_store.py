@@ -1,4 +1,4 @@
-"""In-memory SOP store + per-conversation execution state (port implementation)."""
+"""内存 SOP 存储及按会话保存的执行状态（端口实现）。"""
 import threading
 
 from ..application.ports import SopStore

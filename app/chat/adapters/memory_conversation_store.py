@@ -1,4 +1,4 @@
-"""In-memory conversation store (port implementation, swappable for MySQL)."""
+"""内存会话存储（端口实现，可替换为 MySQL）。"""
 from collections import defaultdict, deque
 import threading
 

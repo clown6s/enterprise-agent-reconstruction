@@ -1,4 +1,4 @@
-"""NL2SQL: candidate generation -> guard -> read-only execution -> explanation.
+"""NL2SQL：候选生成 → 守卫校验 → 只读执行 → 结果解释。
 
 安全与方言约束：
 - LLM 只生成 MySQL 8.x 语法。

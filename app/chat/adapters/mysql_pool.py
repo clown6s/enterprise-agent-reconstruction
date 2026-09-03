@@ -1,4 +1,4 @@
-"""Small shared MySQL connection pool for chat adapters."""
+"""供聊天适配器共享的小型 MySQL 连接池。"""
 import queue
 import threading
 from collections.abc import Callable
@@ -13,7 +13,7 @@ T = TypeVar("T")
 
 
 def mysql_errors(fn):
-    """Wrap raw infra failures as ConversationError; preserve domain (AppError)."""
+    """将底层基础设施故障包装为 ConversationError，同时保留领域异常（AppError）。"""
     @wraps(fn)
     def wrapper(self, *args, **kwargs):
         try:

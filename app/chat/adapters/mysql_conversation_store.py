@@ -1,8 +1,7 @@
-"""MySQL implementation of the chat conversation port.
+"""聊天会话端口的 MySQL 实现。
 
-The store is stateless with respect to identity: tenant/user come from the
-per-request ``context`` so a shared pool can serve many authenticated users
-without cross-tenant leakage.
+存储相对身份是无状态的：租户和用户来自每次请求的 ``context``，因此共享连接池
+可以服务多个已认证用户而不会产生跨租户泄露。
 """
 from ..application.context import identity
 from ..application.ports import ConversationStore

@@ -1,4 +1,4 @@
-"""MySQL implementation of the governed NL2SQL schema catalog."""
+"""受管控的 NL2SQL schema catalog 的 MySQL 实现。"""
 import json
 
 from ..application.context import identity
@@ -12,11 +12,10 @@ class MysqlSchemaCatalog(SchemaCatalog):
         self._pool = pool
 
     def _denied_domain_ids(self, cur, tenant_id, user_id) -> set:
-        """Basic domain-level deny filter (sql_domain_permissions).
+        """基础的数据域级拒绝过滤（sql_domain_permissions）。
 
-        Only explicit user-level `allowed=0` rows are treated as denial; the
-        absence of any row leaves the domain accessible (permissions are an
-        optional, additive access-control layer on top of the SQL Guard).
+        只有显式 user 级 ``allowed=0`` 的行才视为拒绝；没有任何行时数据域仍可
+        访问（权限是叠加在 SQL Guard 之上的可选的加性访问控制层）。
         """
         cur.execute(
             "SELECT domain_id FROM sql_domain_permissions "
@@ -92,15 +91,14 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @staticmethod
     def _format_joins(raw, table: str) -> list[str]:
-        """Render a table's `allowed_joins` JSON as governed-JOIN hint lines.
+        """把表的 ``allowed_joins`` JSON 渲染为受管控 JOIN 的提示行。
 
-        Accepts a JSON array of join specs or a dict keyed by target table. A
-        single spec may be:
+        可接受 JSON 数组形式的 JOIN 描述，或按键为目标表的字典。单条描述可以是：
 
         * ``{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}``
-          (the Registry's canonical format; ``table`` names the target),
-        * ``{"target": "order_items", "condition": "orders.id=...", "type": "LEFT"}``,
-        * a dict ``{"order_items": "orders.id=order_items.order_id"}``.
+          （Registry 的规范格式，``table`` 指定目标表），
+        * ``{"target": "order_items", "condition": "orders.id=...", "type": "LEFT"}``，
+        * 字典形式 ``{"order_items": "orders.id=order_items.order_id"}``。
         """
         if raw is None:
             return []
@@ -159,7 +157,7 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @mysql_errors
     def allowed_columns(self, domain: str, *, context) -> dict[str, set[str]]:
-        """Per-table allowlist of real column names from sql_allowed_columns."""
+        """每张表来自 sql_allowed_columns 的真实列名白名单。"""
         tenant_id, _ = identity(context)
         def operation(conn):
             with conn.cursor() as cur:
@@ -184,7 +182,7 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @mysql_errors
     def blocked_columns(self, domain: str, *, context) -> dict[str, set[str]]:
-        """Sensitive columns that must not appear in generated SQL, per table."""
+        """每张表不允许出现在生成 SQL 中的敏感列。"""
         tenant_id, _ = identity(context)
         def operation(conn):
             with conn.cursor() as cur:
@@ -210,7 +208,7 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @mysql_errors
     def row_policies(self, domain: str, table_name: str, *, context) -> tuple:
-        """Resolve table policies for the caller; any matching deny wins."""
+        """解析调用方的表级策略；任一匹配的拒绝优先。"""
         tenant_id, user_id = identity(context)
         roles = tuple(getattr(context, "roles", ()) or ())
         departments = tuple(getattr(context, "department_ids", ()) or ())
@@ -260,10 +258,9 @@ class MysqlSchemaCatalog(SchemaCatalog):
 
     @mysql_errors
     def domain_limits(self, domain: str, *, context) -> tuple[int, int]:
-        """Return (max_rows, max_execution_seconds) for an active domain.
+        """返回启用数据域的 (max_rows, max_execution_seconds)。
 
-        Falls back to generous defaults if the domain is not found so that
-        catalog reads stay lenient; the caller caps actual execution.
+        数据域不存在时回退到宽松的默认值，让 catalog 读取保持宽松；实际执行由调用方封顶。
         """
         tenant_id, _ = identity(context)
         def operation(conn):

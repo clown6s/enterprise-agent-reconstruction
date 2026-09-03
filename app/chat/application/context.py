@@ -1,14 +1,14 @@
-"""Framework-agnostic request context for traceability and identity."""
+"""与框架无关的请求上下文，用于追踪和身份传递。"""
 from dataclasses import dataclass, field
 from uuid import uuid4
 
 
 @dataclass(frozen=True)
 class RequestContext:
-    """Carries tracing and identity across the chat application.
+    """在聊天应用各层之间传递追踪信息和身份。
 
-    Created by HTTP / MCP adapters from verified authentication; never derived
-    from user input, document text, history, or LLM output.
+    由 HTTP / MCP 适配器根据已验证的认证信息创建，绝不从用户输入、文档文本、
+    历史记录或 LLM 输出中推导。
     """
     trace_id: str = field(default_factory=lambda: str(uuid4()))
     tenant_id: str = ""
@@ -24,7 +24,7 @@ class RequestContext:
 
 
 def identity(ctx) -> tuple[str, str]:
-    """Return trusted (tenant_id, user_id), raising if absent or unauthenticated."""
+    """返回可信的（tenant_id、user_id），缺失或未认证时抛出异常。"""
     if ctx is None or not getattr(ctx, "authenticated", False):
         from ..domain.exceptions import ValidationError
         raise ValidationError("请求未认证，无法访问数据")

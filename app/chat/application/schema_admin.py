@@ -1,4 +1,4 @@
-"""Application facade for the schema administration HTTP adapter."""
+"""面向 schema 管理 HTTP 适配器的应用门面。"""
 import re
 from uuid import uuid4
 
@@ -9,7 +9,7 @@ from .schema_registry import (
 
 
 class SchemaAdminService:
-    """Adapt admin API operations to the registry port without HTTP concerns."""
+    """把管理 API 操作适配到注册表端口，不涉及 HTTP 关注点。"""
     def __init__(self, registry):
         self._registry = registry
 

@@ -1,4 +1,4 @@
-"""Deterministic, explainable intent routing without infrastructure dependencies."""
+"""不依赖基础设施的确定性、可解释意图路由。"""
 import re
 
 from ..domain.models import ChatMessage, Intent, IntentDecision
@@ -65,7 +65,7 @@ _MIX_FLOOR = 3.0
 
 
 class RuleIntentRouter:
-    """Routes obvious requests cheaply and asks for clarification on ambiguity."""
+    """低成本路由明显请求，并在意图不明确时请求澄清。"""
 
     def __init__(self, *, min_confidence: float = 0.55, ambiguity_gap: float = 0.2):
         self.min_confidence = min_confidence

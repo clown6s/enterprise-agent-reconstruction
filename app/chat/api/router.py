@@ -1,4 +1,4 @@
-"""HTTP adapter for the chat application."""
+"""聊天应用的 HTTP 适配器。"""
 from dataclasses import asdict
 import time
 from typing import Callable

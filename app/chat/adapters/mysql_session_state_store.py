@@ -1,4 +1,4 @@
-"""MySQL persistence for structured multi-turn session state."""
+"""结构化多轮会话状态的 MySQL 持久化实现。"""
 import json
 
 from ..application.context import identity

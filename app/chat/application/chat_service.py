@@ -1,5 +1,4 @@
-"""Unified chat orchestration: route intent, dispatch to an isolated executor,
-persist conversation, and surface citations/structured outputs."""
+"""统一聊天编排：路由意图、分派到隔离执行器、持久化会话，并返回引用及结构化结果。"""
 import uuid
 
 import structlog
@@ -236,7 +235,7 @@ class ChatService:
             saver(conversation_id, state, context=context)
 
     def close(self) -> None:
-        """Release any resources owned by executors (LLM, retriever, stores)."""
+        """释放执行器所持有的资源（LLM、检索器和存储）。"""
         for resource in (self.rag, self.sop, self.nl2sql):
             closer = getattr(resource, "close", None)
             if callable(closer):

@@ -1,4 +1,4 @@
-"""Distributed Redis rate limiter using one atomic Lua script."""
+"""使用单个原子 Lua 脚本的分布式 Redis 限流器。"""
 import time
 import uuid
 
@@ -24,10 +24,10 @@ return 1
 
 
 class RedisRateLimiter:
-    """Fixed-window/sliding-window limiter safe across processes.
+    """跨进程安全的固定窗口/滑动窗口限流器。
 
-    ``fail_open`` is explicit: closed is safer, while open preserves service
-    availability during a Redis outage. Production should choose deliberately.
+    ``fail_open`` 需要显式选择：关闭时安全性更高，开启时 Redis 故障期间仍能保持
+    服务可用。生产环境应根据实际需求慎重选择。
     """
 
     def __init__(self, *, host: str, port: int = 6379, password: str = "",

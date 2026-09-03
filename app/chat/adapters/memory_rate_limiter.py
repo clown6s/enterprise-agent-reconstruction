@@ -1,4 +1,4 @@
-"""Thread-safe fixed-window rate limiter for tests and single-process use."""
+"""线程安全的固定窗口限流器，用于测试和单进程场景。"""
 import threading
 import time
 
