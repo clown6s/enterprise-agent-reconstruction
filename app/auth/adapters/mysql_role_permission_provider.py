@@ -1,4 +1,4 @@
-"""Load roles, departments and permission codes from the auth tables."""
+"""从认证表中加载角色、部门和权限代码."""
 from ..application.ports import RolePermissionProvider
 from app.chat.adapters.mysql_pool import MysqlPool, mysql_errors
 

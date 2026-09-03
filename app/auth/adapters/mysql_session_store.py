@@ -1,4 +1,4 @@
-"""MySQL session store for revocable opaque auth tokens."""
+"""MySQL 可撤销的不透明认证令牌会话存储."""
 from ..application.ports import SessionStore
 from ..domain.models import SessionRecord
 from app.chat.adapters.mysql_pool import MysqlPool, mysql_errors

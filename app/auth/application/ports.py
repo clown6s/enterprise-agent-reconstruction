@@ -1,4 +1,4 @@
-"""Auth application ports; implementations live outside this package."""
+"""授权应用程序端口；实现位于此包之外."""
 from typing import Protocol
 
 from ..domain.models import Principal, SessionRecord, UserRecord

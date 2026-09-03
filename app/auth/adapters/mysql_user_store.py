@@ -1,11 +1,11 @@
-"""MySQL user store for authentication (reads auth_users)."""
+"""用于身份验证的 MySQL 用户存储（读取 auth_users）."""
 from ..application.ports import UserStore
 from ..domain.models import UserRecord
 from app.chat.adapters.mysql_pool import MysqlPool, mysql_errors
 
 
 class MysqlUserStore(UserStore):
-    """Read-only lookup against auth_users; never stores credentials."""
+    """只读查询 auth_users；从不存储凭据."""
 
     def __init__(self, pool: MysqlPool):
         self._pool = pool

@@ -1,4 +1,4 @@
-"""Pure password hashing helpers using bcrypt."""
+"""使用 bcrypt 的纯密码哈希辅助工具."""
 import bcrypt
 
 

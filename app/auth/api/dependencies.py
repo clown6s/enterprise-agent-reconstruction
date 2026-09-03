@@ -1,4 +1,4 @@
-"""FastAPI dependency mappings for auth, isolated from the domain layer."""
+"""FastAPI 的认证依赖映射，与领域层分离."""
 from typing import Callable
 
 from fastapi import Depends, HTTPException, Request, status

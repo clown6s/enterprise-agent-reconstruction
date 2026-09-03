@@ -1,4 +1,4 @@
-"""HTTP adapter for authentication endpoints."""
+"""用于认证端点的HTTP适配器."""
 from dataclasses import asdict
 from typing import Callable
 

@@ -1,4 +1,4 @@
-"""Authentication use cases, independent of HTTP and database details."""
+"""身份验证使用场景，独立于HTTP和数据库细节."""
 from datetime import datetime, timedelta, timezone
 import uuid
 
