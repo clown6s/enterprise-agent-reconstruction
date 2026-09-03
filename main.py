@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-import anyio
 import os
 import structlog
 from dotenv import load_dotenv
@@ -71,20 +70,15 @@ async def lifespan(_app):
     setup_tracing()
     try:
         # 未启用或配置不完整时返回 None，不影响主服务启动。
-        feishu_channel = build_feishu_channel(singleton._get())
+        feishu_channel = build_feishu_channel(singleton.get())
         if feishu_channel is not None:
             feishu_channel.start()
         yield
     finally:
         if feishu_channel is not None:
             feishu_channel.stop()
-        for holder in (singleton, auth_singleton, schema_admin_singleton):
-            service = holder._service
-            if service is not None:
-                closer = getattr(service, "close", None)
-                if callable(closer):
-                    closer()
-        rate_limiter.close()
+        for holder in (singleton, auth_singleton, schema_admin_singleton, rate_limiter):
+            holder.close_if_loaded()
         shutdown_tracing()
         close_log_sink()
 
@@ -92,22 +86,31 @@ async def lifespan(_app):
 app = FastAPI(lifespan=lifespan)
 register_exception_handlers(app)
 
-principal_provider = make_principal_provider(auth_singleton)
-chat_principal_provider = make_principal_provider(auth_singleton, "chat:ask")
+principal_provider = make_principal_provider(auth_singleton.get)
+chat_principal_provider = make_principal_provider(auth_singleton.get, "chat:ask")
 chat_settings = read_settings()
 usage_meter = MemoryUsageMeter()
-rate_limiter = RedisRateLimiter(
-    host=__import__("os").getenv("REDIS_HOST", "127.0.0.1"),
-    port=int(__import__("os").getenv("REDIS_PORT", "6379")),
-    password=__import__("os").getenv("REDIS_PASSWORD", ""),
-    limit=chat_settings.rate_limit,
-    window_seconds=chat_settings.rate_window_seconds,
-)
-app.include_router(create_auth_router(auth_singleton, principal_provider))
-app.include_router(create_router(lambda: singleton._get(), chat_principal_provider,
+
+
+def _build_rate_limiter() -> RedisRateLimiter:
+    """延迟构建 Redis 限流器，首次使用才建立连接。"""
+    return RedisRateLimiter(
+        host=os.getenv("REDIS_HOST", "127.0.0.1"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        password=os.getenv("REDIS_PASSWORD", ""),
+        limit=chat_settings.rate_limit,
+        window_seconds=chat_settings.rate_window_seconds,
+    )
+
+
+# 进程级单例：限流器同样延迟创建、关闭时统一释放，避免启动即连接 Redis。
+# 通过 LazyService 的属性转发，调用方无需感知其惰性。
+rate_limiter = LazyService(_build_rate_limiter)
+app.include_router(create_auth_router(auth_singleton.get, principal_provider))
+app.include_router(create_router(lambda: singleton.get(), chat_principal_provider,
                                 rate_limiter=rate_limiter, usage_meter=usage_meter))
-schema_admin_principal_provider = make_principal_provider(auth_singleton, "schema:admin")
-app.include_router(create_schema_router(lambda: schema_admin_singleton._get(),
+schema_admin_principal_provider = make_principal_provider(auth_singleton.get, "schema:admin")
+app.include_router(create_schema_router(lambda: schema_admin_singleton.get(),
                                         schema_admin_principal_provider))
 
 app.mount(
@@ -137,9 +140,9 @@ async def request_logging(request: Request, call_next):
     try:
         with span("http.request", http_method=request.method,
                    http_route=request.url.path):
-            response = await anyio.to_thread.run_sync(
-                lambda: anyio.from_thread.run(call_next, request)
-            )
+            # 直接 await：middleware 本身是 async，call_next 返回协程，
+            # 无需经 anyio 线程桥接，也避免了 from_thread 的用法问题。
+            response = await call_next(request)
     except Exception:
         # 完整堆栈由全局 exception handler 统一记录，这里不再重复打印。
         raise
@@ -169,7 +172,10 @@ async def readyz():
     milvus_host = os.getenv("MILVUS_HOST", "")
     es_host = os.getenv("ES_HOST", "")
     redis_host = os.getenv("REDIS_HOST", "")
-    es_port = 443 if es_host.startswith("https://") and ":" not in es_host.removeprefix("https://") else 9200
+    # 带协议前缀且未显式指定端口时按协议取默认端口，否则回退 9200。
+    es_scheme, _, es_rest = es_host.partition("://")
+    es_port = 443 if ("://" in es_host and es_scheme == "https"
+                       and ":" not in es_rest) else 9200
     checks = CompositeHealthChecker({
         "mysql": tcp_endpoint(mysql_host, int(os.getenv("MYSQL_PORT", "3306"))),
         "milvus": tcp_endpoint(milvus_host, int(os.getenv("MILVUS_PORT", "19530"))),
@@ -182,18 +188,8 @@ async def readyz():
     ready = all(value == "ok" for value in statuses.values())
     payload = {"status": "ready" if ready else "unavailable",
                "checks": statuses,
-               "chat_initialized": singleton._service is not None}
+               "chat_initialized": singleton.is_loaded()}
     if not ready:
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail=payload)
     return payload
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}

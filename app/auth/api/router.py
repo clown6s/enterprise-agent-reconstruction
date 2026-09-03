@@ -31,7 +31,8 @@ def _principal_payload(principal: Principal) -> dict:
     }
 
 
-def create_router(auth: AuthService, principal_provider: Callable[[Request], Principal] | None = None):
+def create_router(auth_provider: Callable[[], AuthService],
+                 principal_provider: Callable[[Request], Principal] | None = None):
     if principal_provider is None:
         raise ValueError("principal_provider 不能为空")
     router = APIRouter(prefix="/auth", tags=["auth"])
@@ -39,7 +40,7 @@ def create_router(auth: AuthService, principal_provider: Callable[[Request], Pri
     @router.post("/login")
     def login(request: LoginRequest):
         try:
-            result = auth.login(request.tenant_id, request.username, request.password)
+            result = auth_provider().login(request.tenant_id, request.username, request.password)
         except InvalidCredentialsError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="用户名或密码错误") from exc
@@ -54,7 +55,7 @@ def create_router(auth: AuthService, principal_provider: Callable[[Request], Pri
     @router.post("/refresh")
     def refresh(request: RefreshRequest):
         try:
-            result = auth.refresh(request.refresh_token)
+            result = auth_provider().refresh(request.refresh_token)
         except InvalidTokenError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="刷新令牌无效或已过期") from exc
@@ -72,7 +73,7 @@ def create_router(auth: AuthService, principal_provider: Callable[[Request], Pri
 
     @router.post("/logout")
     def logout(principal: Principal = Depends(principal_provider)):
-        auth.logout(principal)
+        auth_provider().logout(principal)
         return {"ok": True}
 
     return router

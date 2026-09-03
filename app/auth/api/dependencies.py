@@ -17,13 +17,12 @@ def bearer_token_from(request: Request) -> str | None:
     return header[len(_BEARER):].strip() or None
 
 
-def make_principal_provider(auth: AuthService,
+def make_principal_provider(auth_provider: Callable[[], AuthService],
                             required_permission: str | None = None
                             ) -> Callable[[Request], Principal]:
-    """Return a FastAPI dependency that resolves a verified principal.
+    """返回一个解析已验证主体的 FastAPI 依赖。
 
-    ``required_permission`` optional: when set, enforces authorization and
-    returns 403 if the user lacks it.
+    ``required_permission`` 可选：设置后强制授权，用户缺少权限时返回 403。
     """
     def provider(request: Request) -> Principal:
         token = bearer_token_from(request)
@@ -31,7 +30,7 @@ def make_principal_provider(auth: AuthService,
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="缺少访问令牌")
         try:
-            principal = auth.verify_access(token)
+            principal = auth_provider().verify_access(token)
         except TokenExpiredError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                                 detail="令牌已过期") from exc
