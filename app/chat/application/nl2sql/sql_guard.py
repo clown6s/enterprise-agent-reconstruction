@@ -258,10 +258,11 @@ def validate_sql(sql: str, *, allowed_tables: set[str] | None = None,
     sql = sql.strip().rstrip(";").strip()
     if len(sql) > max_length:
         raise SqlPolicyError(f"SQL 过长（{len(sql)} > {max_length}）")
-    lower = sql.lower()
     assert_readonly(sql)
+    # 关键字检查前先剔除字符串字面量，避免业务文本中的单词被误判为写关键字。
+    stripped = _strip_literals(sql).lower()
     for keyword in _BLOCKED_KEYWORDS:
-        if re.search(rf"\b{keyword}\b", lower):
+        if re.search(rf"\b{keyword}\b", stripped):
             raise SqlPolicyError(f"禁止关键字: {keyword}")
     for pattern in _FORBIDDEN_PATTERNS:
         if pattern.search(sql):

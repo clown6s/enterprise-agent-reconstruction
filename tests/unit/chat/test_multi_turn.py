@@ -71,6 +71,14 @@ _CTX = RequestContext(
 )
 
 
+def test_extract_sql_supports_common_fences():
+    from app.chat.application.nl2sql.nl2sql_service import Nl2SqlService
+    svc = Nl2SqlService.__new__(Nl2SqlService)
+    assert svc._extract_sql("```mysql\nSELECT 1\n```") == "SELECT 1"
+    assert svc._extract_sql("```sql\nSELECT 1\n```") == "SELECT 1"
+    assert svc._extract_sql("SELECT 1") == "SELECT 1"
+
+
 def test_nl2sql_follow_up_reuses_domain_and_requeries():
     llm, sql = FakeLLM(), FakeSql()
     service = _service(llm, sql)

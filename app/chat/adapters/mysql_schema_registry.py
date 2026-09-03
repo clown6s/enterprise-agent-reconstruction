@@ -18,6 +18,78 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
             raise ValidationError("缺少schema:admin权限")
         return tenant, user
 
+    @staticmethod
+    def _column_name(row) -> str:
+        """从登记列行中取列名，兼容 dict 与序列两种游标返回。"""
+        if isinstance(row, dict):
+            return str(row["column_name"])
+        return str(row[0])
+
+    def _validate_real_structure(self, c, tenant, registered):
+        """发布前核对登记结构是否与真实数据库一致，失败则中止发布。"""
+        import json as _json
+        names = sorted(registered)
+        marks = ", ".join(["%s"] * len(names))
+        # 真实存在的表与列，来源于 information_schema。
+        c.execute(
+            f"SELECT TABLE_NAME FROM information_schema.TABLES "
+            f"WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ({marks})", tuple(names))
+        real_tables = {row["TABLE_NAME"] for row in c.fetchall()}
+        c.execute(
+            f"SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS "
+            f"WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ({marks})", tuple(names))
+        real_cols: dict[str, set[str]] = {}
+        for row in c.fetchall():
+            real_cols.setdefault(row["TABLE_NAME"], set()).add(row["COLUMN_NAME"])
+
+        domain_tables = set(names)
+        for table_name, entry in registered.items():
+            table = entry["meta"]
+            if table_name not in real_tables:
+                raise ValidationError(f"登记的表不在数据库中: {table_name}")
+            columns = entry["columns"]
+            if not columns:
+                raise ValidationError(f"表 {table_name} 未登记任何列")
+            real = real_cols.get(table_name, set())
+            for col in columns:
+                col_name = self._column_name(col)
+                if col_name not in real:
+                    raise ValidationError(
+                        f"表 {table_name} 的登记列不存在于数据库: {col_name}")
+            selectable = [col for col in columns
+                          if bool(col.get("selectable", False))]
+            if not selectable:
+                raise ValidationError(f"表 {table_name} 至少需要一个可选列")
+            if bool(table.get("required_tenant_filter", False)) \
+                    and "tenant_id" not in real:
+                raise ValidationError(f"表 {table_name} 需要 tenant_id 隔离，但数据库缺少该列")
+            # 校验 JOIN 目标表属于当前域，且左右列真实存在。
+            raw_joins = table.get("allowed_joins")
+            if isinstance(raw_joins, (bytes, str)):
+                try:
+                    raw_joins = _json.loads(raw_joins)
+                except (TypeError, ValueError):
+                    raw_joins = []
+            for join in (raw_joins if isinstance(raw_joins, list) else []):
+                if not isinstance(join, dict):
+                    continue
+                target_table = (join.get("table") or join.get("target") or "").lower()
+                if target_table not in domain_tables:
+                    raise ValidationError(
+                        f"表 {table_name} 的 JOIN 目标未登记: {target_table}")
+                columns_map = join.get("columns") or {}
+                if not isinstance(columns_map, dict):
+                    raise ValidationError(
+                        f"表 {table_name} 的 JOIN 列配置无效")
+                for left, right in columns_map.items():
+                    if left not in real:
+                        raise ValidationError(
+                            f"表 {table_name} 的 JOIN 左列不存在: {left}")
+                    target_cols = real_cols.get(target_table, set())
+                    if right not in target_cols:
+                        raise ValidationError(
+                            f"表 {table_name} 的 JOIN 右列不存在: {right}")
+
     @mysql_errors
     def introspect(self, *, context, tables=None, include_columns=True):
         tenant, _ = self._admin(context)
@@ -97,9 +169,13 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
                 if not tables:
                     raise ValidationError("数据域至少需要一张表")
                 snapshot = {"domain": dict(domain), "tables": []}
+                registered: dict[str, dict] = {}
                 for table in tables:
                     c.execute("SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns WHERE tenant_id=%s AND domain_id=%s AND table_name=%s ORDER BY column_name", (tenant, domain_id, table["table_name"]))
-                    snapshot["tables"].append({"table": dict(table), "columns": c.fetchall()})
+                    cols = c.fetchall()
+                    registered[table["table_name"]] = {"meta": dict(table), "columns": cols}
+                    snapshot["tables"].append({"table": dict(table), "columns": cols})
+                self._validate_real_structure(c, tenant, registered)
                 canonical = json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
                 import hashlib
                 from uuid import uuid4
@@ -185,7 +261,9 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, user = self._admin(context)
         validate_identifier(domain_id, "数据域ID")
         validate_identifier(policy.table_name, "表名")
-        from ..application.nl2sql.row_policy import compile_template
+        from ..application.nl2sql.row_policy import (
+            compile_template, validate_policy_columns,
+        )
         compile_template(policy.predicate_template)
         def op(conn):
             with conn.cursor() as c:
@@ -196,6 +274,23 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
                 )
                 if not c.fetchone():
                     raise ValidationError("策略目标表未登记")
+                c.execute(
+                    "SELECT column_name, filterable, `sensitive` "
+                    "FROM sql_allowed_columns WHERE tenant_id=%s "
+                    "AND domain_id=%s AND table_name=%s",
+                    (tenant, domain_id, policy.table_name),
+                )
+                columns = c.fetchall()
+                column_flags = {
+                    str(row["column_name"]).lower(): bool(row.get("filterable", True))
+                    for row in columns
+                }
+                sensitive = {
+                    str(row["column_name"]).lower()
+                    for row in columns if row.get("sensitive")
+                }
+                validate_policy_columns(policy.predicate_template, column_flags,
+                                        sensitive=sensitive)
                 c.execute(
                     "INSERT INTO sql_domain_permissions "
                     "(tenant_id,domain_id,table_name,subject_type,subject_id,"

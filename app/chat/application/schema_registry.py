@@ -125,8 +125,20 @@ class SchemaRegistry:
             raise ValidationError("subject_type 只允许 user/role/department")
         if not policy.subject_id or len(policy.subject_id) > 64:
             raise ValidationError("subject_id 无效")
-        from .nl2sql.row_policy import compile_template
+        from .nl2sql.row_policy import compile_template, validate_policy_columns
         compile_template(policy.predicate_template)
+        columns = list(self._port.list_columns(domain_id, policy.table_name,
+                                               context=context) or ())
+        allowed = {
+            str(col["column_name"]).lower(): bool(col.get("filterable", True))
+            for col in columns
+        }
+        sensitive = {
+            str(col["column_name"]).lower()
+            for col in columns if col.get("sensitive")
+        }
+        validate_policy_columns(policy.predicate_template, allowed,
+                                sensitive=sensitive)
         return self._port.register_row_policy(domain_id, policy, context=context)
 
     def list_row_policies(self, domain_id: str, *, context) -> list[dict]:

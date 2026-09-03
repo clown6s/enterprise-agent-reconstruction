@@ -195,11 +195,34 @@ def test_publish_writes_version_and_change_log():
         "max_rows": 1000, "max_execution_seconds": 10}
     sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
         {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1,
-         "allowed_joins": json.dumps([{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])}]
+         "allowed_joins": json.dumps([{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])},
+        {"table_name": "customers", "table_description": "客户表", "required_tenant_filter": 1,
+         "allowed_joins": "[]"}]
     sink.plan["SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns"] = [
         {"column_name": "amount", "business_name": "金额", "data_type": "decimal", "selectable": 1,
          "filterable": 1, "sortable": 0, "aggregatable": 1, "sensitive": 0,
+         "masking_rule": None, "description": None},
+        {"column_name": "customer_id", "business_name": "客户", "data_type": "bigint", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 0, "sensitive": 0,
+         "masking_rule": None, "description": None},
+        {"column_name": "tenant_id", "business_name": "租户", "data_type": "varchar", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 0, "sensitive": 0,
+         "masking_rule": None, "description": None},
+        {"column_name": "id", "business_name": "主键", "data_type": "bigint", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 0, "sensitive": 0,
          "masking_rule": None, "description": None}]
+    sink.plan["SELECT TABLE_NAME FROM information_schema.TABLES"] = [
+        {"TABLE_NAME": "orders"}, {"TABLE_NAME": "customers"}]
+    sink.plan["SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS"] = [
+        {"TABLE_NAME": "orders", "COLUMN_NAME": "amount"},
+        {"TABLE_NAME": "orders", "COLUMN_NAME": "customer_id"},
+        {"TABLE_NAME": "orders", "COLUMN_NAME": "tenant_id"},
+        {"TABLE_NAME": "orders", "COLUMN_NAME": "id"},
+        {"TABLE_NAME": "customers", "COLUMN_NAME": "id"},
+        {"TABLE_NAME": "customers", "COLUMN_NAME": "amount"},
+        {"TABLE_NAME": "customers", "COLUMN_NAME": "customer_id"},
+        {"TABLE_NAME": "customers", "COLUMN_NAME": "tenant_id"},
+    ]
     sink.plan["SELECT COALESCE(MAX(version_no), 0) AS n FROM sql_schema_versions"] = {"n": 0}
     store = _store(sink)
     result = store.publish("dom", context=_ADMIN, version=None, reason="首次发布")
@@ -226,6 +249,39 @@ def test_publish_rejects_invalid_version():
     store = _store(sink)
     with pytest.raises(ValidationError):
         store.publish("dom", context=_ADMIN, version="abc")
+    assert sink.commits == 0
+
+
+def test_publish_rejects_missing_real_table():
+    sink = _make_sink()
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = {
+        "domain_name": "orders", "description": "订单", "default_time_column": None,
+        "max_rows": 1000, "max_execution_seconds": 10}
+    sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
+        {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1, "allowed_joins": None}]
+    sink.plan["SELECT column_name, business_name, data_type, selectable, filterable, sortable, aggregatable, `sensitive`, masking_rule, description FROM sql_allowed_columns"] = [
+        {"column_name": "amount", "business_name": "金额", "data_type": "decimal", "selectable": 1,
+         "filterable": 1, "sortable": 0, "aggregatable": 1, "sensitive": 0,
+         "masking_rule": None, "description": None}]
+    # 真实库中不存在该表。
+    sink.plan["SELECT TABLE_NAME FROM information_schema.TABLES"] = []
+    sink.plan["SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS"] = []
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.publish("dom", context=_ADMIN)
+    assert sink.commits == 0
+
+
+def test_adapter_register_row_policy_rejects_unknown_column():
+    from app.chat.application.schema_registry import RowPolicyRegistration
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_allowed_tables"] = {"1": 1}
+    sink.plan["SELECT column_name, filterable, `sensitive` FROM sql_allowed_columns"] = [
+        {"column_name": "tenant_id", "filterable": 1, "sensitive": 0}]
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.register_row_policy("dom", RowPolicyRegistration(
+            "orders", "user", "u1", "owner_id = :user_id"), context=_ADMIN)
     assert sink.commits == 0
 
 
@@ -266,6 +322,9 @@ def test_adapter_register_row_policy_commits():
     from app.chat.application.schema_registry import RowPolicyRegistration
     sink = _make_sink()
     sink.plan["SELECT 1 FROM sql_allowed_tables"] = {"1": 1}
+    sink.plan["SELECT column_name, filterable, `sensitive` FROM sql_allowed_columns"] = [
+        {"column_name": "department_id", "filterable": 1, "sensitive": 0},
+    ]
     store = _store(sink)
     store.register_row_policy("dom", _policy(), context=_ADMIN)
     insert = [s for s, _ in sink.calls if s.startswith("INSERT INTO sql_domain_permissions")]

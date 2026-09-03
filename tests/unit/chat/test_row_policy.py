@@ -1,8 +1,10 @@
 """Unit tests for the row-level policy DSL and its binding rules."""
 import pytest
 
-from app.chat.application.nl2sql.row_policy import bind_policy, compile_template
-from app.chat.domain.exceptions import SqlPolicyError
+from app.chat.application.nl2sql.row_policy import (
+    bind_policy, compile_template, validate_policy_columns,
+)
+from app.chat.domain.exceptions import SqlPolicyError, ValidationError
 
 
 # --- 模板校验（失败即关闭）---
@@ -62,6 +64,35 @@ def test_blank_template_rejected():
 def test_missing_scalar_value_fails_closed():
     with pytest.raises(SqlPolicyError):
         bind_policy("owner_id = :user_id", tenant_id="t1")
+
+
+def test_policy_columns_rejects_unknown_column():
+    with pytest.raises(ValidationError):
+        validate_policy_columns("owner_id = :user_id", {"tenant_id": True})
+
+
+def test_policy_columns_rejects_sensitive_column():
+    with pytest.raises(ValidationError):
+        validate_policy_columns(
+            "secret_salary = :user_id", {"secret_salary": True},
+            sensitive={"secret_salary"})
+
+
+def test_policy_columns_rejects_non_filterable_column():
+    with pytest.raises(ValidationError):
+        validate_policy_columns("amount = :user_id", {"amount": False})
+
+
+def test_policy_columns_allows_registered_filterable_column():
+    cols = validate_policy_columns(
+        "department_id IN :department_ids", {"department_id": True})
+    assert cols == {"department_id"}
+
+
+def test_policy_columns_excludes_placeholders_and_keywords():
+    cols = validate_policy_columns(
+        "owner_id = :user_id AND region = :role_names", {"owner_id": True, "region": True})
+    assert cols == {"owner_id", "region"}
 
 
 def test_double_colon_cast_does_not_create_placeholder_token():

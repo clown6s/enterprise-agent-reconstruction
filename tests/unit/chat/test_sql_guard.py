@@ -20,6 +20,19 @@ def test_rejects_select_star():
         validate_sql("SELECT * FROM orders", allowed_tables={"orders"})
 
 
+def test_accepts_keyword_inside_string_literal():
+    validate_sql(
+        "SELECT note FROM orders WHERE note = 'please drop this record'",
+        allowed_tables={"orders"},
+    )
+
+
+def test_rejects_real_keyword_outside_literal():
+    with pytest.raises(SqlPolicyError):
+        validate_sql("SELECT note FROM orders WHERE note = 'x' DROP",
+                     allowed_tables={"orders"})
+
+
 def test_accepts_single_allowed_table():
     validate_sql("SELECT amount FROM orders", allowed_tables={"orders"})
 

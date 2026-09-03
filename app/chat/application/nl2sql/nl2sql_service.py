@@ -20,7 +20,7 @@ from .row_rewrite import rewrite_with_row_policies
 from .sql_guard import validate_sql
 from .tenant_rewrite import physical_tables
 
-_SQL_EXTRACT = re.compile(r"```(?:sql)?\s*(select[\s\S]*?)\s*```", re.I)
+_SQL_EXTRACT = re.compile(r"```(?:sql|mysql)?\s*(select[\s\S]*?)\s*```", re.I)
 
 
 class Nl2SqlService:
