@@ -1,6 +1,6 @@
 """Elasticsearch lexical-search adapter."""
 from functools import wraps
-from typing import Any
+from typing import Any, cast
 
 try:
     from elasticsearch import Elasticsearch, helpers
@@ -104,8 +104,11 @@ class ElasticsearchTextStore:
                     "_id": row["chunk_id"], "_source": _source(row)} for row in rows]
         if not actions:
             return True
-        ok, errors = helpers.bulk(self._client, actions, raise_on_error=False,
-                                  raise_on_exception=False)
+        # 该客户端为可选依赖，bulk 的桩把返回值并成了联合类型导致无法解包，
+        # 用 cast 纠正为真实返回结构 (成功数, 失败列表)。
+        ok, errors = cast("tuple[int, list[dict[str, Any]]]",
+                          helpers.bulk(self._client, actions, raise_on_error=False,
+                                       raise_on_exception=False))
         if errors:
             raise RuntimeError(f"ES 批量写入失败: {len(errors)} 条")
         return ok == len(actions)
@@ -145,7 +148,8 @@ class ElasticsearchTextStore:
         """全文检索。``filter`` 契约与向量侧一致：裸 document_id（32-64 位 hex）。"""
         if filter and not _valid_document_id(filter):
             raise ValueError("非法 document_id")
-        body = {"size": top_k, "query": {"multi_match": {
+        # 查询体包含多种嵌套结构，显式使用 Any 避免字典值类型被过度收窄。
+        body: dict[str, Any] = {"size": top_k, "query": {"multi_match": {
             "query": query, "fields": ["text", "search_text", "title"]}}}
         if filter:
             body["query"] = {"bool": {"must": [body["query"]],

@@ -24,8 +24,11 @@ def _response(status_code: int, error: str, error_type: str) -> JSONResponse:
     )
 
 
-async def _handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+async def _handle_app_error(request: Request, exc: Exception) -> JSONResponse:
     """把业务异常映射成 HTTP 状态码与统一响应结构。"""
+    if not isinstance(exc, AppError):
+        # 处理器协议允许接收任意异常，注册到 AppError 时应只会收到业务异常。
+        return await _handle_unexpected(request, exc)
     if isinstance(exc, ValidationError):
         return _response(400, str(exc), type(exc).__name__)
     if isinstance(exc, InfrastructureError):

@@ -104,7 +104,8 @@ class SiliconFlowEmbedder:
             raise SiliconFlowError("SiliconFlow 响应结构无效") from exc
 
         # 服务端可能乱序返回向量，按 index 恢复顺序。
-        ordered = [None] * len(texts)
+        # 显式标注元素类型，避免被推断为 list[None] 而无法写入向量。
+        ordered: list[list[float] | None] = [None] * len(texts)
         seen_indexes = set()
         for item in items:
             if not isinstance(item, dict):
@@ -124,10 +125,13 @@ class SiliconFlowEmbedder:
         if any(vector is None for vector in ordered):
             raise SiliconFlowError("SiliconFlow 返回向量数量与请求不一致")
         for vector in ordered:
+            # 前面已整体校验不含 None，这里显式判断以帮助类型收窄。
+            if vector is None:
+                raise SiliconFlowError("SiliconFlow 返回向量缺失")
             if len(vector) != self._dim:
                 raise SiliconFlowError(
                     f"SiliconFlow 返回向量维度 {len(vector)}，期望 {self._dim}")
-        vectors = [list(vector) for vector in ordered]
+        vectors = [list(vector) for vector in ordered if vector is not None]
         logger.info("embedding_batch_done", batch=batch_index,
                     total_batches=total_batches, size=len(texts),
                     elapsed_seconds=round(time.perf_counter() - started, 3),

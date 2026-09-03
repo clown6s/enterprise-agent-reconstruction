@@ -5,6 +5,7 @@
 """
 from datetime import datetime, timezone
 import logging
+from typing import Any
 
 from app.chat.security.redaction import redact
 
@@ -24,7 +25,10 @@ class ElasticsearchLogSink:
             self._owns_client = False
         else:
             from elasticsearch import Elasticsearch
-            kwargs = {"basic_auth": (username, password), "request_timeout": timeout}
+            kwargs: dict[str, Any] = {
+                "basic_auth": (username, password),
+                "request_timeout": timeout,
+            }
             if cert_fingerprint:
                 kwargs["ssl_assert_fingerprint"] = cert_fingerprint
             self._client = Elasticsearch(host, **kwargs)
@@ -35,7 +39,7 @@ class ElasticsearchLogSink:
         return f"{self._index_prefix}-{datetime.now(timezone.utc).strftime('%Y.%m.%d')}"
 
     def emit(self, event: dict) -> bool:
-        safe = {
+        safe: dict[str, Any] = {
             "@timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "enterprise-agent",
         }

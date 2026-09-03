@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 import structlog
 
 # 进程级 sink 持有：setup_logging 注入后可在 shutdown 时关闭
-_SINK = None
+_SINK: Any = None
 
 
 def _renderer():
@@ -27,7 +28,10 @@ def _renderer():
 
 
 def _level() -> int:
-    return logging.getLevelName(os.getenv("LOG_LEVEL", "INFO"))
+    name = (os.getenv("LOG_LEVEL", "INFO") or "INFO").upper()
+    level = logging.getLevelNamesMapping().get(name)
+    # 未识别的级别名回退到 INFO，避免 getLevelName 返回字符串造成类型歧义。
+    return level if level is not None else logging.INFO
 
 
 def _forward_to_sink(_logger, _method, event_dict):
