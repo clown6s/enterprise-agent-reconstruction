@@ -4,6 +4,10 @@
 
 管理员只需通过 Schema Registry 登记数据域、表、字段和关联关系，发布后 NL2SQL 即可自动识别并生成 SQL 查询。
 
+## 完整操作示例
+
+按完整流程拆分的 Markdown 示例已移至 [nl2sql-examples/README.md](nl2sql-examples/README.md)。请优先从示例总览开始，并按实际接口返回的 `domain_id`、真实表字段和数据库权限逐步执行。
+
 ---
 
 ## 1. 整体架构
@@ -668,11 +672,11 @@ book_authors 作者表
 books.author_id = book_authors.author_id
 ```
 
-#### 重要：`tenant_id` 必须登记，且 `sensitive=false`
+#### 重要：`tenant_id` 的登记要求
 
-系统生成的 SQL 会包含 `WHERE tenant_id = '<租户>'`。列级 Guard 要求 SQL 中出现的每个字段都已登记，所以两张表都必须登记 `tenant_id`。
+列级 Guard 采用 **fail-closed**：启用了列白名单的数据域，SQL 引用的每张物理表都必须在 `sql_allowed_columns` 里有对应列白名单，否则整个查询被拒绝。因此**两张表都必须登记 `tenant_id`**。
 
-**但 `tenant_id` 不能标 `sensitive=true`**，否则会被敏感字段拦截误拒。正确配置：
+`tenant_id` 的能力标记按以下规则配置：
 
 ```json
 {
@@ -681,14 +685,20 @@ books.author_id = book_authors.author_id
   "business_name": "租户标识",
   "description": "系统租户隔离字段，仅用于服务端过滤",
   "selectable": false,
-  "filterable": false,
+  "filterable": true,
   "sortable": false,
   "aggregatable": false,
   "sensitive": false
 }
 ```
 
-`tenant_id` 的隔离不靠 `sensitive` 标记，而由服务端认证上下文强制注入 SQL，LLM 无法覆盖。
+三点说明：
+
+- **`sensitive` 必须 `false`**，否则被敏感字段拦截误拒。
+- **`filterable` 必须 `true`**：行级权限模板 `tenant_id = :tenant_id` 需要引用它，而 `validate_policy_columns` 会拒绝"不可过滤字段"。若把 `filterable` 设为 `false`，配置行权限时会报"策略引用了不可过滤字段"。
+- **`selectable` 必须 `false`**：`tenant_id` 不作为输出列暴露给用户。
+
+`tenant_id` 的隔离由服务端认证上下文强制注入（参数化），LLM 无法覆盖，也不依赖 `sensitive` 标记。
 
 #### 步骤 1：创建业务表
 
@@ -848,7 +858,7 @@ POST http://127.0.0.1:8000/admin/schema/domains/library/columns
 {
   "table": "books",
   "columns": [
-    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": false, "sortable": false, "aggregatable": false, "sensitive": false},
+    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": true, "sortable": false, "aggregatable": false, "sensitive": false},
     {"column_name": "book_id", "data_type": "varchar", "business_name": "书籍编号", "description": "书籍唯一编号", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
     {"column_name": "title", "data_type": "varchar", "business_name": "书名", "description": "书籍名称", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
     {"column_name": "price", "data_type": "decimal", "business_name": "价格", "description": "书籍价格", "selectable": true, "filterable": true, "sortable": true, "aggregatable": true, "sensitive": false},
@@ -868,7 +878,7 @@ POST http://127.0.0.1:8000/admin/schema/domains/library/columns
 {
   "table": "book_authors",
   "columns": [
-    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": false, "sortable": false, "aggregatable": false, "sensitive": false},
+    {"column_name": "tenant_id", "data_type": "varchar", "business_name": "租户标识", "description": "系统租户隔离字段，仅用于服务端过滤", "selectable": false, "filterable": true, "sortable": false, "aggregatable": false, "sensitive": false},
     {"column_name": "author_id", "data_type": "varchar", "business_name": "作者编号", "description": "作者唯一编号，仅用于 JOIN", "selectable": false, "filterable": true, "sortable": false, "aggregatable": false, "sensitive": false},
     {"column_name": "author_name", "data_type": "varchar", "business_name": "作者姓名", "description": "作者名称", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false},
     {"column_name": "country", "data_type": "varchar", "business_name": "国家", "description": "作者所属国家", "selectable": true, "filterable": true, "sortable": true, "aggregatable": false, "sensitive": false}
@@ -1003,15 +1013,19 @@ SELECT
 FROM books AS b
 LEFT JOIN book_authors AS a
     ON b.author_id = a.author_id
-WHERE b.tenant_id = 'tenant-test'
+-- tenant_id 不由 LLM 写入；服务端会在执行前参数化注入租户条件
 ```
 
 #### 常见错误对照
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `SQL 引用了未授权字段: tenant_id` | SQL 用了 `tenant_id` 但没登记该列 | 登记 `tenant_id` |
+| `表 xxx 未登记列白名单，拒绝执行` | SQL 引用了表 `xxx`，但该表在 `sql_allowed_columns` 没有任何已登记列（fail-closed 生效） | 用 `/columns` 登记该表的列白名单，再重新发布 |
+| `表 xxx 引用了未授权字段: col` | SQL 用了 `col`，但它不在该表的列白名单里 | 把 `col` 加入 `/columns` 登记（并确认真实存在） |
+| `SQL 引用了未授权字段: tenant_id` | SQL 用了 `tenant_id` 但没登记该列 | 登记 `tenant_id`（`filterable=true`, `sensitive=false`） |
 | `SQL 引用了敏感字段: tenant_id` | `tenant_id` 被标成 `sensitive=true` | 改成 `sensitive=false` |
+| `策略引用了不可过滤字段` | 行权限模板引用了 `filterable=false` 的列（如 tenant_id） | 把该列 `filterable` 改为 `true` |
+| `IntegrityError / 外键约束失败` | 登记列/策略时，目标表还没登记到 `sql_allowed_tables` | 先 `POST /domains/{id}/tables` 登记表，再登记列/策略 |
 | `Input should be a valid string` on `version` | `version` 传了字符串或缺失 | 用正整数或省略 |
 | `SQL 引用了未授权表: xxx` | 用了 allowlist 之外的表名 | 只使用已登记的真实表名 |
 | `Unknown column 'x'` | 引用了不存在/未登记的列 | 按真实表字段登记 |
@@ -1097,6 +1111,7 @@ Content-Type: application/json
 | GET | `/admin/schema/domains/{domain}/joins` | 查看 JOIN |
 | POST | `/admin/schema/domains/{domain}/joins` | 登记 JOIN |
 | POST | `/admin/schema/domains/{domain}/publish` | 校验并发布 |
+| DELETE | `/admin/schema/domains/{domain}` | 删除数据域及全部关联元数据 |
 
 ### 认证与错误
 
@@ -1201,9 +1216,11 @@ Content-Type: application/json
 
 写入时服务端执行受限模板 DSL 校验（与查询端同一套 `compile_template`），非法模板直接返回 400，不落库。角色级策略的 `subject_id` 必须使用角色**名称**（`Principal.roles` 来自 `auth_roles.role_name`），不是角色 ID。
 
-### 当前限制（fail-closed）
+### 当前实现（AST 重写）
 
-行策略仅在**单表 SELECT** 上可靠生效。凡命中受保护表的复杂 SQL——`JOIN`、`UNION`、子查询、CTE——会被整体**拒绝执行**（fail-closed），而不是冒险把谓词注入错误的位置。启用 RLS 后，这些表暂不支持 JOIN 查询；后续升级到 AST 重写后可放宽该限制。
+行策略通过 **AST 重写**实现：受管控的物理表会被改写为带过滤条件的派生表 `SELECT * FROM <table> WHERE <谓词>`，谓词值一律参数化（`%s`），绝不拼入 SQL 文本。因此 **`JOIN`、`UNION`、子查询、CTE 中的受管控表都会逐表应用策略**，不再局限单表 SELECT。行权限与 JOIN 可同时使用（如示例第 12 步 + 第 14 步）。
+
+仍为 fail-closed：若策略无法安全应用到某表（如找不到匹配的物理表、参数数量不匹配、SQL 无法解析），整条查询被**拒绝执行**，而不是放行未受管控的 SQL。
 
 ---
 
@@ -1368,7 +1385,7 @@ Catalog 只提供当前租户、当前用户可访问的已发布元数据，包
 - 使用 MySQL 8.x 语法
 - 禁止 INSERT/UPDATE/DELETE/DROP/ALTER
 - 禁止多语句和注释注入
-- 必须包含 tenant_id 过滤
+- 不要编写 tenant_id 过滤条件，租户隔离由服务端自动注入
 - 只返回 SQL 代码块
 ```
 
@@ -1388,7 +1405,7 @@ Catalog 只提供当前租户、当前用户可访问的已发布元数据，包
 
 问题：查询本月各地区订单总金额，按金额从高到低排列
 
-要求：只生成单条 SELECT，必须包含 tenant_id 过滤。
+要求：只生成单条 SELECT，不要编写 tenant_id 过滤（系统自动注入）。
 ```
 
 Schema 是约束输入，不是授权本身；即使 prompt 要求安全，后续程序校验仍不可省略。
@@ -1448,23 +1465,17 @@ Guard 失败时立即拒绝，不连接业务数据库。
 
 ### 10.9 服务端强制租户条件
 
-SQL 候选通过基础 Guard 后，`Nl2SqlService` 使用认证 context 中的 tenant：
-
-```sql
-WHERE tenant_id = '<来自 RequestContext 的 tenant_id>'
-```
+SQL 候选通过基础 Guard 后，`Nl2SqlService` 使用认证 context 中的 tenant，为**每张物理表**注入一条行策略 `BoundPolicy("tenant_id = %s", <tenant>)`，并经 AST 重写参数化加入查询。
 
 重要原则：
 
-- 不信任 LLM 自己填写的 tenant_id；
+- 不信任 LLM 自己填写的 tenant_id（生成 prompt 明确要求**不要**编写 tenant_id）；
 - 不信任用户问题中的 tenant_id；
 - 不信任请求 body 中的 tenant_id；
 - 只使用认证上下文中的 tenant_id；
-- tenant_id 会进行引号转义。
+- 值经 DB-API 参数绑定，绝不拼入 SQL 文本。
 
-如果 context 没有 tenant_id，查询直接拒绝。
-
-当前实现是文本级租户条件注入，后续复杂 SQL 应升级为 AST 级注入，并确保每个需要租户隔离的表都受保护。
+如果 context 没有 tenant_id，查询被拒（返回"请先登录"澄清，而非执行）。
 
 ### 10.10 使用只读执行器执行
 

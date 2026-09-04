@@ -32,10 +32,12 @@ class MemorySchemaCatalog(SchemaCatalog):
         return set(item.tables) if item else set()
 
     def allowed_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:
-        """按表维护的列白名单；空字典表示不限制列级访问。"""
+        """按表维护列白名单；未配置列时返回空白名单并由 Guard 拒绝查询。"""
         item = self._domains.get(domain)
-        if item is None or not item.columns:
+        if item is None:
             return {}
+        if item.columns is None:
+            return {table: set() for table in item.tables}
         return {table: set(cols) for table, cols in item.columns.items()}
 
     def blocked_columns(self, domain: str, *, context=None) -> dict[str, set[str]]:

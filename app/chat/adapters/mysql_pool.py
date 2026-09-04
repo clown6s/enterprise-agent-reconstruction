@@ -21,7 +21,11 @@ def mysql_errors(fn):
         except (AppError, ConversationError):
             raise
         except Exception as exc:
-            raise ConversationError(f"Chat MySQL 调用失败: {type(exc).__name__}") from exc
+            # 保留底层错误的具体信息（如外键/唯一索引名），便于服务端定位；
+            # 该 message 会被映射为 InfrastructureError 响应，客户端只会看到通用提示。
+            raw = getattr(exc, "args", None)
+            detail = f"{type(exc).__name__}: {raw[0]}" if raw and raw[0] else type(exc).__name__
+            raise ConversationError(f"Chat MySQL 调用失败: {detail}") from exc
     return wrapper
 
 

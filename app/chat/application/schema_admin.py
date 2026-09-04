@@ -50,8 +50,8 @@ class SchemaAdminService:
         return {"domain_id": domain, "table": table.table_name, "status": "draft"}
 
     def introspect(self, domain, request=None, *, context):
-        from .schema_registry import validate_identifier
-        validate_identifier(domain, "数据域ID")
+        from .schema_registry import validate_domain_identifier
+        validate_domain_identifier(domain)
         tables = getattr(request, "tables", None) if request else None
         include_columns = getattr(request, "include_columns", True) if request else True
         return self._registry.introspect(
@@ -106,6 +106,10 @@ class SchemaAdminService:
     def delete_row_policy(self, domain, permission_id, *, context):
         self._registry.delete_row_policy(domain, int(permission_id), context=self._context(context))
         return {"domain_id": domain, "permission_id": int(permission_id), "deleted": True}
+
+    def delete_domain(self, domain, *, context):
+        self._registry.delete_domain(domain, context=self._context(context))
+        return {"domain_id": domain, "deleted": True}
 
     def close(self):
         closer = getattr(self._registry, "close", None)

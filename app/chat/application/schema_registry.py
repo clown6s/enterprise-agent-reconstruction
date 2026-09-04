@@ -10,10 +10,24 @@ from typing import Any
 from ..domain.exceptions import ValidationError
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
+# 数据域 ID 允许连字符：兼容历史数据（如 domain-orders），且作为参数值使用，
+# 不涉及 SQL 标识符拼接，无注入风险。
+_DOMAIN_ID = re.compile(r"^[A-Za-z_][A-Za-z0-9_$-]*$")
 
 
 def validate_identifier(value: str, label: str = "标识符") -> str:
     if not isinstance(value, str) or not _IDENTIFIER.fullmatch(value):
+        raise ValidationError(f"{label}无效")
+    return value
+
+
+def validate_domain_identifier(value: str, label: str = "数据域ID") -> str:
+    """校验数据域 ID：允许连字符，兼容历史数据。
+
+    仅用于数据域 ID（作为参数值使用），不用于表名/列名等可能拼接进 SQL
+    标识符的输入。表名/列名仍须使用严格的 :func:`validate_identifier`。
+    """
+    if not isinstance(value, str) or not _DOMAIN_ID.fullmatch(value):
         raise ValidationError(f"{label}无效")
     return value
 
@@ -83,16 +97,16 @@ class SchemaRegistry:
         return self._port.list_domains(context=context)
 
     def list_tables(self, domain_id: str, *, context):
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         return self._port.list_tables(domain_id, context=context)
 
     def list_columns(self, domain_id: str, table_name: str, *, context):
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         validate_identifier(table_name, "表名")
         return self._port.list_columns(domain_id, table_name, context=context)
 
     def list_joins(self, domain_id: str, *, context):
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         return self._port.list_joins(domain_id, context=context)
 
     def register_domain(self, domain: SchemaDomain, *, context) -> None:
@@ -100,25 +114,25 @@ class SchemaRegistry:
         return self._port.register_domain(domain, context=context)
 
     def register_table(self, domain_id: str, table: SchemaTable, *, context) -> None:
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         self._validate_table(table)
         return self._port.register_table(domain_id, table, context=context)
 
     def register_columns(self, domain_id: str, table_name: str,
                          columns: list[SchemaColumn] | tuple[SchemaColumn, ...], *, context) -> None:
-        validate_identifier(domain_id, "数据域ID"); validate_identifier(table_name, "表名")
+        validate_domain_identifier(domain_id); validate_identifier(table_name, "表名")
         for c in columns: self._validate_column(c)
         return self._port.register_columns(domain_id, table_name, columns, context=context)
 
     def register_joins(self, domain_id: str, table_name: str,
                        joins: list[SchemaJoin] | tuple[SchemaJoin, ...], *, context) -> None:
-        validate_identifier(domain_id, "数据域ID"); validate_identifier(table_name, "表名")
+        validate_domain_identifier(domain_id); validate_identifier(table_name, "表名")
         for j in joins: self._validate_join(j)
         return self._port.register_joins(domain_id, table_name, joins, context=context)
 
     def register_row_policy(self, domain_id: str, policy: RowPolicyRegistration,
                             *, context) -> None:
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         validate_identifier(policy.table_name, "表名")
         if policy.subject_type not in ("user", "role", "department"):
             raise ValidationError("subject_type 只允许 user/role/department")
@@ -141,16 +155,20 @@ class SchemaRegistry:
         return self._port.register_row_policy(domain_id, policy, context=context)
 
     def list_row_policies(self, domain_id: str, *, context) -> list[dict]:
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         return self._port.list_row_policies(domain_id, context=context)
 
     def delete_row_policy(self, domain_id: str, permission_id: int, *, context) -> None:
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         return self._port.delete_row_policy(domain_id, permission_id, context=context)
+
+    def delete_domain(self, domain_id: str, *, context) -> None:
+        validate_domain_identifier(domain_id)
+        return self._port.delete_domain(domain_id, context=context)
 
     def publish(self, domain_id: str, *, context, version: int | None = None,
                 reason: str | None = None) -> dict | None:
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         if version is not None and (isinstance(version, bool) or
                                     not isinstance(version, int) or version <= 0):
             raise ValidationError("版本必须是正整数")

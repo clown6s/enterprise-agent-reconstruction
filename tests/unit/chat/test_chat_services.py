@@ -40,7 +40,8 @@ def _service():
     llm = FakeLLM()
     retriever = FakeRetriever()
     catalog = MemorySchemaCatalog([SchemaDomain(
-        "orders", "orders(amount)", frozenset({"orders"}), ("订单",))])
+        "orders", "orders(amount)", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
     return ChatService(
         RuleIntentRouter(), MemoryConversationStore(),
         RagAnswerer(retriever, llm, ContextBuilder()),
@@ -84,7 +85,8 @@ def test_domain_limits_reach_executor():
     retriever = FakeRetriever()
     recording = _RecordingSql()
     catalog = _LimitsCatalog([SchemaDomain(
-        "orders", "orders(amount)", frozenset({"orders"}), ("订单",))])
+        "orders", "orders(amount)", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
     service = ChatService(
         RuleIntentRouter(), MemoryConversationStore(),
         RagAnswerer(retriever, llm, ContextBuilder()),
@@ -129,10 +131,10 @@ def test_memory_catalog_allowed_columns():
         columns={"orders": frozenset({"amount", "region"})})])
     assert catalog.allowed_columns("orders") == {"orders": {"amount", "region"}}
     assert catalog.allowed_columns("unknown") == {}
-    # 未配置 columns 的旧式数据域不施加任何列级限制
+    # 未配置 columns 的数据域返回空白名单，由 SQL Guard 按 fail-closed 规则拒绝查询。
     plain = MemorySchemaCatalog([SchemaDomain(
         "orders", "订单", frozenset({"orders"}), ("订单",))])
-    assert plain.allowed_columns("orders") == {}
+    assert plain.allowed_columns("orders") == {"orders": set()}
 
 
 def test_sql_service_enforces_allowed_columns():

@@ -54,6 +54,7 @@ def _service(llm, sql):
     catalog = MemorySchemaCatalog([SchemaDomain(
         "procurement", "采购数据", frozenset({"procurement_requests"}),
         ("采购", "预算", "采购申请"),
+        columns={"procurement_requests": frozenset({"budget"})},
     )])
     return ChatService(
         RuleIntentRouter(), MemoryConversationStore(),

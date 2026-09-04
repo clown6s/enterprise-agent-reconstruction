@@ -34,6 +34,7 @@ class SchemaAdminService(Protocol):
                             *, context: RequestContext) -> Any: ...
     def delete_row_policy(self, domain: str, permission_id: int,
                           *, context: RequestContext) -> Any: ...
+    def delete_domain(self, domain: str, *, context: RequestContext) -> Any: ...
     def publish(self, domain: str, request: "PublishRequest | None" = None,
                 *, context: RequestContext) -> Any: ...
 
@@ -230,5 +231,12 @@ def create_router(service_provider: Callable[[], SchemaAdminService],
                           principal: object = Depends(principal)):
         return _jsonable(schema.delete_row_policy(domain, permission_id,
                                                   context=_context(request, principal)))
+
+    @router.delete("/domains/{domain}")
+    def delete_domain(domain: str, request: Request,
+                      schema: SchemaAdminService = Depends(service),
+                      principal: object = Depends(principal)):
+        return _jsonable(schema.delete_domain(domain,
+                                              context=_context(request, principal)))
 
     return router

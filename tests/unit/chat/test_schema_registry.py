@@ -94,6 +94,16 @@ def test_service_register_joins_validates_join_type():
         svc.register_joins("dom", "tbl", [SchemaJoin("t2", {"a": "b"}, "CROSS")], context=_ADMIN)
 
 
+def test_service_accepts_hyphenated_domain_id():
+    """历史数据域 ID 含连字符时，服务层仍应允许访问。"""
+    class Port:
+        def list_tables(self, domain_id, *, context):
+            assert domain_id == "domain-orders"
+            return []
+
+    assert SchemaRegistry(Port()).list_tables("domain-orders", context=_ADMIN) == []
+
+
 # --- 适配器权限门 ---
 
 def test_adapter_requires_schema_admin_permission():
@@ -362,3 +372,60 @@ def test_adapter_delete_row_policy_commits():
     assert any(s.startswith("DELETE FROM sql_domain_permissions") for s, _ in sink.calls)
     assert sink.last_params == ("t", "dom", 7)
     assert sink.commits == 1
+
+
+# --- 数据域删除 ---
+
+def test_adapter_delete_domain_cleans_all_related_tables():
+    """删除数据域应在单个事务内清掉全部关联元数据，且只限当前租户。"""
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_data_domains"] = [{"1": 1}]
+    store = _store(sink)
+    store.delete_domain("dom", context=_ADMIN)
+    deletes = dict()
+    for sql, params in sink.calls:
+        if sql.startswith("DELETE "):
+            table = sql.split(" ")[2].replace("`", "")
+            if table.startswith("sql_") or table.startswith("l."):
+                # 带 JOIN 的删除，取删除主表名
+                if table.startswith("l."):
+                    table = "sql_schema_change_logs"
+                elif "FROM" in sql:
+                    # 解析目标表
+                    table = sql.split("DELETE ")[1].split(" ")[0]
+    # 断言 8 张关联表都被删除
+    joined_sql = " ".join(s for s, _ in sink.calls)
+    for table in ("sql_schema_change_logs", "sql_allowed_joins", "sql_schema_versions",
+                  "sql_domain_permissions", "sql_allowed_columns", "sql_allowed_tables",
+                  "sql_domain_keywords", "sql_data_domains"):
+        assert table in joined_sql, f"未清理关联表: {table}"
+    assert sink.commits == 1
+
+
+def test_adapter_delete_domain_tenant_scoped():
+    """删除语句都应带当前租户与域 ID 限定。"""
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_data_domains"] = [{"1": 1}]
+    store = _store(sink)
+    store.delete_domain("dom", context=_ADMIN)
+    for sql, params in sink.calls:
+        if sql.startswith("DELETE "):
+            assert params[0] == "t"  # tenant_id 始终是第一个参数
+
+
+def test_adapter_delete_domain_missing_domain_rejected():
+    """数据域不存在时应拒绝且不提交。"""
+    sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_data_domains"] = None  # 未找到
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.delete_domain("dom", context=_ADMIN)
+    assert sink.commits == 0
+
+
+def test_adapter_delete_domain_rejects_bad_identifier():
+    sink = _make_sink()
+    store = _store(sink)
+    with pytest.raises(ValidationError):
+        store.delete_domain("bad id", context=_ADMIN)
+    assert sink.calls == []

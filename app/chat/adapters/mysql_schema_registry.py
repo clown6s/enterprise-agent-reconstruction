@@ -2,7 +2,7 @@
 import json
 from ..application.context import identity
 from ..application.ports import SchemaRegistryPort
-from ..application.schema_registry import validate_identifier
+from ..application.schema_registry import validate_domain_identifier, validate_identifier
 from ..domain.exceptions import ValidationError
 from .mysql_pool import MysqlPool, mysql_errors
 
@@ -125,7 +125,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
 
     @mysql_errors
     def register_table(self, domain_id, table, *, context):
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         validate_identifier(table.table_name, "表名")
         tenant, _ = self._admin(context)
         def op(conn):
@@ -136,7 +136,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
 
     @mysql_errors
     def register_columns(self, domain_id, table_name, columns, *, context):
-        validate_identifier(domain_id, "数据域ID"); validate_identifier(table_name, "表名")
+        validate_domain_identifier(domain_id); validate_identifier(table_name, "表名")
         tenant, _ = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
@@ -147,7 +147,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
 
     @mysql_errors
     def register_joins(self, domain_id, table_name, joins, *, context):
-        validate_identifier(domain_id, "数据域ID"); validate_identifier(table_name, "表名")
+        validate_domain_identifier(domain_id); validate_identifier(table_name, "表名")
         tenant, _ = self._admin(context)
         payload = [{"table": j.table, "columns": j.columns, "join_type": j.join_type.upper()} for j in joins]
         def op(conn):
@@ -259,7 +259,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
     @mysql_errors
     def register_row_policy(self, domain_id, policy, *, context):
         tenant, user = self._admin(context)
-        validate_identifier(domain_id, "数据域ID")
+        validate_domain_identifier(domain_id)
         validate_identifier(policy.table_name, "表名")
         from ..application.nl2sql.row_policy import (
             compile_template, validate_policy_columns,
@@ -336,6 +336,71 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
                 if c.rowcount == 0:
                     raise ValidationError("策略不存在")
                 conn.commit()
+        return self._pool.run(op)
+
+    @mysql_errors
+    def delete_domain(self, domain_id, *, context):
+        """在单个事务中删除数据域及其全部关联元数据。"""
+        tenant, _ = self._admin(context)
+        validate_domain_identifier(domain_id)
+
+        def op(conn):
+            with conn.cursor() as c:
+                c.execute(
+                    "SELECT 1 FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_id=%s FOR UPDATE",
+                    (tenant, domain_id),
+                )
+                if not c.fetchone():
+                    raise ValidationError("数据域不存在")
+
+                # 先删依赖版本的日志和 JOIN，再删版本本身，避免触发外键约束。
+                c.execute(
+                    "DELETE l FROM sql_schema_change_logs l "
+                    "JOIN sql_schema_versions v ON v.tenant_id=l.tenant_id "
+                    "AND v.version_id=l.version_id "
+                    "WHERE l.tenant_id=%s AND v.domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE j FROM sql_allowed_joins j "
+                    "JOIN sql_schema_versions v ON v.tenant_id=j.tenant_id "
+                    "AND v.version_id=j.version_id "
+                    "WHERE j.tenant_id=%s AND v.domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_schema_versions "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_domain_permissions "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_allowed_columns "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_allowed_tables "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_domain_keywords "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+                c.execute(
+                    "DELETE FROM sql_data_domains "
+                    "WHERE tenant_id=%s AND domain_id=%s",
+                    (tenant, domain_id),
+                )
+            conn.commit()
+
         return self._pool.run(op)
 
     def close(self): self._pool.close()

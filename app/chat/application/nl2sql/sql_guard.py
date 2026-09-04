@@ -281,6 +281,14 @@ def validate_sql(sql: str, *, allowed_tables: set[str] | None = None,
             for ident in re.findall(r"[A-Za-z_][\w$]*", stripped):
                 if ident.lower() in blocked:
                     raise SqlPolicyError(f"SQL 引用了敏感字段: {ident}")
-    if allowed_columns is not None and allowed_columns:
+    if allowed_columns is not None:
+        # fail-closed：只要启用了列白名单，SQL 引用的每张物理表都必须有对应
+        # 的已登记列白名单；缺任一表即拒绝，避免"整表未登记列"导致列校验
+        # 被整体跳过（此前 allowed_columns 为空时放行，LLM 可编造任意列名）。
+        normalized_cols = {str(k).lower() for k in allowed_columns}
+        ctes = _cte_names(sql)
+        for ref in _referenced_tables(sql):
+            if ref not in ctes and ref not in normalized_cols:
+                raise SqlPolicyError(f"表 {ref} 未登记列白名单，拒绝执行")
         _validate_allowed_columns(_parse_select_trees(sql), allowed_columns)
     return sql

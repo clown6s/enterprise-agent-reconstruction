@@ -120,12 +120,16 @@ def test_sensitive_column_in_literal_not_false_positive():
 
 
 def test_allowed_columns_none_skips_column_check():
+    # allowed_columns 未启用（None）时不做列校验，是显式选择而非 fail-open。
     validate_sql("SELECT anything FROM orders", allowed_tables={"orders"})
 
 
-def test_allowed_columns_empty_dict_skips_column_check():
-    validate_sql("SELECT anything FROM orders", allowed_tables={"orders"},
-                 allowed_columns={})
+def test_allowed_columns_empty_dict_fails_closed():
+    # fail-closed：启用列白名单但目标表无任何已登记列，应拒绝而非放行，
+    # 否则 LLM 可编造任意列名（如 create_time）直接执行到数据库才报错。
+    with pytest.raises(SqlPolicyError):
+        validate_sql("SELECT anything FROM orders", allowed_tables={"orders"},
+                     allowed_columns={})
 
 
 def test_allows_column_in_allowlist():
@@ -246,3 +250,31 @@ def test_union_allows_allowed_columns():
             "SELECT amount FROM orders UNION SELECT amount FROM products",
             allowed_tables={"orders", "products"},
             allowed_columns={"orders": {"amount"}, "products": {"amount"}})
+
+
+def test_join_missing_column_allowlist_for_one_table_rejected():
+    # JOIN 中一张表有列白名单、另一张缺失，fail-closed 应拒绝整体查询。
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT o.amount, c.name FROM orders o "
+            "LEFT JOIN customers c ON o.customer_id=c.id",
+            allowed_tables={"orders", "customers"},
+            allowed_columns={"orders": {"amount", "customer_id"}})
+
+
+def test_cte_does_not_require_own_column_allowlist():
+    # CTE 名称不是物理表，不应被要求有列白名单。
+    validate_sql(
+        "WITH recent AS (SELECT amount FROM orders) SELECT amount FROM recent",
+        allowed_tables={"orders"},
+        allowed_columns={"orders": {"amount"}})
+
+
+def test_subquery_inner_table_missing_allowlist_rejected():
+    # 子查询内部引用的表同样必须有列白名单，否则拒绝。
+    with pytest.raises(SqlPolicyError):
+        validate_sql(
+            "SELECT amount FROM orders WHERE id IN "
+            "(SELECT secret FROM order_items)",
+            allowed_tables={"orders", "order_items"},
+            allowed_columns={"orders": {"amount", "id"}})
