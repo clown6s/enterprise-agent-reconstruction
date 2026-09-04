@@ -114,7 +114,8 @@ class Nl2SqlService:
             "不得引用 Schema 中不存在的列（例如把‘总额/总金额/合计’直接当成一列 total_amount，"
             "必须用 SUM(amount) AS total_amount 这类聚合表达式计算，聚合别名只可输出，不可作为真实列过滤）；"
             "日期请使用 DATE_FORMAT、DATE_ADD、DATE_SUB 和 INTERVAL 1 MONTH，禁止 DATE_TRUNC 和 PostgreSQL 字符串 interval；"
-            "必须包含 tenant_id 过滤条件；只返回 SQL 代码块，不要解释。\n"
+            "不要编写 tenant_id 过滤条件：租户隔离由系统自动注入，手写 tenant_id 会被忽略，"
+            "切勿猜测或编造 tenant_id 值；只返回 SQL 代码块，不要解释。\n"
             "返回格式：```sql\nSELECT ...\n```\n"
             f"问题：{query}"
         )
@@ -198,7 +199,8 @@ class Nl2SqlService:
         """针对可修复的 SQL 执行错误，请模型最多重写一次（复用同一安全 pipeline）。"""
         prompt = (
             "上一条 MySQL SELECT 执行失败。只返回修正后的单条 SELECT 代码块，"
-            "只能使用原 SQL 的允许表字段，必须保留 tenant_id 过滤；不要解释。\n"
+            "只能使用原 SQL 的允许表字段；不要编写 tenant_id 过滤条件（系统自动注入），"
+            "不要猜测 tenant_id 值；不要解释。\n"
             f"数据域：{domain}\n原问题：{query}\n原 SQL：{sql}\n"
             f"数据库错误类型：{type(error).__name__}\n"
             f"数据库错误信息：{self._safe_error(error)}\n"
