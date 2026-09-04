@@ -62,6 +62,28 @@ def test_empty_list_deny_stays_parameter_free():
     assert params == ()
 
 
+def test_literal_percent_is_escaped_when_policy_has_parameters():
+    """带行策略参数时，LIKE 字面量百分号应保留并与参数正确配对。"""
+    sql, params = rewrite_with_row_policies(
+        "SELECT amount FROM orders WHERE note LIKE '%本%'",
+        {"orders": policy("tenant_id = %s", "tenant-1")},
+    )
+    assert "LIKE '%%本%%'" in sql
+    assert sql.count("%s") == 1
+    assert params == ("tenant-1",)
+
+
+def test_date_format_percent_is_escaped_when_policy_has_parameters():
+    """带行策略参数时，DATE_FORMAT 格式串中的百分号应正确转义。"""
+    sql, params = rewrite_with_row_policies(
+        "SELECT DATE_FORMAT(created_at, '%Y-%m') FROM orders",
+        {"orders": policy("tenant_id = %s", "tenant-1")},
+    )
+    assert "'%%Y-%%m'" in sql
+    assert sql.count("%s") == 1
+    assert params == ("tenant-1",)
+
+
 def test_missing_table_policy_fails_closed():
     with pytest.raises(SqlPolicyError):
         rewrite_with_row_policies(

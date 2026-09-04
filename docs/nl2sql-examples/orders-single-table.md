@@ -90,9 +90,9 @@ Content-Type: application/json
       "column_name": "tenant_id",
       "data_type": "varchar",
       "business_name": "租户标识",
-      "description": "仅用于服务端租户隔离",
+      "description": "系统租户隔离字段，仅用于服务端过滤",
       "selectable": false,
-      "filterable": true,
+      "filterable": false,
       "sortable": false,
       "aggregatable": false,
       "sensitive": false
@@ -101,7 +101,36 @@ Content-Type: application/json
       "column_name": "order_id",
       "data_type": "varchar",
       "business_name": "订单号",
-      "description": "订单唯一编号",
+      "selectable": true,
+      "filterable": true,
+      "sortable": true,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
+      "column_name": "customer_name",
+      "data_type": "varchar",
+      "business_name": "客户名称",
+      "selectable": true,
+      "filterable": true,
+      "sortable": true,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
+      "column_name": "region",
+      "data_type": "varchar",
+      "business_name": "地区",
+      "selectable": true,
+      "filterable": true,
+      "sortable": true,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
+      "column_name": "category",
+      "data_type": "varchar",
+      "business_name": "品类",
       "selectable": true,
       "filterable": true,
       "sortable": true,
@@ -112,7 +141,6 @@ Content-Type: application/json
       "column_name": "amount",
       "data_type": "decimal",
       "business_name": "订单金额",
-      "description": "订单金额",
       "selectable": true,
       "filterable": true,
       "sortable": true,
@@ -120,10 +148,19 @@ Content-Type: application/json
       "sensitive": false
     },
     {
+      "column_name": "status",
+      "data_type": "enum",
+      "business_name": "订单状态",
+      "selectable": true,
+      "filterable": true,
+      "sortable": false,
+      "aggregatable": false,
+      "sensitive": false
+    },
+    {
       "column_name": "created_at",
       "data_type": "datetime",
       "business_name": "创建时间",
-      "description": "订单创建时间",
       "selectable": true,
       "filterable": true,
       "sortable": true,

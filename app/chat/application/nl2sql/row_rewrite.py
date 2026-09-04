@@ -96,6 +96,10 @@ def rewrite_with_row_policies(
         rewritten = tree.sql(dialect="mysql")
     except Exception as exc:
         raise SqlPolicyError("行级权限 SQL 重写失败，已拒绝执行") from exc
+    # 业务 SQL 中的裸 %（如 LIKE、DATE_FORMAT 通配符）在数据库驱动参数化执行时
+    # 会被误当成占位符；此处先把裸 % 统一转义成 %%，再替换回本层生成的 %s 占位符。
+    # marker 形如 __RLS_MARKER_xxx__，本身不含 %，转义不影响它。
+    rewritten = rewritten.replace("%", "%%")
     for marker, replacement in marker_values.items():
         rewritten = rewritten.replace(marker, replacement)
     if rewritten.count("%s") != len(params):
