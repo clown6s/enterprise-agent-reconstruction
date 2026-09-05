@@ -65,7 +65,25 @@ class ChatService:
         direction = self._pagination_direction(question)
         if direction is not None:
             # 翻页指令彻底前置：只查服务端分页状态，绝不进入数据域解析/意图路由。
+            stored_pagination = (state.extra.get("nl2sql_pagination")
+                                 if state and state.extra else None)
             pagination = self._pagination_from_state(state, question, context)
+            if (direction == "next" and isinstance(stored_pagination, dict)
+                    and not stored_pagination.get("has_more")):
+                return ChatResult(
+                    answer="已经是最后一页，没有更多数据。",
+                    status=ChatStatus.ANSWERED, mode=Intent.NL2SQL,
+                    conversation_id=conversation_id, warnings=("pagination_end",),
+                    trace_id=context.trace_id,
+                )
+            if (direction == "previous" and isinstance(stored_pagination, dict)
+                    and int(stored_pagination.get("current_page", 0)) == 0):
+                return ChatResult(
+                    answer="已经是第一页。",
+                    status=ChatStatus.ANSWERED, mode=Intent.NL2SQL,
+                    conversation_id=conversation_id, warnings=("pagination_start",),
+                    trace_id=context.trace_id,
+                )
             if pagination is None:
                 return ChatResult(
                     answer="当前没有可继续的分页查询，请先发起一次业务查询。",
