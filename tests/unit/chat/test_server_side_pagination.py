@@ -44,8 +44,9 @@ class _Executor:
 
     def query(self, sql, **kwargs):
         self.sqls.append(sql)
-        rows = [("2026-09-01 09:00:00", f"O{i:03d}") for i in range(20)]
-        return SqlResult(("created_at", "order_id"), tuple(rows), "q1", 20,
+        rows = [("2026-09-01 09:00:00", f"O{i:03d}",
+                 "2026-09-01 09:00:00", f"O{i:03d}") for i in range(20)]
+        return SqlResult(("created_at", "order_id", "__nl2sql_sort_0", "__nl2sql_sort_1"), tuple(rows), "q1", 20,
                          truncated=True)
 
 

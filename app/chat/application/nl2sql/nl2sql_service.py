@@ -13,7 +13,7 @@ from datetime import date, datetime
 import structlog
 
 from ...domain.exceptions import LlmError, SqlGenerationError, SqlPolicyError
-from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
+from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent, SqlResult
 from ...security.context_boundary import SYSTEM_POLICY, find_injection
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
@@ -198,6 +198,7 @@ class Nl2SqlService:
             sql = rewritten
         next_cursor = self._next_cursor(
             result, effective_page_size, fingerprint, pagination_plan)
+        result = self._strip_pagination_columns(result)
 
         if effective_page_size:
             explanation = self._format_page(result)
@@ -265,16 +266,29 @@ class Nl2SqlService:
         if not effective_page_size or not plan or not result.truncated or not result.rows:
             return None
         indexes = []
-        columns = {str(name).split(".")[-1].lower(): i
-                   for i, name in enumerate(result.columns)}
+        columns = {str(name): i for i, name in enumerate(result.columns)}
         try:
-            indexes = [columns[key.column.lower()] for key in plan.sort_keys]
+            indexes = [columns[f"__nl2sql_sort_{i}"]
+                       for i in range(len(plan.sort_keys))]
         except KeyError:
             return None
         last = result.rows[-1]
         values = tuple(last[index] for index in indexes)
         return encode_cursor(values, page_size=effective_page_size,
                              fingerprint=fingerprint)
+
+    @staticmethod
+    def _strip_pagination_columns(result):
+        """剥离分页注入的隐藏排序列，避免它们进入展示与审计。"""
+        keep = [i for i, name in enumerate(result.columns)
+                if not str(name).startswith("__nl2sql_sort_")]
+        if len(keep) == len(result.columns):
+            return result
+        columns = tuple(result.columns[i] for i in keep)
+        rows = tuple(tuple(row[i] for i in keep) for row in result.rows)
+        return SqlResult(columns=columns, rows=rows,
+                         query_id=result.query_id, row_count=result.row_count,
+                         truncated=result.truncated)
 
     def _row_policies_for(self, sql: str, domain: str, context,
                           ) -> dict[str, tuple[BoundPolicy, ...]]:

@@ -223,6 +223,12 @@ def apply_pagination(sql: str, *, plan: PaginationPlan | None = None,
         cond, used_markers = _keyset_condition(tree, keys, markers)
         tree = tree.where(cond)
 
+    # 注入隐藏排序列，保证未出现在用户投影中的排序列也能生成游标。
+    for index, key in enumerate(keys):
+        tree = tree.select(
+            exp.alias_(_column_expression(tree, key), f"__nl2sql_sort_{index}")
+        )
+
     # 排序：保留模型原业务排序，仅在结尾补充稳定 tie-breaker，避免覆盖业务语义。
     order = tree.args.get("order") if isinstance(tree, exp.Select) else None
     existing = []
