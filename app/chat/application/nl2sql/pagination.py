@@ -21,6 +21,8 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
+from ...domain.exceptions import SqlPolicyError
+
 _CURSOR_MARKER = re.compile(r"__NL2SQL_CURSOR_(\d+)__")
 _CURSOR_VERSION = 2
 _SIGNATURE_LEN = 16
@@ -165,8 +167,12 @@ def _keyset_condition(tree: exp.Select, keys: tuple[SortKey, ...],
         for i in range(depth):
             # 前导等值条件
             branch.append(exp.EQ(this=col_refs[i], expression=exp.column(take())))
-        # 该层严格小于
-        branch.append(exp.LT(this=col_refs[depth], expression=exp.column(take())))
+        # 该层严格比较，方向由排序方向决定。
+        value = exp.column(take())
+        if keys[depth].direction.lower() == "asc":
+            branch.append(exp.GT(this=col_refs[depth], expression=value))
+        else:
+            branch.append(exp.LT(this=col_refs[depth], expression=value))
         or_branches.append(exp.and_(*branch) if len(branch) > 1 else branch[0])
     cond = or_branches[0]
     for b in or_branches[1:]:
@@ -199,11 +205,10 @@ def apply_pagination(sql: str, *, plan: PaginationPlan | None = None,
     if cursor:
         decoded = decode_cursor(cursor, expected_values=len(keys))
         if decoded is None:
-            # 游标非法/越界/被篡改：明确返回 None，交由调用方决定（不分页/报错）。
-            return None
+            raise SqlPolicyError("分页状态无效，请重新发起查询")
         values, cursor_page_size, cursor_fp = decoded
         if cursor_fp != fingerprint:
-            return None
+            raise SqlPolicyError("分页状态与当前查询不匹配，请重新发起查询")
         sort_values: tuple[Any, ...] = values
         page_size = min(cursor_page_size, page_size)
     else:

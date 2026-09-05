@@ -34,16 +34,18 @@ class SchemaAdminService:
         raw_pagination = getattr(request, "pagination", None)
         pagination = None
         if raw_pagination is not None:
+            data = (raw_pagination.model_dump()
+                    if hasattr(raw_pagination, "model_dump") else raw_pagination)
             pagination = PaginationConfig(
-                enabled=bool(raw_pagination.get("enabled", False)),
-                base_table=raw_pagination.get("base_table"),
+                enabled=bool(data.get("enabled", False)),
+                base_table=data.get("base_table"),
                 sort_columns=tuple(
                     (item["column"], item.get("direction", "desc"))
-                    for item in raw_pagination.get("sort_columns", ())
+                    for item in data.get("sort_columns", ())
                 ),
-                unique_key=raw_pagination.get("unique_key"),
-                page_size=int(raw_pagination.get("page_size", 5)),
-                mode=raw_pagination.get("mode", "root"),
+                unique_key=data.get("unique_key"),
+                page_size=int(data.get("page_size", 5)),
+                mode=data.get("mode", "root"),
             )
         domain = SchemaDomain(domain_id=domain_id, domain_name=name,
                               description=getattr(request, "description", ""),

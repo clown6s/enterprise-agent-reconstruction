@@ -39,11 +39,25 @@ class SchemaAdminService(Protocol):
                 *, context: RequestContext) -> Any: ...
 
 
+class PaginationSortRequest(BaseModel):
+    column: str = Field(min_length=1, max_length=128)
+    direction: str = Field(default="desc", pattern="^(asc|desc)$")
+
+
+class PaginationConfigRequest(BaseModel):
+    enabled: bool = False
+    base_table: str | None = Field(default=None, max_length=128)
+    sort_columns: list[PaginationSortRequest] = Field(default_factory=list, max_length=4)
+    unique_key: str | None = Field(default=None, max_length=128)
+    page_size: int = Field(default=5, ge=1, le=100)
+    mode: str = Field(default="root", pattern="^(root|join)$")
+
+
 class DomainCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=4000)
     keywords: list[str] = Field(default_factory=list, max_length=100)
-    pagination: dict | None = None
+    pagination: PaginationConfigRequest | None = None
 
 
 class TableRequest(BaseModel):

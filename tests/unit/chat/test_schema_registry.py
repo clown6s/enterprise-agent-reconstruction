@@ -167,6 +167,7 @@ def test_register_table_stores_empty_joins_json():
 
 def test_register_columns_upserts_all_columns():
     sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_allowed_tables"] = {"1": 1}
     store = _store(sink)
     cols = [SchemaColumn("amount", "decimal", business_name="金额"),
             SchemaColumn("created_at", "datetime", business_name="创建时间")]
@@ -178,6 +179,8 @@ def test_register_columns_upserts_all_columns():
 
 def test_register_joins_writes_json_to_allowed_joins():
     sink = _make_sink()
+    sink.plan["SELECT 1 FROM sql_allowed_tables"] = {"1": 1}
+    sink.rowcount = 1
     store = _store(sink)
     store.register_joins("dom", "orders",
                          [SchemaJoin("customers", {"customer_id": "id"}, "LEFT")],
@@ -200,9 +203,9 @@ def test_publish_requires_at_least_one_table():
 
 def test_publish_writes_version_and_change_log():
     sink = _make_sink()
-    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = {
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds, pagination_config FROM sql_data_domains"] = {
         "domain_name": "orders", "description": "订单", "default_time_column": "created_at",
-        "max_rows": 1000, "max_execution_seconds": 10}
+        "max_rows": 1000, "max_execution_seconds": 10, "pagination_config": None}
     sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
         {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1,
          "allowed_joins": json.dumps([{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])},

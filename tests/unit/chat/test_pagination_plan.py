@@ -29,7 +29,10 @@ def test_cursor_extra_or_short_values_rejected():
     assert apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=tok, fingerprint=fp) is not None
     # 编码多值但期望两值 → 拒绝
     bad = encode_cursor(("a", "b", "c"), page_size=5, fingerprint=fp)
-    assert apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=bad, fingerprint=fp) is None
+    import pytest
+    from app.chat.domain.exceptions import SqlPolicyError
+    with pytest.raises(SqlPolicyError):
+        apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=bad, fingerprint=fp)
 
 
 def test_cursor_page_size_zero_rejected():

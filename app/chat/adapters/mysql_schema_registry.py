@@ -153,6 +153,13 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, _ = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
+                c.execute(
+                    "SELECT 1 FROM sql_allowed_tables WHERE tenant_id=%s "
+                    "AND domain_id=%s AND table_name=%s LIMIT 1",
+                    (tenant, domain_id, table_name),
+                )
+                if not c.fetchone():
+                    raise ValidationError("请先登记数据表: " + table_name)
                 for x in columns:
                     c.execute("INSERT INTO sql_allowed_columns (tenant_id,domain_id,table_name,column_name,business_name,data_type,selectable,filterable,sortable,aggregatable,`sensitive`,masking_rule,description) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE business_name=VALUES(business_name),data_type=VALUES(data_type),selectable=VALUES(selectable),filterable=VALUES(filterable),sortable=VALUES(sortable),aggregatable=VALUES(aggregatable),`sensitive`=VALUES(`sensitive`),masking_rule=VALUES(masking_rule),description=VALUES(description)", (tenant,domain_id,table_name,x.column_name,x.business_name,x.data_type,x.selectable,x.filterable,x.sortable,x.aggregatable,x.sensitive,x.masking_rule,x.description))
             conn.commit()
@@ -164,7 +171,17 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, _ = self._admin(context)
         payload = [{"table": j.table, "columns": j.columns, "join_type": j.join_type.upper()} for j in joins]
         def op(conn):
-            with conn.cursor() as c: c.execute("UPDATE sql_allowed_tables SET allowed_joins=%s WHERE tenant_id=%s AND domain_id=%s AND table_name=%s", (json.dumps(payload),tenant,domain_id,table_name))
+            with conn.cursor() as c:
+                c.execute("SELECT 1 FROM sql_allowed_tables WHERE tenant_id=%s AND domain_id=%s AND table_name=%s LIMIT 1", (tenant, domain_id, table_name))
+                if not c.fetchone():
+                    raise ValidationError("请先登记数据表: " + table_name)
+                for join in joins:
+                    c.execute("SELECT 1 FROM sql_allowed_tables WHERE tenant_id=%s AND domain_id=%s AND table_name=%s LIMIT 1", (tenant, domain_id, join.table))
+                    if not c.fetchone():
+                        raise ValidationError("JOIN目标表未登记: " + join.table)
+                c.execute("UPDATE sql_allowed_tables SET allowed_joins=%s WHERE tenant_id=%s AND domain_id=%s AND table_name=%s", (json.dumps(payload),tenant,domain_id,table_name))
+                if c.rowcount != 1:
+                    raise ValidationError("JOIN源表未登记: " + table_name)
             conn.commit()
         return self._pool.run(op)
 
@@ -173,7 +190,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, user = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
-                c.execute("SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
+                c.execute("SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds, pagination_config FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
                 domain = c.fetchone()
                 if not domain:
                     raise ValidationError("数据域不存在")
@@ -181,6 +198,8 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
                 tables = c.fetchall()
                 if not tables:
                     raise ValidationError("数据域至少需要一张表")
+                c.execute("SELECT keyword, weight FROM sql_domain_keywords WHERE tenant_id=%s AND domain_id=%s ORDER BY keyword", (tenant, domain_id))
+                domain["keywords"] = c.fetchall()
                 snapshot = {"domain": dict(domain), "tables": []}
                 registered: dict[str, dict] = {}
                 for table in tables:
