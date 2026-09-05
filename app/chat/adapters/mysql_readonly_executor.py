@@ -19,14 +19,25 @@ class MysqlReadonlyExecutor(ReadonlySqlExecutor):
                             autocommit=False)
 
     def query(self, sql: str, *, timeout_s: float = 10.0,
-              max_rows: int = 1000, row_policies=()) -> SqlResult:
-        """执行单条只读查询，并在数据库会话中施加时间限制。"""
+              max_rows: int = 1000, row_policies=(),
+              cursor_markers=(), cursor_params=()) -> SqlResult:
+        """执行单条只读查询，并在数据库会话中施加时间限制。
+
+        ``cursor_markers`` / ``cursor_params`` 用于 keyset 分页：分页改写时把游标值
+        用占位标识符写入 SQL，行策略重写后再替换回 ``%s`` 并绑定参数，避免在
+        行策略解析阶段引入无法解析的 ``%s``。
+        """
         assert_readonly(sql)
         if timeout_s <= 0:
             raise ValueError("查询超时必须为正数")
         if max_rows < 1:
             raise ValueError("最大返回行数必须为正数")
         sql, params = self._apply_row_policies(sql, row_policies)
+        # 行策略重写后，把分页占位标识符替换为 %s 并追加游标参数。
+        if cursor_markers:
+            for marker in cursor_markers:
+                sql = sql.replace(marker, "%s")
+            params = tuple(params) + tuple(cursor_params)
         timeout_ms = max(1, int(timeout_s * 1000))
         config = dict(self._config, read_timeout=timeout_s,
                       write_timeout=timeout_s)

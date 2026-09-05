@@ -36,7 +36,8 @@ class FakeRetriever:
 
 
 class FakeSql:
-    def query(self, sql, *, timeout_s=10.0, max_rows=1000, row_policies=()):
+    def query(self, sql, *, timeout_s=10.0, max_rows=1000, row_policies=(),
+              cursor_markers=(), cursor_params=()):
         return SqlResult(("amount",), ((100,),), "q-1", 1)
 
 

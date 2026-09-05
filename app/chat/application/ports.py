@@ -82,7 +82,8 @@ class SchemaCatalog(Protocol):
 class ReadonlySqlExecutor(Protocol):
     def query(self, sql: str, *, timeout_s: float = 10.0,
               max_rows: int = 1000,
-              row_policies: dict[str, tuple] | tuple = ()) -> SqlResult: ...
+              row_policies: dict[str, tuple] | tuple = (),
+              cursor_markers=(), cursor_params=()) -> SqlResult: ...
 
 
 class RateLimiter(Protocol):

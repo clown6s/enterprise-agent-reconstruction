@@ -17,6 +17,7 @@ from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
 from ...security.context_boundary import SYSTEM_POLICY, find_injection
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
+from .pagination import apply_pagination, encode_cursor, query_fingerprint
 from .row_policy import BoundPolicy
 from .row_rewrite import rewrite_with_row_policies
 from .sql_guard import validate_sql
@@ -53,7 +54,9 @@ class Nl2SqlService:
 
     def answer(self, query: str, conversation_id: str,
                context: RequestContext | None = None,
-               state=None) -> ChatResult:
+               state=None, page_size: int | None = None,
+               cursor: str | None = None,
+               pagination_state: dict | None = None) -> ChatResult:
         context = context or RequestContext()
         # 先做提示注入检测：命中即拒绝，避免不可信的用户内容进入生成链路，
         # 也防止其引导模型改写 SQL 绕过守卫（sql_guard 无法看见该改写）。
@@ -119,27 +122,55 @@ class Nl2SqlService:
             "返回格式：```sql\nSELECT ...\n```\n"
             f"问题：{query}"
         )
-        messages = [ChatMessage("system", SYSTEM_POLICY), ChatMessage("user", prompt)]
-        try:
-            with self._span("nl2sql.llm_generate"):
-                raw = self.llm.chat(messages)
-        except Exception as exc:
-            raise LlmError(f"LLM 生成 SQL 失败: {type(exc).__name__}") from exc
-        sql = self._extract_sql(raw)
-        if not sql:
-            raise SqlGenerationError("LLM 未返回合法 SQL")
-        with self._span("nl2sql.validate_sql"):
-            sql = validate_sql(sql, allowed_tables=allowed,
-                               allowed_columns=allowed_columns,
-                               blocked_columns=blocked_columns)
+        if pagination_state and pagination_state.get("base_sql"):
+            # 下一页复用已校验的基础 SQL，不重新调用模型。
+            base_sql = validate_sql(
+                pagination_state["base_sql"], allowed_tables=allowed,
+                allowed_columns=allowed_columns, blocked_columns=blocked_columns,
+            )
+            cursor = pagination_state.get("cursor")
+            page_size = pagination_state.get("page_size")
+            sql = base_sql
+        else:
+            messages = [ChatMessage("system", SYSTEM_POLICY), ChatMessage("user", prompt)]
+            try:
+                with self._span("nl2sql.llm_generate"):
+                    raw = self.llm.chat(messages)
+            except Exception as exc:
+                raise LlmError(f"LLM 生成 SQL 失败: {type(exc).__name__}") from exc
+            sql = self._extract_sql(raw)
+            if not sql:
+                raise SqlGenerationError("LLM 未返回合法 SQL")
+            with self._span("nl2sql.validate_sql"):
+                sql = validate_sql(sql, allowed_tables=allowed,
+                                   allowed_columns=allowed_columns,
+                                   blocked_columns=blocked_columns)
+            base_sql = sql
+        fingerprint = query_fingerprint(tenant_id=context.tenant_id,
+                                        domain=domain, base_sql=base_sql)
+        pagination = apply_pagination(
+            sql, page_size=page_size, cursor=cursor, fingerprint=fingerprint,
+        )
+        cursor_markers: tuple[str, ...] = ()
+        cursor_params: tuple = ()
+        effective_page_size: int | None = None
+        if pagination is not None:
+            sql, cursor_markers, cursor_params, effective_page_size = pagination
+            # 分页激活：显示上限按页大小钳制。SQL 已是 LIMIT 页大小+1，
+            # 执行器 fetch 页大小+1 行并按 >页大小 判断"是否还有下一页"。
+            # 注意不可再加 1，否则下页探测会被 min 抵消（见 _next_cursor）。
+            max_rows = min(max_rows, effective_page_size)
         row_policies = self._row_policies_for(sql, domain, context)
         result = None
         retried = False
         try:
             with self._span("nl2sql.execute_sql"):
-                result = self.executor.query(sql, timeout_s=timeout_s,
-                                             max_rows=max_rows,
-                                             row_policies=row_policies)
+                result = self.executor.query(
+                    sql, timeout_s=timeout_s, max_rows=max_rows,
+                    row_policies=row_policies,
+                    cursor_markers=cursor_markers,
+                    cursor_params=cursor_params,
+                )
         except Exception as exc:
             # 允许基于底层错误重写一次，仍失败才抛出并保留脱敏错误信息。
             retry = self._retry_on_error(query, domain, sql, exc, allowed,
@@ -150,15 +181,19 @@ class Nl2SqlService:
             rewritten, retry_policies = retry
             try:
                 with self._span("nl2sql.execute_sql_retry"):
-                    result = self.executor.query(rewritten, timeout_s=timeout_s,
-                                                 max_rows=max_rows,
-                                                 row_policies=retry_policies)
+                    result = self.executor.query(
+                        rewritten, timeout_s=timeout_s, max_rows=max_rows,
+                        row_policies=retry_policies,
+                        cursor_markers=cursor_markers,
+                        cursor_params=cursor_params,
+                    )
                 retried = True
             except Exception as retry_exc:
                 # 重试也失败：同样转成脱敏业务异常，避免底层数据库
                 # 异常冒泡成 500 Internal Server Error。
                 raise SqlPolicyError(self._safe_error(retry_exc)) from retry_exc
             sql = rewritten
+        next_cursor = self._next_cursor(result, effective_page_size, fingerprint)
         explanation = self._explain(query, domain, result)
         return ChatResult(
             answer=explanation, status=ChatStatus.ANSWERED, mode=Intent.NL2SQL,
@@ -166,10 +201,36 @@ class Nl2SqlService:
             sql={"query": sql, "query_id": result.query_id,
                  "domain": domain, "columns": list(result.columns),
                  "row_count": result.row_count, "truncated": result.truncated,
+                 # 分页信息：本页请求的游标、生效页大小与下一页游标。
+                 "cursor": cursor, "page_size": effective_page_size,
+                 "next_cursor": next_cursor,
+                 # 服务端私有：下一页复用基础 SQL，不返回给前端（由编排层剥离）。
+                 "_pagination_base_sql": base_sql,
                  # 如实携带执行状态，供审计记录真实链路（重试仍成功）。
                  "generation_status": "executed", "guard_status": "allowed",
                  "execution_status": "success", "execution_retried": retried},
             trace_id=context.trace_id,
+        )
+
+    @staticmethod
+    def _next_cursor(result, effective_page_size: int | None,
+                     fingerprint: str) -> str | None:
+        """若本页已满（还有下一页），按本页最后一行生成下一页游标。
+
+        keyset 排序列为 created_at DESC, order_id DESC（见 pagination.PAGE_SORT_COLUMNS），
+        游标取最后一行的这两个值；未分页、无下页或缺少排序列时返回 None。
+        """
+        if not effective_page_size or not result.truncated or not result.rows:
+            return None
+        try:
+            idx_created = result.columns.index("created_at")
+            idx_order = result.columns.index("order_id")
+        except ValueError:
+            return None
+        last = result.rows[-1]
+        return encode_cursor(
+            (last[idx_created], last[idx_order]),
+            page_size=effective_page_size, fingerprint=fingerprint,
         )
 
     def _row_policies_for(self, sql: str, domain: str, context,

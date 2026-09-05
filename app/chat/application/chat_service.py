@@ -16,6 +16,10 @@ logger = structlog.get_logger(__name__)
 
 
 class ChatService:
+    _PAGE_SIZE = 20
+    _NEXT_PAGE_WORDS = frozenset({"下一页", "下页", "继续", "再来一页"})
+    _PREVIOUS_PAGE_WORDS = frozenset({"上一页", "上页"})
+
     def __init__(self, router: IntentRouter, conversation: ConversationStore,
                  rag: RagAnswerer, sop: SopService, nl2sql: Nl2SqlService,
                  audit: AuditLogger | None = None,
@@ -58,6 +62,41 @@ class ChatService:
         if self.session_state is not None:
             state = self.session_state.get(conversation_id, context=context)
 
+        direction = self._pagination_direction(question)
+        if direction is not None:
+            # 翻页指令彻底前置：只查服务端分页状态，绝不进入数据域解析/意图路由。
+            pagination = self._pagination_from_state(state, question, context)
+            if pagination is None:
+                return ChatResult(
+                    answer="当前没有可继续的分页查询，请先发起一次业务查询。",
+                    status=ChatStatus.CLARIFICATION, mode=Intent.NL2SQL,
+                    conversation_id=conversation_id, warnings=("pagination_not_started",),
+                    trace_id=context.trace_id,
+                )
+            result = self.nl2sql.answer(
+                "", conversation_id, context=context,
+                page_size=pagination.get("page_size"),
+                cursor=pagination.get("cursor"),
+                pagination_state=pagination,
+            )
+            result = ChatResult(
+                answer=result.answer, status=result.status, mode=result.mode,
+                conversation_id=result.conversation_id,
+                citations=result.citations, sql=result.sql, sop=result.sop,
+                warnings=result.warnings, trace_id=context.trace_id,
+                citation_audit=result.citation_audit,
+            )
+            self._update_session_state(
+                conversation_id, Intent.NL2SQL, result, context,
+                resolved_question="下一页", pagination_direction=direction,
+            )
+            if result.sql is not None:
+                result.sql.pop("_pagination_base_sql", None)
+                result.sql.pop("cursor", None)
+                result.sql.pop("page_size", None)
+                result.sql.pop("next_cursor", None)
+            return result
+
         resolved = question
         relation = None
         understanding = None
@@ -93,8 +132,11 @@ class ChatService:
                 continue_state=(relation == ConversationRelation.FOLLOW_UP),
             )
         elif decision.intent == Intent.NL2SQL:
-            result = self.nl2sql.answer(resolved, conversation_id, context=context,
-                                        state=(state if relation == ConversationRelation.FOLLOW_UP else None))
+            result = self.nl2sql.answer(
+                resolved, conversation_id, context=context,
+                state=(state if relation == ConversationRelation.FOLLOW_UP else None),
+                page_size=self._PAGE_SIZE,
+            )
         elif decision.intent == Intent.MIXED and understanding is not None:
             result = self._handle_mixed(
                 understanding.subtasks, conversation_id, context, history,
@@ -108,7 +150,15 @@ class ChatService:
             relation=relation.value if relation else None,
             topic=understanding.topic if understanding else None,
             resolved_question=resolved,
+            pagination_direction=self._pagination_direction(question),
         )
+        # 基础 SQL 只保存在服务端会话状态，不暴露给前端。
+        if result.sql is not None:
+            result.sql.pop("_pagination_base_sql", None)
+            # 分页游标只保存在服务端，不暴露给前端。
+            result.sql.pop("cursor", None)
+            result.sql.pop("page_size", None)
+            result.sql.pop("next_cursor", None)
 
         if not result.trace_id:
             result = ChatResult(
@@ -205,8 +255,83 @@ class ChatService:
             warnings=tuple(dict.fromkeys(warnings)), trace_id=context.trace_id,
         )
 
+    def _pagination_payload(self, sql, context, previous=None, direction=None):
+        """生成服务端分页状态，保存所有已访问页的起点。"""
+        base = sql.get("_pagination_base_sql") if sql else None
+        if not base or not context.tenant_id:
+            return None
+        old = (previous.extra.get("nl2sql_pagination")
+               if previous and previous.extra else None)
+        old = old if isinstance(old, dict) else {}
+        history = list(old.get("history") or [None])
+        current = int(old.get("current_page", 0))
+        if direction == "next":
+            next_cursor = sql.get("next_cursor")
+            if current + 1 < len(history):
+                current += 1
+            elif next_cursor:
+                history.append(next_cursor)
+                current += 1
+        elif direction == "previous" and current > 0:
+            current -= 1
+        return {
+            "tenant_id": context.tenant_id,
+            "user_id": context.user_id,
+            "domain": sql.get("domain") or old.get("domain"),
+            "base_sql": base,
+            "cursor": history[current],
+            "next_cursor": sql.get("next_cursor"),
+            "page_size": sql.get("page_size") or old.get("page_size") or self._PAGE_SIZE,
+            "has_more": bool(sql.get("truncated")),
+            "history": history,
+            "current_page": current,
+        }
+
+    def _pagination_from_state(self, state, question, context):
+        """按固定方向从服务端分页历史取得目标页起点。"""
+        direction = self._pagination_direction(question)
+        if not direction or state is None or not state.extra:
+            return None
+        stored = state.extra.get("nl2sql_pagination")
+        if not isinstance(stored, dict) or not stored.get("base_sql"):
+            return None
+        if stored.get("tenant_id") != context.tenant_id or stored.get("user_id") != context.user_id:
+            return None
+        history = list(stored.get("history") or [None])
+        current = int(stored.get("current_page", 0))
+        if direction == "next":
+            if current + 1 < len(history):
+                target = current + 1
+            elif stored.get("has_more") and stored.get("next_cursor"):
+                target = current + 1
+                history.append(stored["next_cursor"])
+            else:
+                return None
+        elif current > 0:
+            target = current - 1
+        else:
+            return None
+        result = dict(stored)
+        result.update(cursor=history[target], history=history, current_page=target)
+        return result
+
+    @classmethod
+    def _pagination_direction(cls, question: str) -> str | None:
+        """用固定规则识别翻页方向，不做语义判断。"""
+        q = (question or "").strip()
+        if q in cls._NEXT_PAGE_WORDS:
+            return "next"
+        if q in cls._PREVIOUS_PAGE_WORDS:
+            return "previous"
+        return None
+
+    @classmethod
+    def _is_pagination_request(cls, question: str) -> bool:
+        return cls._pagination_direction(question) is not None
+
     def _update_session_state(self, conversation_id, intent, result, context,
-                              relation=None, topic=None, resolved_question=None):
+                              relation=None, topic=None, resolved_question=None,
+                              pagination_direction=None):
         if self.session_state is None:
             return
         previous: SessionState | None = self.session_state.get(
@@ -228,6 +353,8 @@ class ChatService:
                 "topic": topic or (previous.extra.get("topic") if previous and relation == "follow_up" else None),
                 "last_question": resolved_question,
                 "relation": relation,
+                "nl2sql_pagination": self._pagination_payload(
+                    sql, context, previous=previous, direction=pagination_direction),
             },
             version_no=(previous.version_no if previous else 1),
         )
