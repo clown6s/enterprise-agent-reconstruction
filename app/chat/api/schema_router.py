@@ -43,6 +43,7 @@ class DomainCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=4000)
     keywords: list[str] = Field(default_factory=list, max_length=100)
+    pagination: dict | None = None
 
 
 class TableRequest(BaseModel):

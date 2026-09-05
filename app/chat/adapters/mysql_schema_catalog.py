@@ -283,6 +283,31 @@ class MysqlSchemaCatalog(SchemaCatalog):
         return self._pool.run(operation)
 
     @mysql_errors
+    def pagination_config(self, domain: str, *, context):
+        tenant_id, _ = identity(context)
+        def operation(conn):
+            with conn.cursor() as cur:
+                cur.execute("SELECT pagination_config FROM sql_data_domains WHERE tenant_id=%s AND domain_name=%s AND status='active' LIMIT 1", (tenant_id, domain))
+                row = cur.fetchone()
+            if not row or not row.get("pagination_config"):
+                return None
+            raw = row["pagination_config"]
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8")
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                from ..application.schema_registry import PaginationConfig
+                return PaginationConfig(
+                    enabled=bool(data.get("enabled", False)),
+                    base_table=data.get("base_table"),
+                    sort_columns=tuple((item["column"], item.get("direction", "desc")) for item in data.get("sort_columns", ())),
+                    unique_key=data.get("unique_key"), page_size=int(data.get("page_size", 5)),
+                    mode=data.get("mode", "root"),
+                )
+            except (TypeError, ValueError, KeyError):
+                return None
+        return self._pool.run(operation)
+
     def resolve_domain(self, query: str, *, context) -> str | None:
         tenant_id, _ = identity(context)
         def operation(conn):

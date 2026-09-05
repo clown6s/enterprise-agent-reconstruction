@@ -60,12 +60,18 @@ SHOW CREATE TABLE books;
 SHOW CREATE TABLE book_authors;
 ```
 
-预期字段：
+```http
+POST /admin/schema/domains/<DOMAIN_ID>/introspect
+Authorization: Bearer <SCHEMA_ADMIN_TOKEN>
+Content-Type: application/json
 
-```text
-books: tenant_id, book_id, title, price, published_year, author_id
-book_authors: tenant_id, author_id, author_name, country
+{
+  "tables": ["books", "book_authors"],
+  "include_columns": true
+}
 ```
+
+以返回的字段为准，列登记不要写不存在的字段。
 
 ## 2. 创建数据域
 
@@ -77,7 +83,18 @@ Content-Type: application/json
 {
   "name": "library",
   "description": "书籍和作者",
-  "keywords": ["书籍", "作者", "图书"]
+  "keywords": ["书籍", "作者", "图书"],
+  "pagination": {
+    "enabled": true,
+    "base_table": "books",
+    "sort_columns": [
+      {"column": "created_at", "direction": "desc"},
+      {"column": "book_id", "direction": "desc"}
+    ],
+    "unique_key": "book_id",
+    "page_size": 5,
+    "mode": "root"
+  }
 }
 ```
 
@@ -116,7 +133,8 @@ Content-Type: application/json
     {"column_name":"title","data_type":"varchar","selectable":true,"filterable":true,"sortable":true,"aggregatable":false,"sensitive":false},
     {"column_name":"price","data_type":"decimal","selectable":true,"filterable":true,"sortable":true,"aggregatable":true,"sensitive":false},
     {"column_name":"published_year","data_type":"int","selectable":true,"filterable":true,"sortable":true,"aggregatable":false,"sensitive":false},
-    {"column_name":"author_id","data_type":"varchar","selectable":false,"filterable":true,"sortable":false,"aggregatable":false,"sensitive":false}
+    {"column_name":"author_id","data_type":"varchar","selectable":false,"filterable":true,"sortable":false,"aggregatable":false,"sensitive":false},
+    {"column_name":"created_at","data_type":"datetime","selectable":true,"filterable":true,"sortable":true,"aggregatable":false,"sensitive":false}
   ]
 }
 ```
@@ -172,7 +190,7 @@ Authorization: Bearer <ACCESS_TOKEN>
 Content-Type: application/json
 
 {
-  "question": "列出书名、价格、作者姓名和国家",
+  "question": "列出书籍编号、书名、价格、作者姓名、国家和创建时间",
   "conversation_id": "library-001"
 }
 ```

@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ChatService:
-    _PAGE_SIZE = 20
+    _PAGE_SIZE = 5
     _NEXT_PAGE_WORDS = frozenset({"下一页", "下页", "继续", "再来一页"})
     _PREVIOUS_PAGE_WORDS = frozenset({"上一页", "上页"})
 

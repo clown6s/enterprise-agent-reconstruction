@@ -240,7 +240,7 @@ SHOW CREATE TABLE orders;
 ```
 
 ```http
-POST /admin/schema/domains/orders/introspect
+POST /admin/schema/domains/<DOMAIN_ID>/introspect
 Authorization: Bearer <SCHEMA_ADMIN_TOKEN>
 Content-Type: application/json
 
@@ -262,7 +262,18 @@ Content-Type: application/json
 {
   "name": "orders",
   "description": "销售订单",
-  "keywords": ["订单", "orders"]
+  "keywords": ["订单", "orders"],
+  "pagination": {
+    "enabled": true,
+    "base_table": "orders",
+    "sort_columns": [
+      {"column": "created_at", "direction": "desc"},
+      {"column": "order_id", "direction": "desc"}
+    ],
+    "unique_key": "order_id",
+    "page_size": 5,
+    "mode": "root"
+  }
 }
 ```
 

@@ -81,13 +81,13 @@ def test_next_page_reuses_sql_without_llm():
     assert len(executor.sqls) == 2
     # 下一页复用同一基础 SQL，并追加服务端游标条件。
     assert "FROM orders" in executor.sqls[1]
-    assert "WHERE created_at < __NL2SQL_CURSOR_0__" in executor.sqls[1]
-    assert "ORDER BY created_at DESC, order_id DESC LIMIT 21" in executor.sqls[1]
+    assert "WHERE orders.created_at < __NL2SQL_CURSOR_0__" in executor.sqls[1]
+    assert "ORDER BY orders.created_at DESC, orders.order_id DESC LIMIT 6" in executor.sqls[1]
 
     # 上一页回到第 1 页：不再追加游标条件，不调用 LLM。
     before = llm.calls
     prev = chat.ask("上一页", conversation_id="c1", context=ctx)
     assert prev.status.value == "answered"
     assert llm.calls == before
-    assert "WHERE created_at <" not in executor.sqls[-1]
-    assert "ORDER BY created_at DESC, order_id DESC LIMIT 21" in executor.sqls[-1]
+    assert "WHERE orders.created_at <" not in executor.sqls[-1]
+    assert "ORDER BY orders.created_at DESC, orders.order_id DESC LIMIT 6" in executor.sqls[-1]

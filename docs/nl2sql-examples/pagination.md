@@ -17,18 +17,18 @@ Content-Type: application/json
 }
 ```
 
-后端固定每页返回 20 条，并在服务端保存分页位置。响应只返回：
+后端固定每页返回 5 条，并在服务端保存分页位置。响应只返回：
 
 ```json
 {
   "sql": {
-    "row_count": 20,
+    "row_count": 5,
     "truncated": true
   }
 }
 ```
 
-`truncated=true` 表示还有下一页。
+`truncated=true` 表示还有下一页。回答末尾也会提示“还有下一页”或“已经是最后一页”。
 
 ## 下一页
 
@@ -70,4 +70,4 @@ Content-Type: application/json
 created_at DESC, order_id DESC
 ```
 
-目标表必须登记这两列。聚合、UNION 或不支持固定排序的查询不启用分页。
+目标表必须登记这些排序列。JOIN 查询还必须使用已配置的分页主表排序列，并将排序列列入查询结果；否则后端无法生成下一页位置，不启用分页。聚合、UNION 或不支持固定排序的查询不启用分页。

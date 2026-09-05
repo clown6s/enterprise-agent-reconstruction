@@ -72,6 +72,17 @@ class RowPolicyRegistration:
 
 
 @dataclass(frozen=True)
+class PaginationConfig:
+    """数据域分页配置。"""
+    enabled: bool = False
+    base_table: str | None = None
+    sort_columns: tuple[tuple[str, str], ...] = ()
+    unique_key: str | None = None
+    page_size: int = 5
+    mode: str = "root"
+
+
+@dataclass(frozen=True)
 class SchemaDomain:
     domain_id: str
     domain_name: str
@@ -81,6 +92,7 @@ class SchemaDomain:
     max_rows: int = 1000
     max_execution_seconds: int = 10
     keywords: tuple[str, ...] = ()
+    pagination: PaginationConfig | None = None
 
 
 class SchemaRegistry:
@@ -182,7 +194,26 @@ class SchemaRegistry:
         validate_identifier(d.domain_id, "数据域ID")
         if not d.domain_name or len(d.domain_name) > 128: raise ValidationError("数据域名称无效")
         if d.max_rows <= 0 or d.max_execution_seconds <= 0: raise ValidationError("数据域限制无效")
+        if d.pagination is not None:
+            cls._validate_pagination(d.pagination)
         for t in d.tables: cls._validate_table(t)
+
+    @classmethod
+    def _validate_pagination(cls, p):
+        if not p.enabled:
+            return
+        if not p.base_table or not p.sort_columns or not p.unique_key:
+            raise ValidationError("分页配置需提供 base_table、sort_columns、unique_key")
+        validate_identifier(p.base_table, "分页主表")
+        validate_identifier(p.unique_key, "唯一键")
+        if p.mode not in ("root", "join"):
+            raise ValidationError("分页模式只允许 root/join")
+        if not (1 <= p.page_size <= 100):
+            raise ValidationError("分页页大小需在 1..100")
+        for col, direction in p.sort_columns:
+            validate_identifier(col, "排序列")
+            if direction not in ("asc", "desc"):
+                raise ValidationError("排序列方向只允许 asc/desc")
 
     @classmethod
     def _validate_table(cls, t):

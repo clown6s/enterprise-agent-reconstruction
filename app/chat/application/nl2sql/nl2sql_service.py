@@ -17,7 +17,8 @@ from ...domain.models import ChatMessage, ChatResult, ChatStatus, Intent
 from ...security.context_boundary import SYSTEM_POLICY, find_injection
 from ..context import RequestContext
 from ..ports import LLM, ReadonlySqlExecutor, SchemaCatalog
-from .pagination import apply_pagination, encode_cursor, query_fingerprint
+from .pagination import (PaginationPlan, SortKey, apply_pagination, encode_cursor,
+                         query_fingerprint)
 from .row_policy import BoundPolicy
 from .row_rewrite import rewrite_with_row_policies
 from .sql_guard import validate_sql
@@ -148,8 +149,10 @@ class Nl2SqlService:
             base_sql = sql
         fingerprint = query_fingerprint(tenant_id=context.tenant_id,
                                         domain=domain, base_sql=base_sql)
+        pagination_plan = self._pagination_plan(domain, sql, allowed_columns, context=context)
         pagination = apply_pagination(
-            sql, page_size=page_size, cursor=cursor, fingerprint=fingerprint,
+            sql, plan=pagination_plan, page_size=page_size, cursor=cursor,
+            fingerprint=fingerprint,
         )
         cursor_markers: tuple[str, ...] = ()
         cursor_params: tuple = ()
@@ -193,8 +196,14 @@ class Nl2SqlService:
                 # 异常冒泡成 500 Internal Server Error。
                 raise SqlPolicyError(self._safe_error(retry_exc)) from retry_exc
             sql = rewritten
-        next_cursor = self._next_cursor(result, effective_page_size, fingerprint)
-        explanation = self._explain(query, domain, result)
+        next_cursor = self._next_cursor(
+            result, effective_page_size, fingerprint, pagination_plan)
+
+        if effective_page_size:
+            explanation = self._format_page(result)
+            explanation += "\n\n还有下一页。" if result.truncated else "\n\n已经是最后一页。"
+        else:
+            explanation = self._explain(query, domain, result)
         return ChatResult(
             answer=explanation, status=ChatStatus.ANSWERED, mode=Intent.NL2SQL,
             conversation_id=conversation_id,
@@ -212,26 +221,60 @@ class Nl2SqlService:
             trace_id=context.trace_id,
         )
 
+    def _pagination_plan(self, domain: str, sql: str, allowed_columns: dict,
+                         context=None) -> PaginationPlan | None:
+        """按数据域配置构造分页计划；未配置时仅对兼容订单单表启用默认计划。"""
+        configured = None
+        try:
+            configured = self.catalog.pagination_config(domain, context=context)
+        except Exception:
+            configured = None
+        if configured is not None and not getattr(configured, "enabled", False):
+            return None
+        tables = physical_tables(sql)
+        if configured is not None and getattr(configured, "enabled", False):
+            base = configured.base_table.lower()
+            if base not in tables:
+                return None
+            keys = tuple(SortKey(column, direction, base)
+                         for column, direction in configured.sort_columns)
+            if not keys:
+                return None
+            base_columns = {str(c).lower() for c in allowed_columns.get(base, ())}
+            if any(key.column.lower() not in base_columns for key in keys):
+                return None
+            return PaginationPlan(keys, configured.page_size)
+        if len(tables) != 1:
+            return None
+        table = next(iter(tables))
+        columns = {str(c).lower() for c in allowed_columns.get(table, ())}
+        if not {"created_at", "order_id"}.issubset(columns):
+            return None
+        return PaginationPlan((
+            SortKey("created_at", "desc", table),
+            SortKey("order_id", "desc", table),
+        ), page_size=5)
+
     @staticmethod
     def _next_cursor(result, effective_page_size: int | None,
-                     fingerprint: str) -> str | None:
-        """若本页已满（还有下一页），按本页最后一行生成下一页游标。
+                     fingerprint: str, plan: PaginationPlan | None) -> str | None:
+        """若本页已满（还有下一页），按分页计划最后一行生成下一页游标。
 
-        keyset 排序列为 created_at DESC, order_id DESC（见 pagination.PAGE_SORT_COLUMNS），
-        游标取最后一行的这两个值；未分页、无下页或缺少排序列时返回 None。
+        游标字段来自分页计划，不依赖固定列名；不满足计划时不生成游标。
         """
-        if not effective_page_size or not result.truncated or not result.rows:
+        if not effective_page_size or not plan or not result.truncated or not result.rows:
             return None
+        indexes = []
+        columns = {str(name).split(".")[-1].lower(): i
+                   for i, name in enumerate(result.columns)}
         try:
-            idx_created = result.columns.index("created_at")
-            idx_order = result.columns.index("order_id")
-        except ValueError:
+            indexes = [columns[key.column.lower()] for key in plan.sort_keys]
+        except KeyError:
             return None
         last = result.rows[-1]
-        return encode_cursor(
-            (last[idx_created], last[idx_order]),
-            page_size=effective_page_size, fingerprint=fingerprint,
-        )
+        values = tuple(last[index] for index in indexes)
+        return encode_cursor(values, page_size=effective_page_size,
+                             fingerprint=fingerprint)
 
     def _row_policies_for(self, sql: str, domain: str, context,
                           ) -> dict[str, tuple[BoundPolicy, ...]]:
@@ -312,6 +355,20 @@ class Nl2SqlService:
         if candidate.lower().startswith("select"):
             return candidate
         return None
+
+    def _format_page(self, result) -> str:
+        """分页时只格式化当前页数据，不调用解释模型。"""
+        if not result.rows:
+            return "本页没有数据。"
+        headers = [str(column) for column in result.columns]
+        lines = [
+            "| " + " | ".join(headers) + " |",
+            "| " + " | ".join(["---"] * len(headers)) + " |",
+        ]
+        for row in result.rows:
+            values = [str(self._jsonable(value)) for value in row]
+            lines.append("| " + " | ".join(values) + " |")
+        return "\n".join(lines)
 
     def _explain(self, query: str, domain: str, result) -> str:
         if result.row_count == 0:

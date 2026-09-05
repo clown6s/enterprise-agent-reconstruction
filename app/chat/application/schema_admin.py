@@ -5,6 +5,7 @@ from uuid import uuid4
 from .context import identity
 from .schema_registry import (
     RowPolicyRegistration, SchemaColumn, SchemaDomain, SchemaJoin, SchemaTable,
+    PaginationConfig,
 )
 
 
@@ -30,9 +31,24 @@ class SchemaAdminService:
         domain_id = re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_").lower()[:64]
         if not domain_id:
             domain_id = "domain_" + uuid4().hex[:16]
+        raw_pagination = getattr(request, "pagination", None)
+        pagination = None
+        if raw_pagination is not None:
+            pagination = PaginationConfig(
+                enabled=bool(raw_pagination.get("enabled", False)),
+                base_table=raw_pagination.get("base_table"),
+                sort_columns=tuple(
+                    (item["column"], item.get("direction", "desc"))
+                    for item in raw_pagination.get("sort_columns", ())
+                ),
+                unique_key=raw_pagination.get("unique_key"),
+                page_size=int(raw_pagination.get("page_size", 5)),
+                mode=raw_pagination.get("mode", "root"),
+            )
         domain = SchemaDomain(domain_id=domain_id, domain_name=name,
                               description=getattr(request, "description", ""),
-                              keywords=tuple(getattr(request, "keywords", ()) or ()))
+                              keywords=tuple(getattr(request, "keywords", ()) or ()),
+                              pagination=pagination)
         self._registry.register_domain(domain, context=context)
         return {"domain_id": domain_id, "domain_name": name, "status": "draft"}
 

@@ -50,6 +50,19 @@ SHOW CREATE TABLE orders;
 SHOW CREATE TABLE order_customers;
 ```
 
+```http
+POST /admin/schema/domains/<DOMAIN_ID>/introspect
+Authorization: Bearer <SCHEMA_ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "tables": ["orders", "order_customers"],
+  "include_columns": true
+}
+```
+
+以返回的字段为准，列登记不要写不存在的字段。
+
 ## 2. 创建数据域
 
 ```http
@@ -60,7 +73,18 @@ Content-Type: application/json
 {
   "name": "customer_orders",
   "description": "订单和客户",
-  "keywords": ["订单客户", "客户订单"]
+  "keywords": ["订单客户", "客户订单"],
+  "pagination": {
+    "enabled": true,
+    "base_table": "orders",
+    "sort_columns": [
+      {"column": "created_at", "direction": "desc"},
+      {"column": "order_id", "direction": "desc"}
+    ],
+    "unique_key": "order_id",
+    "page_size": 5,
+    "mode": "join"
+  }
 }
 ```
 
@@ -163,7 +187,7 @@ Authorization: Bearer <ACCESS_TOKEN>
 Content-Type: application/json
 
 {
-  "question": "查询本月订单及客户名称",
+  "question": "查询本月订单号、创建时间、金额和客户名称",
   "conversation_id": "customer-orders-001"
 }
 ```

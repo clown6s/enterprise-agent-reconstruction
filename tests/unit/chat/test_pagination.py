@@ -39,10 +39,9 @@ def test_apply_pagination_adds_keyset_condition_and_limit():
     sql, markers, params, effective_size = first
     assert "ORDER BY created_at DESC, order_id DESC" in sql
     assert "LIMIT 21" in sql
-    # 首页无 keyset 条件：marker 不会出现在 SQL 中，参数为空。
-    assert markers == ("__NL2SQL_CURSOR_0__", "__NL2SQL_CURSOR_1__", "__NL2SQL_CURSOR_2__")
+    # 首页无 keyset 条件：不消耗 marker，参数为空。
+    assert markers == ()
     assert "__NL2SQL_CURSOR_0__" not in sql
-    assert "__NL2SQL_CURSOR_1__" not in sql
     assert params == ()
     assert effective_size == 20
 
