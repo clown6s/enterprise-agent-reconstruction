@@ -42,7 +42,17 @@ def test_mixed_question_returns_independent_subtasks():
     assert len(result.subtasks) == 2
 
 
-def test_unknown_long_question_defaults_to_new_topic_without_history_merge():
+def test_simultaneous_solution_is_not_mixed():
+    engine = RuleConversationUnderstanding()
+    result = engine.understand(
+        "怎么同时解决同义词检索和关键词遗漏两个问题？",
+        [], None,
+    )
+    assert result.relation == ConversationRelation.NEW_TOPIC
+    assert result.subtasks == ()
+
+
+
     engine = RuleConversationUnderstanding()
     result = engine.understand(
         "请解释上下文压缩和缓存失效之间的工程权衡",

@@ -20,6 +20,10 @@ class ChatService:
     _PAGE_SIZE = 5
     _NEXT_PAGE_WORDS = frozenset({"下一页", "下页", "继续", "再来一页"})
     _PREVIOUS_PAGE_WORDS = frozenset({"上一页", "上页"})
+    _KNOWLEDGE_MARKERS = frozenset({
+        "稀疏检索", "稠密检索", "混合检索", "同义词", "关键词遗漏",
+        "重排序", "跨编码器", "倒数排名融合", "BM25", "RRF",
+    })
 
     def __init__(self, router: IntentRouter, conversation: ConversationStore,
                  rag: RagAnswerer, sop: SopService, nl2sql: Nl2SqlService,
@@ -116,10 +120,14 @@ class ChatService:
                 result.sql.pop("next_cursor", None)
             return result
 
+        knowledge_override = self._is_knowledge_query(question)
         resolved = question
         relation = None
         understanding = None
-        if self.understanding is not None:
+        if knowledge_override:
+            # 明确的知识问题优先于历史状态和模型分类。
+            pass
+        elif self.understanding is not None:
             understanding = self.understanding.understand(question, history, state)
             resolved = understanding.question or question
             relation = understanding.relation
@@ -135,8 +143,10 @@ class ChatService:
             resolved = self.question_resolver.resolve(question, history, state).question or question
 
         # 业务意图只由当前独立问题决定；不会被上一轮 last_intent 覆盖。
-        decision = self.router.route(resolved, [])
-        if relation is not None and relation.value == "mixed":
+        decision = (IntentDecision(Intent.KNOWLEDGE_QA, 1.0, "知识问题")
+                    if knowledge_override else self.router.route(resolved, []))
+        if (relation is not None and relation.value == "mixed"
+                and decision.intent in (Intent.SOP, Intent.NL2SQL)):
             decision = IntentDecision(Intent.MIXED, decision.confidence, "会话理解识别为混合任务")
         if decision.intent == Intent.CLARIFICATION:
             result = ChatResult(
@@ -244,6 +254,7 @@ class ChatService:
                       confirmed):
         parts = []
         citations = []
+        seen_citations = set()
         warnings = []
         sql = None
         sop = None
@@ -259,8 +270,13 @@ class ChatService:
                                     context=context, continue_state=False)
             else:
                 r = self.rag.answer(q, conversation_id, [], context=context)
-            parts.append(r.answer)
-            citations.extend(r.citations)
+            if r.answer not in parts:
+                parts.append(r.answer)
+            for citation in r.citations:
+                key = (citation.document_id, citation.chunk_id)
+                if key not in seen_citations:
+                    seen_citations.add(key)
+                    citations.append(citation)
             warnings.extend(r.warnings)
             if r.sql:
                 sql = r.sql
@@ -318,6 +334,12 @@ class ChatService:
         result = dict(stored)
         result.update(offset=offset, current_page=offset // page_size)
         return result
+
+    @classmethod
+    def _is_knowledge_query(cls, question: str) -> bool:
+        """命中检索/技术主题时强制按知识问答处理，不进入 NL2SQL/SOP。"""
+        q = question or ""
+        return any(marker in q for marker in cls._KNOWLEDGE_MARKERS)
 
     @classmethod
     def _pagination_direction(cls, question: str) -> str | None:

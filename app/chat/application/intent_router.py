@@ -172,6 +172,10 @@ class HybridIntentRouter:
     def route(self, query: str, history: list[ChatMessage] | None = None) -> IntentDecision:
         rule = self.rules.route(query, history)
         # 规则给出明确单一结论时不调用模型，控制成本和延迟。
+        if (rule.intent == Intent.KNOWLEDGE_QA
+                or (("怎么" in query or "如何" in query)
+                    and _KNOWLEDGE_ACTION_RE.search(query))):
+            return IntentDecision(Intent.KNOWLEDGE_QA, 0.9, "技术知识问题")
         if (self.classifier is None or rule.intent not in
                 (Intent.CLARIFICATION, Intent.MIXED) and rule.confidence >= self.rules.min_confidence):
             return rule

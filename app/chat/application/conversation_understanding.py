@@ -104,9 +104,9 @@ class RuleConversationUnderstanding:
 
     @staticmethod
     def _split_mixed(question: str) -> list[dict] | None:
-        if not re.search(r"并且|同时|以及|另外|还要|并告诉", question):
+        if not re.search(r"并且|以及|另外|还要|并告诉", question):
             return None
-        parts = re.split(r"(?:并且|同时|以及|另外|还要|并告诉)", question, maxsplit=1)
+        parts = re.split(r"(?:并且|以及|另外|还要|并告诉)", question, maxsplit=1)
         if len(parts) != 2 or not all(part.strip() for part in parts):
             return None
         return [{"question": part.strip(), "intent": None} for part in parts]
