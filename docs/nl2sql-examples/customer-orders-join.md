@@ -136,18 +136,7 @@ Content-Type: application/json
 {
   "name": "customer_orders",
   "description": "订单和消费者",
-  "keywords": ["订单客户", "客户订单", "消费者"],
-  "pagination": {
-    "enabled": true,
-    "base_table": "orders",
-    "sort_columns": [
-      {"column": "order_date", "direction": "desc"},
-      {"column": "order_id", "direction": "desc"}
-    ],
-    "unique_key": "order_id",
-    "page_size": 5,
-    "mode": "join"
-  }
+  "keywords": ["订单客户", "客户订单", "消费者"]
 }
 ```
 

@@ -11,6 +11,7 @@ from .ports import (AuditLogger, ConversationStore, ConversationUnderstanding,
 from .rag_answerer import RagAnswerer
 from .sop.sop_service import SopService
 from .nl2sql.nl2sql_service import Nl2SqlService
+from .snowflake import next_id
 
 logger = structlog.get_logger(__name__)
 
@@ -49,7 +50,7 @@ class ChatService:
             confirmed: bool = False,
             context: RequestContext | None = None) -> ChatResult:
         context = context or RequestContext()
-        start_event_id = str(uuid.uuid4())
+        start_event_id = next_id()
         self._audit(AuditEvent(
             event_id=start_event_id, trace_id=context.trace_id, stage="request",
             status="started", tenant_id=context.tenant_id, user_id=context.user_id,
@@ -205,7 +206,7 @@ class ChatService:
         if result.mode == Intent.NL2SQL:
             sql_info = result.sql or {}
             self._audit(AuditEvent(
-                event_id=str(uuid.uuid4()), trace_id=context.trace_id,
+                event_id=next_id(), trace_id=context.trace_id,
                 stage="nl2sql", status=result.status.value,
                 tenant_id=context.tenant_id, user_id=context.user_id,
                 conversation_id=conversation_id, mode=result.mode.value,
@@ -224,7 +225,7 @@ class ChatService:
                 },
             ))
         self._audit(AuditEvent(
-            event_id=str(uuid.uuid4()), trace_id=context.trace_id, stage="request",
+            event_id=next_id(), trace_id=context.trace_id, stage="request",
             status=result.status.value, tenant_id=context.tenant_id, user_id=context.user_id,
             conversation_id=conversation_id, mode=result.mode.value,
             payload={"question": question, "answer": result.answer,
@@ -274,39 +275,28 @@ class ChatService:
         )
 
     def _pagination_payload(self, sql, context, previous=None, direction=None):
-        """生成服务端分页状态，保存所有已访问页的起点。"""
+        """保存当前页的分页状态。offset 即本次实际执行的偏移（当前页起点）。"""
         base = sql.get("_pagination_base_sql") if sql else None
         if not base or not context.tenant_id:
             return None
         old = (previous.extra.get("nl2sql_pagination")
                if previous and previous.extra else None)
         old = old if isinstance(old, dict) else {}
-        history = list(old.get("history") or [None])
-        current = int(old.get("current_page", 0))
-        if direction == "next":
-            next_cursor = sql.get("next_cursor")
-            if current + 1 < len(history):
-                current += 1
-            elif next_cursor:
-                history.append(next_cursor)
-                current += 1
-        elif direction == "previous" and current > 0:
-            current -= 1
+        page_size = int(sql.get("page_size") or old.get("page_size") or self._PAGE_SIZE)
+        offset = int(sql.get("_pagination_offset", old.get("offset", 0)))
         return {
             "tenant_id": context.tenant_id,
             "user_id": context.user_id,
             "domain": sql.get("domain") or old.get("domain"),
             "base_sql": base,
-            "cursor": history[current],
-            "next_cursor": sql.get("next_cursor"),
-            "page_size": sql.get("page_size") or old.get("page_size") or self._PAGE_SIZE,
+            "offset": offset,
+            "page_size": page_size,
             "has_more": bool(sql.get("truncated")),
-            "history": history,
-            "current_page": current,
+            "current_page": offset // page_size,
         }
 
     def _pagination_from_state(self, state, question, context):
-        """按固定方向从服务端分页历史取得目标页起点。"""
+        """按固定方向从服务端分页状态取得目标 offset。"""
         direction = self._pagination_direction(question)
         if not direction or state is None or not state.extra:
             return None
@@ -315,22 +305,18 @@ class ChatService:
             return None
         if stored.get("tenant_id") != context.tenant_id or stored.get("user_id") != context.user_id:
             return None
-        history = list(stored.get("history") or [None])
-        current = int(stored.get("current_page", 0))
+        page_size = int(stored.get("page_size") or self._PAGE_SIZE)
+        offset = int(stored.get("offset", 0))
         if direction == "next":
-            if current + 1 < len(history):
-                target = current + 1
-            elif stored.get("has_more") and stored.get("next_cursor"):
-                target = current + 1
-                history.append(stored["next_cursor"])
-            else:
+            if not stored.get("has_more"):
                 return None
-        elif current > 0:
-            target = current - 1
+            offset += page_size
+        elif offset > 0:
+            offset -= page_size
         else:
             return None
         result = dict(stored)
-        result.update(cursor=history[target], history=history, current_page=target)
+        result.update(offset=offset, current_page=offset // page_size)
         return result
 
     @classmethod

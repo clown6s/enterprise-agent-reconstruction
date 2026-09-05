@@ -154,34 +154,3 @@ Content-Type: application/json
 ```
 
 `domain_id`、表名和列名必须使用接口或数据库返回的真实值。`publish` 不会自动授予数据库权限。租户条件由服务端注入，不能在问题中指定 `tenant_id`。
-
-## 分页配置迁移
-
-数据域分页配置保存在 `sql_data_domains.pagination_config`（JSON），首次使用前需给该表增加列：
-
-```sql
-ALTER TABLE sql_data_domains
-    ADD COLUMN pagination_config JSON NULL AFTER max_execution_seconds;
-```
-
-仓库提供脚本 `scripts/migrations/2026_09_05_nl2sql_pagination.sql`。
-
-## 分页配置
-
-每个数据域可选配置，控制分页主表、排序键、唯一键和页大小：
-
-```json
-{
-  "enabled": true,
-  "base_table": "orders",
-  "sort_columns": [
-    {"column": "created_at", "direction": "desc"},
-    {"column": "order_id", "direction": "desc"}
-  ],
-  "unique_key": "order_id",
-  "page_size": 5,
-  "mode": "root"
-}
-```
-
-`created_at`、`order_id`（或配置的排序字段和唯一键）必须登记为 `sortable=true` 且属于 `base_table`，并且数据域包含核心建表字段，否则该域不启用分页。JOIN 查询能安全限定排序列，只要排序键和唯一键都来自 `base_table`。

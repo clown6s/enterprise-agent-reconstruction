@@ -262,18 +262,7 @@ Content-Type: application/json
 {
   "name": "orders",
   "description": "销售订单",
-  "keywords": ["订单", "orders"],
-  "pagination": {
-    "enabled": true,
-    "base_table": "orders",
-    "sort_columns": [
-      {"column": "created_at", "direction": "desc"},
-      {"column": "order_id", "direction": "desc"}
-    ],
-    "unique_key": "order_id",
-    "page_size": 5,
-    "mode": "root"
-  }
+  "keywords": ["订单", "orders"]
 }
 ```
 

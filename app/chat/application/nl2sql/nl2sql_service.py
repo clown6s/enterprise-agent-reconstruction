@@ -149,10 +149,12 @@ class Nl2SqlService:
             base_sql = sql
         fingerprint = query_fingerprint(tenant_id=context.tenant_id,
                                         domain=domain, base_sql=base_sql)
-        pagination_plan = self._pagination_plan(domain, sql, allowed_columns, context=context)
+        pagination_plan = self._pagination_plan(sql, allowed_columns)
         pagination = apply_pagination(
-            sql, plan=pagination_plan, page_size=page_size, cursor=cursor,
-            fingerprint=fingerprint,
+            sql, plan=pagination_plan, page_size=page_size,
+            offset=(pagination_state.get("offset", 0)
+                    if pagination_state else 0),
+            cursor=None, fingerprint=fingerprint,
         )
         cursor_markers: tuple[str, ...] = ()
         cursor_params: tuple = ()
@@ -216,35 +218,17 @@ class Nl2SqlService:
                  "next_cursor": next_cursor,
                  # 服务端私有：下一页复用基础 SQL，不返回给前端（由编排层剥离）。
                  "_pagination_base_sql": base_sql,
+                 "_pagination_offset": (pagination_state.get("offset", 0)
+                                        if pagination_state else 0),
                  # 如实携带执行状态，供审计记录真实链路（重试仍成功）。
                  "generation_status": "executed", "guard_status": "allowed",
                  "execution_status": "success", "execution_retried": retried},
             trace_id=context.trace_id,
         )
 
-    def _pagination_plan(self, domain: str, sql: str, allowed_columns: dict,
-                         context=None) -> PaginationPlan | None:
-        """按数据域配置构造分页计划；未配置时仅对兼容订单单表启用默认计划。"""
-        configured = None
-        try:
-            configured = self.catalog.pagination_config(domain, context=context)
-        except Exception:
-            configured = None
-        if configured is not None and not getattr(configured, "enabled", False):
-            return None
+    def _pagination_plan(self, sql: str, allowed_columns: dict) -> PaginationPlan | None:
+        """为包含固定排序列的单表查询构造分页计划。"""
         tables = physical_tables(sql)
-        if configured is not None and getattr(configured, "enabled", False):
-            base = configured.base_table.lower()
-            if base not in tables:
-                return None
-            keys = tuple(SortKey(column, direction, base)
-                         for column, direction in configured.sort_columns)
-            if not keys:
-                return None
-            base_columns = {str(c).lower() for c in allowed_columns.get(base, ())}
-            if any(key.column.lower() not in base_columns for key in keys):
-                return None
-            return PaginationPlan(keys, configured.page_size)
         if len(tables) != 1:
             return None
         table = next(iter(tables))

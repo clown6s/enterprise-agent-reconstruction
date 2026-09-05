@@ -22,17 +22,13 @@ def test_plan_driven_qualified_sort():
 
 
 def test_cursor_extra_or_short_values_rejected():
-    fp = query_fingerprint(tenant_id="t", domain="orders", base_sql="SELECT x FROM orders")
     plan = PaginationPlan((SortKey("created_at"), SortKey("order_id")), page_size=5)
-    # 合法：两值
-    tok = encode_cursor(("2026-01-01", "O1"), page_size=5, fingerprint=fp)
-    assert apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=tok, fingerprint=fp) is not None
-    # 编码多值但期望两值 → 拒绝
-    bad = encode_cursor(("a", "b", "c"), page_size=5, fingerprint=fp)
-    import pytest
-    from app.chat.domain.exceptions import SqlPolicyError
-    with pytest.raises(SqlPolicyError):
-        apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=bad, fingerprint=fp)
+    out = apply_pagination(
+        "SELECT created_at,order_id FROM orders", plan=plan,
+        offset=5, cursor=None, fingerprint="unused",
+    )
+    assert out is not None
+    assert "LIMIT 6 OFFSET 5" in out[0]
 
 
 def test_cursor_page_size_zero_rejected():
@@ -43,13 +39,15 @@ def test_cursor_page_size_zero_rejected():
 
 
 def test_keyset_params_match_marker_count():
-    fp = query_fingerprint(tenant_id="t", domain="orders", base_sql="SELECT x FROM orders")
     plan = PaginationPlan((SortKey("created_at"), SortKey("order_id")), page_size=5)
-    tok = encode_cursor(("2026-01-01", "O1"), page_size=5, fingerprint=fp)
-    out = apply_pagination("SELECT created_at,order_id FROM orders", plan=plan, cursor=tok, fingerprint=fp)
-    _, markers, params, _ = out
-    # keyset 两列：3 个 marker、3 个参数；markers 数 == params 数。
-    assert len(markers) == len(params) == 3
+    out = apply_pagination(
+        "SELECT created_at,order_id FROM orders", plan=plan,
+        offset=10, cursor=None, fingerprint="unused",
+    )
+    assert out is not None
+    assert out[1] == ()
+    assert out[2] == ()
+    assert "LIMIT 6 OFFSET 10" in out[0]
 
 
 def test_join_plan_without_config_defaults_disabled():
@@ -57,7 +55,7 @@ def test_join_plan_without_config_defaults_disabled():
     catalog = _NoConfigCatalog()
     llm = _SimpleLLM()
     service = Nl2SqlService(llm, catalog, _NoopExecutor())
-    plan = service._pagination_plan("x", "SELECT a.col FROM t1 a JOIN t2 b ON a.id=b.id", {"t1": {"col"}})
+    plan = service._pagination_plan("SELECT a.col FROM t1 a JOIN t2 b ON a.id=b.id", {"t1": {"col"}})
     assert plan is None
 
 

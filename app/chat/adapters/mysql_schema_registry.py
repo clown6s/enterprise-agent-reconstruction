@@ -117,20 +117,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, user = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
-                pagination = None
-                if domain.pagination is not None:
-                    pagination = json.dumps({
-                        "enabled": domain.pagination.enabled,
-                        "base_table": domain.pagination.base_table,
-                        "sort_columns": [
-                            {"column": col, "direction": direction}
-                            for col, direction in domain.pagination.sort_columns
-                        ],
-                        "unique_key": domain.pagination.unique_key,
-                        "page_size": domain.pagination.page_size,
-                        "mode": domain.pagination.mode,
-                    }, ensure_ascii=False)
-                c.execute("INSERT INTO sql_data_domains (tenant_id,domain_id,domain_name,description,default_time_column,max_rows,max_execution_seconds,pagination_config,created_by,updated_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE domain_name=VALUES(domain_name),description=VALUES(description),default_time_column=VALUES(default_time_column),max_rows=VALUES(max_rows),max_execution_seconds=VALUES(max_execution_seconds),pagination_config=VALUES(pagination_config),updated_by=VALUES(updated_by)", (tenant,domain.domain_id,domain.domain_name,domain.description,domain.default_time_column,domain.max_rows,domain.max_execution_seconds,pagination,user,user))
+                c.execute("INSERT INTO sql_data_domains (tenant_id,domain_id,domain_name,description,default_time_column,max_rows,max_execution_seconds,created_by,updated_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE domain_name=VALUES(domain_name),description=VALUES(description),default_time_column=VALUES(default_time_column),max_rows=VALUES(max_rows),max_execution_seconds=VALUES(max_execution_seconds),updated_by=VALUES(updated_by)", (tenant,domain.domain_id,domain.domain_name,domain.description,domain.default_time_column,domain.max_rows,domain.max_execution_seconds,user,user))
                 if domain.keywords:
                     c.executemany("INSERT INTO sql_domain_keywords (tenant_id,domain_id,keyword,weight) VALUES (%s,%s,%s,1) ON DUPLICATE KEY UPDATE weight=VALUES(weight)", [(tenant,domain.domain_id,k) for k in domain.keywords])
             conn.commit()
@@ -190,7 +177,7 @@ class MysqlSchemaRegistry(SchemaRegistryPort):
         tenant, user = self._admin(context)
         def op(conn):
             with conn.cursor() as c:
-                c.execute("SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds, pagination_config FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
+                c.execute("SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains WHERE tenant_id=%s AND domain_id=%s FOR UPDATE", (tenant, domain_id))
                 domain = c.fetchone()
                 if not domain:
                     raise ValidationError("数据域不存在")

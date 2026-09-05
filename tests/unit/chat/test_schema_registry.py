@@ -203,9 +203,9 @@ def test_publish_requires_at_least_one_table():
 
 def test_publish_writes_version_and_change_log():
     sink = _make_sink()
-    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds, pagination_config FROM sql_data_domains"] = {
+    sink.plan["SELECT domain_name, description, default_time_column, max_rows, max_execution_seconds FROM sql_data_domains"] = {
         "domain_name": "orders", "description": "订单", "default_time_column": "created_at",
-        "max_rows": 1000, "max_execution_seconds": 10, "pagination_config": None}
+        "max_rows": 1000, "max_execution_seconds": 10}
     sink.plan["SELECT table_name, table_description, required_tenant_filter, allowed_joins FROM sql_allowed_tables"] = [
         {"table_name": "orders", "table_description": "订单表", "required_tenant_filter": 1,
          "allowed_joins": json.dumps([{"table": "customers", "columns": {"customer_id": "id"}, "join_type": "LEFT"}])},

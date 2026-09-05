@@ -83,18 +83,7 @@ Content-Type: application/json
 {
   "name": "library",
   "description": "书籍和作者",
-  "keywords": ["书籍", "作者", "图书"],
-  "pagination": {
-    "enabled": true,
-    "base_table": "books",
-    "sort_columns": [
-      {"column": "created_at", "direction": "desc"},
-      {"column": "book_id", "direction": "desc"}
-    ],
-    "unique_key": "book_id",
-    "page_size": 5,
-    "mode": "root"
-  }
+  "keywords": ["书籍", "作者", "图书"]
 }
 ```
 

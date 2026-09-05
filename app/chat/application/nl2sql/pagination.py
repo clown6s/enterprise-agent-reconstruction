@@ -181,8 +181,8 @@ def _keyset_condition(tree: exp.Select, keys: tuple[SortKey, ...],
 
 
 def apply_pagination(sql: str, *, plan: PaginationPlan | None = None,
-                     page_size: int | None = None, cursor: str | None,
-                     fingerprint: str
+                     page_size: int | None = None, cursor: str | int | None = None,
+                     offset: int | None = None, fingerprint: str
                      ) -> tuple[str, tuple[str, ...], tuple[Any, ...], int] | None:
     """在基础 SQL 上附加稳定排序、keyset 条件和 LIMIT。
 
@@ -200,19 +200,12 @@ def apply_pagination(sql: str, *, plan: PaginationPlan | None = None,
         return None
     keys = plan.sort_keys[: _MAX_SORT_KEYS]
     page_size = min(int(plan.page_size), 100)
-
-    decoded = None
-    if cursor:
-        decoded = decode_cursor(cursor, expected_values=len(keys))
-        if decoded is None:
-            raise SqlPolicyError("分页状态无效，请重新发起查询")
-        values, cursor_page_size, cursor_fp = decoded
-        if cursor_fp != fingerprint:
-            raise SqlPolicyError("分页状态与当前查询不匹配，请重新发起查询")
-        sort_values: tuple[Any, ...] = values
-        page_size = min(cursor_page_size, page_size)
-    else:
-        sort_values = ()
+    if offset is None:
+        offset = 0
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise SqlPolicyError("分页位置无效")
+    if cursor is not None:
+        raise SqlPolicyError("不支持外部游标，请使用下一页或上一页")
 
     try:
         tree = sqlglot.parse_one(sql, read="mysql")
@@ -222,41 +215,21 @@ def apply_pagination(sql: str, *, plan: PaginationPlan | None = None,
         # 聚合/UNION 等暂不在此处分页。
         return None
 
-    markers = [f"__NL2SQL_CURSOR_{i}__" for i in range(len(keys) * (len(keys) + 1) // 2)]
+    markers: list[str] = []
     used_markers: list[str] = []
-    if sort_values:
-        cond, used_markers = _keyset_condition(tree, keys, markers)
-        tree = tree.where(cond)
-
-    # 注入隐藏排序列，保证未出现在用户投影中的排序列也能生成游标。
-    for index, key in enumerate(keys):
-        tree = tree.select(
-            exp.alias_(_column_expression(tree, key), f"__nl2sql_sort_{index}")
-        )
-
     # 排序：保留模型原业务排序，仅在结尾补充稳定 tie-breaker，避免覆盖业务语义。
-    order = tree.args.get("order") if isinstance(tree, exp.Select) else None
-    existing = []
-    if order is not None:
-        existing = list(order.expressions or [])
-    tie_keys = keys
-    for k in tie_keys:
+    order = tree.args.get("order")
+    existing = list(order.expressions or []) if order is not None else []
+    for k in keys:
         existing.append(exp.Ordered(
             this=_column_expression(tree, k),
             desc=(k.direction.lower() != "asc"),
         ))
     tree = tree.order_by(*existing)
-    tree = tree.limit(page_size + 1)
+    tree = tree.limit(page_size + 1).offset(offset)
 
     try:
         paginated = tree.sql(dialect="mysql")
     except Exception:
         return None
-    # marker 消耗顺序为每层前导等值值再加该层比较值。
-    cursor_params = ()
-    if sort_values:
-        bound = []
-        for depth in range(len(keys)):
-            bound.extend(sort_values[:depth + 1])
-        cursor_params = tuple(bound)
-    return paginated, tuple(used_markers), cursor_params, page_size
+    return paginated, tuple(used_markers), (), page_size

@@ -11,7 +11,6 @@ class SchemaDomain:
     tables: frozenset[str]
     keywords: tuple[str, ...] = ()
     columns: dict[str, frozenset[str]] | None = None
-    pagination: object | None = None
 
 
 class MemorySchemaCatalog(SchemaCatalog):
@@ -50,10 +49,6 @@ class MemorySchemaCatalog(SchemaCatalog):
 
     def domain_limits(self, domain: str, *, context=None) -> tuple[int, int]:
         return 1000, 10
-
-    def pagination_config(self, domain: str, *, context=None):
-        item = self._domains.get(domain)
-        return getattr(item, "pagination", None) if item else None
 
     def resolve_domain(self, query: str, *, context=None) -> str | None:
         lowered = query.lower()

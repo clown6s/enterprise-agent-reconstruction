@@ -45,19 +45,15 @@ def test_apply_pagination_adds_keyset_condition_and_limit():
     assert params == ()
     assert effective_size == 20
 
-    token = encode_cursor(("2026-01-02T03:04:05", 42), page_size=20,
-                          fingerprint=fingerprint)
     second = apply_pagination(
         "SELECT created_at, order_id FROM orders",
-        page_size=20, cursor=token, fingerprint=fingerprint,
+        page_size=20, offset=20, cursor=None, fingerprint=fingerprint,
     )
     assert second is not None
     sql, markers, params, effective_size = second
-    assert markers == ("__NL2SQL_CURSOR_0__", "__NL2SQL_CURSOR_1__", "__NL2SQL_CURSOR_2__")
-    assert params == ("2026-01-02T03:04:05", "2026-01-02T03:04:05", 42)
-    assert "LIMIT 21" in sql
-    assert "__NL2SQL_CURSOR_0__" in sql
-    assert "__NL2SQL_CURSOR_1__" in sql
+    assert markers == ()
+    assert params == ()
+    assert "LIMIT 21 OFFSET 20" in sql
     assert effective_size == 20
 
 
