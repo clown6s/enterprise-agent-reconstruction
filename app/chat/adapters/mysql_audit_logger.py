@@ -48,14 +48,18 @@ class MysqlAuditLogger(AuditLogger):
                 cur.execute(
                     "INSERT INTO qa_answer_logs "
                     "(log_id,tenant_id,user_id,conversation_id,trace_id,question,mode,status,"
-                    "sent_citation_nos,used_citation_nos,unused_citation_nos,grounded,answer) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    "sent_citation_nos,used_citation_nos,unused_citation_nos,grounded,answer,"
+                    "sent_citation_details,used_citation_details,unused_citation_details) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (event.event_id, event.tenant_id, event.user_id, event.conversation_id,
                      event.trace_id, payload.get("question", ""), event.mode or "",
                      event.status, json.dumps(payload.get("sent", [])),
                      json.dumps(payload.get("used", [])), json.dumps(payload.get("unused", [])),
                      bool(payload.get("grounded", False)),
-                     payload.get("answer") if self._save_answer else None),
+                     payload.get("answer") if self._save_answer else None,
+                     json.dumps(payload.get("sent_details", [])),
+                     json.dumps(payload.get("used_details", [])),
+                     json.dumps(payload.get("unused_details", []))),
                 )
             conn.commit()
         self._run(op)
