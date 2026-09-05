@@ -15,11 +15,19 @@ class IngestionRetriever(DocumentRetriever):
     def retrieve(self, query: str, *, top_k: int = 5,
                  filter: str = "") -> list[RetrievalItem]:
         results = self._retriever.execute_hybrid(query, top_k=top_k, filter=filter)
+        seen: set[tuple[str, str | None]] = set()
+        deduped = []
+        for item in results:
+            identity = (item.document_id, item.chunk_id)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            deduped.append(item)
         return [RetrievalItem(
             text=item.text, score=item.score, document_id=item.document_id,
             chunk_id=item.chunk_id, page=item.page,
             section_path=item.section_path, metadata=item.metadata or {},
-        ) for item in results]
+        ) for item in deduped]
 
     def close(self) -> None:
         close = getattr(self._retriever, "close", None)

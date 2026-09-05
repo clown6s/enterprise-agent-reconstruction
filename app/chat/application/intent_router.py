@@ -133,8 +133,13 @@ class RuleIntentRouter:
         nl2sql_dedicated = "data_pattern" in evidence[Intent.NL2SQL] or any(
             t in query for t in ("统计", "查询", "多少", "几笔", "几单", "合计",
                                  "金额", "占比", "排名", "明细", "报表"))
+        # “怎么做”类语句即使带少量技术词，也多数是知识问答，不构成 SOP+NL2SQL 拆分。
+        if any(t in query for t in ("怎么做", "怎么实现", "如何实现", "如何做")):
+            evidence[Intent.KNOWLEDGE_QA].append("howto_fallback")
+            scores[Intent.KNOWLEDGE_QA] += 1.5
         if (scores[Intent.SOP] >= _MIX_FLOOR and scores[Intent.NL2SQL] >= _MIX_FLOOR
-                and sop_dedicated and nl2sql_dedicated):
+                and sop_dedicated and nl2sql_dedicated
+                and scores[Intent.KNOWLEDGE_QA] < _MIX_FLOOR):
             return IntentDecision(Intent.MIXED, confidence, "同时含流程与数据查询信号")
         if confidence < self.min_confidence:
             return IntentDecision(Intent.CLARIFICATION, confidence, "意图置信度不足", needs_clarification=True)

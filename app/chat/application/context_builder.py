@@ -10,8 +10,13 @@ class ContextBuilder:
 
     def build(self, items: list[RetrievalItem]) -> tuple[str, tuple[Citation, ...]]:
         selected: list[RetrievalItem] = []
+        seen: set[tuple[str, str | None]] = set()
         used = 0
         for item in items[:self.max_chunks]:
+            identity = (item.document_id, item.chunk_id)
+            if identity in seen:
+                continue
+            seen.add(identity)
             text = item.text or ""
             if not text:
                 continue
