@@ -9,6 +9,8 @@ from .context import RequestContext
 from .ports import (AuditLogger, ConversationStore, ConversationUnderstanding,
                     IntentRouter, SessionStateStore)
 from .rag_answerer import RagAnswerer
+from .general_qa import GeneralQaAnswerer, is_general_technical
+from .intent_router import query_signals
 from .sop.sop_service import SopService
 from .nl2sql.nl2sql_service import Nl2SqlService
 from .snowflake import next_id
@@ -30,7 +32,8 @@ class ChatService:
                  audit: AuditLogger | None = None,
                  session_state: SessionStateStore | None = None,
                  question_resolver=None,
-                 understanding: ConversationUnderstanding | None = None):
+                 understanding: ConversationUnderstanding | None = None,
+                 general_qa: GeneralQaAnswerer | None = None):
         self.router = router
         self.conversation = conversation
         self.rag = rag
@@ -40,6 +43,7 @@ class ChatService:
         self.session_state = session_state
         self.question_resolver = question_resolver
         self.understanding = understanding
+        self.general_qa = general_qa
 
     def _audit(self, event: AuditEvent) -> None:
         if self.audit is None:
@@ -143,11 +147,34 @@ class ChatService:
             resolved = self.question_resolver.resolve(question, history, state).question or question
 
         # 业务意图只由当前独立问题决定；不会被上一轮 last_intent 覆盖。
-        decision = (IntentDecision(Intent.KNOWLEDGE_QA, 1.0, "知识问题")
-                    if knowledge_override else self.router.route(resolved, []))
-        if (relation is not None and relation.value == "mixed"
-                and decision.intent in (Intent.SOP, Intent.NL2SQL)):
-            decision = IntentDecision(Intent.MIXED, decision.confidence, "会话理解识别为混合任务")
+        # 消费待定数据域：上轮收到域澄清后，本轮直接给出域名则重跑原问题。
+        pending = self._consume_pending_domain(question, state, context)
+        forced_domain: str | None = None
+        _pending_payload: dict | None = None
+        if pending is not None:
+            resolved = pending["question"]
+            relation = None
+            understanding = None
+            forced_domain = pending["domain"]
+            decision = IntentDecision(Intent.NL2SQL, 0.95, "待定数据域已确认")
+        elif knowledge_override:
+            decision = IntentDecision(Intent.KNOWLEDGE_QA, 1.0, "知识问题")
+        else:
+            decision = self.router.route(resolved, [])
+            if (relation is not None and relation.value == "mixed"
+                    and decision.intent in (Intent.SOP, Intent.NL2SQL)):
+                decision = IntentDecision(Intent.MIXED, decision.confidence, "会话理解识别为混合任务")
+        # 记录路由可观测字段,供审计/灰度对比误入率与漏入率。
+        routing_signals = query_signals(resolved)
+        routing_audit = {
+            "decision": decision.intent.value,
+            "pending_consumed": pending is not None,
+            "forced_domain": forced_domain,
+            "preflight": None,
+            "domain": None,
+            "general_fallback": False,
+            **routing_signals,
+        }
         if decision.intent == Intent.CLARIFICATION:
             result = ChatResult(
                 answer="请说得更明确一些：是想查询业务数据、了解流程步骤，还是基于文档问答？",
@@ -161,11 +188,35 @@ class ChatService:
                 continue_state=(relation == ConversationRelation.FOLLOW_UP),
             )
         elif decision.intent == Intent.NL2SQL:
-            result = self.nl2sql.answer(
-                resolved, conversation_id, context=context,
-                state=(state if relation == ConversationRelation.FOLLOW_UP else None),
-                page_size=self._PAGE_SIZE,
-            )
+            # SQL 执行前必须完成数据域预检；域未知或歧义时不进入生成链路。
+            # Nl2SqlService 内部仍保留同样的防线，避免其他调用方绕过编排层。
+            inherited = (state if relation == ConversationRelation.FOLLOW_UP else None)
+            if forced_domain is not None:
+                resolution = forced_domain
+                # 用被确认的域强制重跑；构造带 last_domain 的临时状态传给服务，避免二次猜域。
+                inherited = SessionState(last_domain=forced_domain)
+            else:
+                resolution = self._resolve_query_domain(resolved, context, state=inherited)
+            if resolution is None:
+                # 域未知/歧义：记录待定域，返回澄清；下轮给出域名时重跑原问题。
+                _pending_payload = self._build_pending_domain(resolved, context)
+                routing_audit["preflight"] = "unknown"
+                result = ChatResult(
+                    answer=self._domain_clarification(context),
+                    status=ChatStatus.CLARIFICATION,
+                    mode=Intent.CLARIFICATION,
+                    conversation_id=conversation_id,
+                    warnings=("domain_unknown",),
+                    trace_id=context.trace_id,
+                )
+            else:
+                routing_audit["preflight"] = "resolved"
+                routing_audit["domain"] = resolution
+                result = self.nl2sql.answer(
+                    resolved, conversation_id, context=context,
+                    state=inherited,
+                    page_size=self._PAGE_SIZE,
+                )
         elif decision.intent == Intent.MIXED and understanding is not None:
             result = self._handle_mixed(
                 understanding.subtasks, conversation_id, context, history,
@@ -173,6 +224,14 @@ class ChatService:
         else:  # KNOWLEDGE_QA / CHITCHAT
             # history 只供会话理解；RAG 的 LLM 只看当前问题和本轮片段。
             result = self.rag.answer(resolved, conversation_id, [], context=context)
+            # 通用/技术概念问题在企业检索无召回时，用通用知识通道兜底回答，
+            # 避免返回生硬的“无内容”或误导性业务澄清。
+            if (result.status == ChatStatus.NO_CONTEXT
+                    and self.general_qa is not None
+                    and is_general_technical(resolved)):
+                routing_audit["general_fallback"] = True
+                result = self.general_qa.answer(
+                    resolved, conversation_id, context=context)
 
         self._update_session_state(
             conversation_id, decision.intent, result, context,
@@ -180,6 +239,7 @@ class ChatService:
             topic=understanding.topic if understanding else None,
             resolved_question=resolved,
             pagination_direction=self._pagination_direction(question),
+            pending_domain=(_pending_payload if pending is None else None),
         )
         # 基础 SQL 只保存在服务端会话状态，不暴露给前端。
         if result.sql is not None:
@@ -246,7 +306,8 @@ class ChatService:
                      "grounded": citation_audit["grounded"] if citation_audit else False,
                      "sent_details": (citation_audit["sent_details"] if citation_audit else []),
                      "used_details": (citation_audit["used_details"] if citation_audit else []),
-                     "unused_details": (citation_audit["unused_details"] if citation_audit else [])},
+                     "unused_details": (citation_audit["unused_details"] if citation_audit else []),
+                     "routing": routing_audit},
         ))
         return result
 
@@ -335,6 +396,87 @@ class ChatService:
         result.update(offset=offset, current_page=offset // page_size)
         return result
 
+    def _resolve_query_domain(self, question: str, context: RequestContext,
+                              state: SessionState | None = None):
+        """执行 SQL 前预检数据域；未命中域时阻断生成和执行。"""
+        resolver = getattr(self.nl2sql, "catalog", None)
+        if resolver is None:
+            resolver = getattr(self.nl2sql, "_catalog", None)
+        if resolver is None:
+            return None
+        if state is not None and getattr(state, "last_domain", None):
+            try:
+                if resolver.describe(state.last_domain, context=context):
+                    return state.last_domain
+            except Exception:
+                logger.exception("chat_domain_preflight_failed", trace_id=context.trace_id)
+                return None
+        if not hasattr(resolver, "resolve_domain"):
+            return None
+        try:
+            return resolver.resolve_domain(question, context=context)
+        except Exception:
+            logger.exception("chat_domain_preflight_failed", trace_id=context.trace_id)
+            return None
+
+    def _catalog(self):
+        c = getattr(self.nl2sql, "catalog", None)
+        if c is None:
+            c = getattr(self.nl2sql, "_catalog", None)
+        return c
+
+    def _build_pending_domain(self, question: str, context: RequestContext) -> dict | None:
+        """保存待澄清的数据域状态，供下一轮用户给出域名时重跑原问题。"""
+        resolver = self._catalog()
+        if resolver is None:
+            return None
+        candidates = []
+        if hasattr(resolver, "domains"):
+            try:
+                candidates = list(resolver.domains(context=context) or [])
+            except Exception:
+                logger.exception("chat_domain_list_failed", trace_id=context.trace_id)
+        return {"question": question, "candidates": candidates}
+
+    def _consume_pending_domain(self, question: str, state: SessionState | None,
+                                context: RequestContext) -> dict | None:
+        """若用户本轮给出待定域，返回 (question, domain)；否则返回 None。"""
+        if state is None or not state.extra:
+            return None
+        pending = state.extra.get("pending_domain")
+        if not pending or not pending.get("question"):
+            return None
+        resolver = self._catalog()
+        if resolver is None:
+            return None
+        strip = (question or "").strip()
+        candidates = set(pending.get("candidates") or [])
+        domain = None
+        if hasattr(resolver, "resolve_domain"):
+            try:
+                domain = resolver.resolve_domain(strip, context=context)
+            except Exception:
+                logger.exception("chat_domain_consume_failed", trace_id=context.trace_id)
+                domain = None
+        if not domain and strip in candidates:
+            domain = strip
+        if not domain:
+            return None
+        return {"question": pending["question"], "domain": domain}
+
+    def _domain_clarification(self, context: RequestContext) -> str:
+        """根据当前租户可见域生成澄清提示，不泄露固定域名。"""
+        resolver = self._catalog()
+        domains = []
+        if resolver is not None and hasattr(resolver, "domains"):
+            try:
+                domains = list(resolver.domains(context=context) or [])
+            except Exception:
+                logger.exception("chat_domain_list_failed", trace_id=context.trace_id)
+        if domains:
+            return "无法确定要查询的数据域，请从以下可用业务域中选择：" + "、".join(domains) + "。"
+        return "无法确定要查询的数据域，请补充具体的业务数据域。"
+
     @classmethod
     def _is_knowledge_query(cls, question: str) -> bool:
         """命中检索/技术主题时强制按知识问答处理，不进入 NL2SQL/SOP。"""
@@ -357,7 +499,7 @@ class ChatService:
 
     def _update_session_state(self, conversation_id, intent, result, context,
                               relation=None, topic=None, resolved_question=None,
-                              pagination_direction=None):
+                              pagination_direction=None, pending_domain=None):
         if self.session_state is None:
             return
         previous: SessionState | None = self.session_state.get(
@@ -368,6 +510,16 @@ class ChatService:
         domain = sql.get("domain")
         if relation == "follow_up" and not domain and previous:
             domain = previous.last_domain
+        extra = {
+            "topic": topic or (previous.extra.get("topic") if previous and relation == "follow_up" else None),
+            "last_question": resolved_question,
+            "relation": relation,
+            "nl2sql_pagination": self._pagination_payload(
+                sql, context, previous=previous, direction=pagination_direction),
+        }
+        # 待定数据域：仅在域未知/歧义时保留，供下一轮给出域名时重跑原问题。
+        if pending_domain is not None:
+            extra["pending_domain"] = pending_domain
         state = SessionState(
             last_intent=intent,
             last_domain=domain,
@@ -375,13 +527,7 @@ class ChatService:
             current_sop_id=sop.get("sop_id") if sop else None,
             current_sop_version=sop.get("version") if sop else None,
             current_step_id=sop.get("current_step") if sop else None,
-            extra={
-                "topic": topic or (previous.extra.get("topic") if previous and relation == "follow_up" else None),
-                "last_question": resolved_question,
-                "relation": relation,
-                "nl2sql_pagination": self._pagination_payload(
-                    sql, context, previous=previous, direction=pagination_direction),
-            },
+            extra=extra,
             version_no=(previous.version_no if previous else 1),
         )
         if self.session_state is not None:
@@ -389,7 +535,7 @@ class ChatService:
 
     def close(self) -> None:
         """释放执行器所持有的资源（LLM、检索器和存储）。"""
-        for resource in (self.rag, self.sop, self.nl2sql):
+        for resource in (self.rag, self.sop, self.nl2sql, self.general_qa):
             closer = getattr(resource, "close", None)
             if callable(closer):
                 closer()

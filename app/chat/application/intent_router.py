@@ -46,6 +46,15 @@ _DATA_RE = re.compile(
     r"统计|查询|查一下|多少|几(?:笔|单|个|件)|总数|合计|总额|金额|占比|平均|"
     r"同比|环比|排名|排行|本月|上月|今年|去年|最近|趋势|明细|报表|数据"
 )
+
+
+def query_signals(query: str) -> dict:
+    """提取路由审计用的三类信号，避免编排层重复维护同一套规则。"""
+    return {
+        "knowledge_concept": bool(_KNOWLEDGE_CONCEPT_RE.search(query or "")),
+        "business_domain": bool(_BUSINESS_DOMAIN_RE.search(query or "")),
+        "data_operation": bool(_DATA_OPERATION_RE.search(query or "")),
+    }
 _NUMBER_RE = re.compile(r"(?:\d+(?:\.\d+)?|[一二两三四五六七八九十百千万亿]+)\s*(?:万|元|个|笔|单|件|天|月|年|%)")
 # “怎么做/如何做”也常用于技术知识问答（例如“怎么做日志脱敏”）。
 # 只有业务办理/审批类对象才应保留 SOP 倾向。
@@ -57,6 +66,23 @@ _KNOWLEDGE_ACTION_RE = re.compile(
 _BUSINESS_SOP_RE = re.compile(
     r"采购申请|报销|审批|请假|入职|离职|合同|付款|开票|用印|流程|表单|"
     r"办理|提交|申请|手续|业务"
+)
+
+# 解释、定义和技术原理问题优先于“查询/统计/多少”等泛化数据词。
+# 这些词只提供语义证据，不能单独授予进入数据库查询链路的资格。
+_KNOWLEDGE_CONCEPT_RE = re.compile(
+    r"是什么|什么是|为什么|有何区别|有什么区别|区别|差异|如何理解|"
+    r"定义|含义|原理|机制|解释|叫什么|统称|称作|称为|怎么实现|如何实现|"
+    r"向量|嵌入|表示|上下文|模型|算法|数据结构|普查"
+)
+# 业务域词必须与数据操作或事实指标同时出现，泛化数据词本身不足以路由到 SQL。
+_BUSINESS_DOMAIN_RE = re.compile(
+    r"订单|采购|请购|销售|报销|合同|客户|库存|供应商|发票|付款|项目"
+)
+_DATA_OPERATION_RE = re.compile(
+    r"统计|查询|查一下|列出|明细|报表|合计|总额|金额|数量|销量|"
+    r"占比|平均|最大|最小|最高|最低|同比|环比|趋势|排名|排行|"
+    r"多少|几(?:笔|单|个|件)|本月|上月|上个月|今年|去年|最近|近"
 )
 
 # 一句话要够格作为
@@ -103,6 +129,15 @@ class RuleIntentRouter:
             scores[Intent.SOP] = max(0.0, scores[Intent.SOP] - 2.0)
             evidence[Intent.KNOWLEDGE_QA].append("knowledge_action_pattern")
 
+        # 知识/技术概念问题优先于泛化的数据词。即使问题含有“统计、多少、
+        # 数据”等词，只要没有明确的业务数据对象，就不能进入 NL2SQL。
+        signals = query_signals(query)
+        knowledge_concept = signals["knowledge_concept"]
+        business_domain = signals["business_domain"]
+        data_operation = signals["data_operation"]
+        if knowledge_concept and not (business_domain and data_operation):
+            evidence[Intent.KNOWLEDGE_QA].append("knowledge_concept_pattern")
+            return IntentDecision(Intent.KNOWLEDGE_QA, 0.95, "概念或技术知识问题")
         # 命名/概念识别优先于描述中的流程词。比如“下一步该做什么，
         # 这个循环叫什么”是在问术语，不是在请求执行 SOP。
         naming_markers = ("叫什么", "统称", "称作", "称为", "术语",

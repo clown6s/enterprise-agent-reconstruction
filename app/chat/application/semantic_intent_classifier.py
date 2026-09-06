@@ -31,6 +31,10 @@ class SemanticIntentClassifier(IntentClassifier):
         prompt = (
             "你是意图分类器。只判断问题属于哪一类，不回答内容。\n"
             "允许的 intent：knowledge_qa / sop / nl2sql / mixed / clarification / chitchat。\n"
+            "knowledge_qa 包括通用知识、概念定义、原理、机制、区别和技术问题。\n"
+            "nl2sql 必须同时有明确的业务数据对象/数据域，以及查询、统计、聚合、筛选或排序目标；\n"
+            "统计、多少、平均、数据、记录等泛化词单独出现，不能判为 nl2sql。\n"
+            "无法确认业务数据域时，概念问题归 knowledge_qa，业务数据问题归 clarification，不能猜测。\n"
             "只返回 JSON，字段：intent, confidence(0-1), reason。\n"
             "示例问题：\"TF-IDF怎么计算\" 属于 knowledge_qa。\n"
             f"用户问题：{query}\n"

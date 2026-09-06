@@ -1,6 +1,7 @@
 """内存 Schema catalog；生产环境可替换为受管控的存储。"""
 from dataclasses import dataclass
 
+from ..application.nl2sql.domain_resolution import resolve_domain
 from ..application.ports import SchemaCatalog
 
 
@@ -51,8 +52,7 @@ class MemorySchemaCatalog(SchemaCatalog):
         return 1000, 10
 
     def resolve_domain(self, query: str, *, context=None) -> str | None:
-        lowered = query.lower()
-        for item in self._domains.values():
-            if any(keyword.lower() in lowered for keyword in item.keywords):
-                return item.name
-        return None
+        # 与 MySQL 实现共享同一套评分/消歧规则，避免测试与生产行为分叉。
+        keywords = {name: ((kw, 1.0) for kw in item.keywords)
+                    for name, item in self._domains.items()}
+        return resolve_domain(query, keywords)

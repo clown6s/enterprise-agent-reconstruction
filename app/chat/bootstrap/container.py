@@ -27,6 +27,7 @@ from ..application.semantic_intent_classifier import SemanticIntentClassifier
 from ..application.nl2sql.nl2sql_service import Nl2SqlService
 from ..application.question_resolver import QuestionResolver
 from ..application.rag_answerer import RagAnswerer
+from ..application.general_qa import GeneralQaAnswerer
 from ..application.sop.sop_service import SopService
 from app.observability.trace_provider import OtelTraceProvider
 
@@ -97,4 +98,5 @@ def build_chat(*, retriever, llm=None, conversation=None,
         session_state=session_state,
         question_resolver=question_resolver,
         understanding=RuleConversationUnderstanding(llm),
+        general_qa=GeneralQaAnswerer(llm),
     )

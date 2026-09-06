@@ -36,7 +36,7 @@ def test_hybrid_skips_llm_for_high_confidence_rule():
 def test_hybrid_uses_llm_for_no_rule_match():
     llm = FakeLLM('{"intent":"knowledge_qa","confidence":0.95,"reason":"概念解释"}')
     router = HybridIntentRouter(RuleIntentRouter(), SemanticIntentClassifier(llm))
-    assert router.route("倒排索引在搜索系统中帮助定位目标文档的机制").intent == Intent.KNOWLEDGE_QA
+    assert router.route("随便聊聊吧").intent == Intent.KNOWLEDGE_QA
     assert llm.calls == 1
 
 

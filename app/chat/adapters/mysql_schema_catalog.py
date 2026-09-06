@@ -2,6 +2,7 @@
 import json
 
 from ..application.context import identity
+from ..application.nl2sql.domain_resolution import resolve_domain
 from ..application.ports import SchemaCatalog
 from ..domain.exceptions import ValidationError
 from .mysql_pool import MysqlPool, mysql_errors
@@ -297,19 +298,18 @@ class MysqlSchemaCatalog(SchemaCatalog):
                 )
                 rows = [r for r in cur.fetchall() if r["domain_id"] not in denied]
             if rows:
-                scores = {}  # domain_name -> 累计权重
+                # 与 Memory 实现共享同一套评分/消歧规则，避免测试与生产行为分叉。
+                keywords: dict[str, list[tuple[str, float]]] = {}
                 for row in rows:
-                    keyword = row["keyword"]
-                    if keyword and keyword in query:
-                        bonus = 1.0 + min(len(keyword), 8) * 0.1
-                        scores[row["domain_name"]] = scores.get(
-                            row["domain_name"], 0.0) + float(row["weight"]) * bonus
-                if scores:
-                    ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-                    top, top_score = ordered[0]
-                    if len(ordered) == 1 or ordered[1][1] * 1.3 < top_score:
-                        return top
-                    return None  # 多个域都命中且分差小，需要澄清
+                    keywords.setdefault(row["domain_name"], []).append(
+                        (row["keyword"], float(row["weight"])))
+                resolved = resolve_domain(query, keywords)
+                if resolved is not None:
+                    return resolved
+                hit = any(kw and kw in query
+                          for domain_kws in keywords.values() for kw, _ in domain_kws)
+                if hit:
+                    return None  # 有关键词命中但多个域分差太小，需要澄清
             # 回退：domain_name 直接包含整句（英文别名场景）
             with conn.cursor() as cur:
                 cur.execute(

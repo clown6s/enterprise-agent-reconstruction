@@ -107,3 +107,19 @@ def test_new_topic_does_not_reuse_previous_sql_domain():
     service.ask("查询本月采购申请总预算", conversation_id="c", context=_CTX)
     result = service.ask("RAG 是什么", conversation_id="c", context=_CTX)
     assert result.mode.value == "knowledge_qa"
+
+
+def test_pending_domain_answer_replays_original_query():
+    llm, sql = FakeLLM(), FakeSql()
+    service = _service(llm, sql)
+    first = service.ask("统计本月数据", conversation_id="pending", context=_CTX)
+    assert first.status.value == "clarification"
+    assert len(sql.sql) == 0
+    state = service.session_state.get("pending", context=_CTX)
+    assert state.extra["pending_domain"]["question"] == "统计本月数据"
+
+    second = service.ask("采购", conversation_id="pending", context=_CTX)
+    assert second.mode.value == "nl2sql"
+    assert len(sql.sql) == 1
+    state = service.session_state.get("pending", context=_CTX)
+    assert "pending_domain" not in state.extra

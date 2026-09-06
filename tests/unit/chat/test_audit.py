@@ -107,3 +107,69 @@ def test_audit_failure_does_not_break_result():
     svc = _service(audit, FakeLLM('{"answer":"答案","used_citations":[1],"grounded":true}'))
     result = svc.ask("报销标准是什么", conversation_id="c", context=_CTX)
     assert result.status.value == "answered"
+
+
+def test_audit_records_routing_evidence_for_nl2sql():
+    from app.chat.application.chat_service import ChatService
+    from app.chat.application.context import RequestContext
+    from app.chat.application.context_builder import ContextBuilder
+    from app.chat.application.rag_answerer import RagAnswerer
+    from app.chat.application.sop.sop_service import SopService
+    from app.chat.application.nl2sql.nl2sql_service import Nl2SqlService
+    from app.chat.adapters.memory_schema_catalog import MemorySchemaCatalog, SchemaDomain
+    class _SqlLlm:
+        def chat(self, messages):
+            if "只生成单条 SELECT" in messages[-1].content:
+                return "SELECT amount FROM orders"
+            return '{"answer":"答案","used_citations":[1],"grounded":true}'
+        def close(self): pass
+    audit = FakeAudit()
+    retriever = FakeRetriever()
+    llm = _SqlLlm()
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "订单", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
+    svc = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(retriever, llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm),
+        Nl2SqlService(llm, catalog, FakeSql()),
+        audit=audit,
+    )
+    svc.ask("统计本月订单金额", conversation_id="c", context=_CTX)
+    end = [e for e in audit.events if e.stage == "request"][-1]
+    routing = end.payload.get("routing", {})
+    assert routing["decision"] == "nl2sql"
+    assert routing["preflight"] == "resolved"
+    assert routing["domain"] == "orders"
+    assert routing["business_domain"] is True
+
+
+def test_audit_records_general_fallback_flag():
+    from app.chat.application.general_qa import GeneralQaAnswerer
+    from app.chat.application.chat_service import ChatService
+    from app.chat.application.context import RequestContext
+    from app.chat.application.context_builder import ContextBuilder
+    from app.chat.application.rag_answerer import RagAnswerer
+    from app.chat.application.sop.sop_service import SopService
+    from app.chat.application.nl2sql.nl2sql_service import Nl2SqlService
+    from app.chat.adapters.memory_schema_catalog import MemorySchemaCatalog
+    from app.chat.domain.models import Intent
+    class _EmptyRetriever:
+        def retrieve(self, *a, **k): return []
+        def close(self): pass
+    audit = FakeAudit()
+    llm = FakeLLM('{"answer":"答案","used_citations":[1],"grounded":true}')
+    retriever = _EmptyRetriever()
+    svc = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(retriever, llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm),
+        Nl2SqlService(llm, MemorySchemaCatalog([]), FakeSql()),
+        audit=audit, general_qa=GeneralQaAnswerer(llm),
+    )
+    svc.ask("向量表示的机制是什么", conversation_id="g", context=_CTX)
+    end = [e for e in audit.events if e.stage == "request"][-1]
+    routing = end.payload.get("routing", {})
+    assert routing["general_fallback"] is True
+    assert routing["decision"] == "knowledge_qa"

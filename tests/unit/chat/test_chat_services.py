@@ -9,7 +9,8 @@ from app.chat.application.rag_answerer import RagAnswerer
 from app.chat.application.sop.sop_engine import SopEngine
 from app.chat.application.sop.sop_service import SopService
 from app.chat.bootstrap.defaults import default_sops
-from app.chat.domain.models import RetrievalItem, SqlResult
+from app.chat.domain.models import RetrievalItem, SqlResult, Intent
+from app.chat.application.general_qa import GeneralQaAnswerer
 
 
 class FakeLLM:
@@ -176,6 +177,108 @@ def test_sql_service_allows_allowed_column():
                          authenticated=True, permissions=("chat:ask", "sql:read"))
     result = service.ask("统计订单金额", conversation_id="q", context=ctx)
     assert result.mode.value == "nl2sql"
+
+
+def test_general_knowledge_never_enters_nl2sql():
+    """通用知识问题不得进入 NL2SQL，也不得返回 domain_unknown 澄清。"""
+    from app.chat.application.context import RequestContext
+    from app.chat.domain.models import Intent
+    class _RecordingSql(FakeSql):
+        def __init__(self): self.calls = 0
+        def query(self, *a, **k):
+            self.calls += 1
+            return super().query(*a, **k)
+    recording = _RecordingSql()
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "订单数据", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(FakeRetriever(), FakeLLM(), ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), FakeLLM()),
+        Nl2SqlService(FakeLLM(), catalog, recording),
+    )
+    ctx = RequestContext(tenant_id="t", user_id="u",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    result = service.ask(
+        "同一个词苹果，一会儿指手机公司，一会儿指水果，如果给每个词只存一个固定向量"
+        "就分不清了，靠什么机制让它在不同句子里有不同的表示？",
+        conversation_id="c", context=ctx)
+    assert result.mode == Intent.KNOWLEDGE_QA
+    assert recording.calls == 0
+    assert "domain_unknown" not in result.warnings
+
+
+def test_domain_free_data_query_does_not_execute_sql():
+    """有数据信号但无数据域的问题应澄清，绝不能执行 SQL。"""
+    from app.chat.application.context import RequestContext
+    from app.chat.domain.models import Intent
+    class _RecordingSql(FakeSql):
+        def __init__(self): self.calls = 0
+        def query(self, *a, **k):
+            self.calls += 1
+            return super().query(*a, **k)
+    recording = _RecordingSql()
+    catalog = MemorySchemaCatalog([SchemaDomain(
+        "orders", "订单数据", frozenset({"orders"}), ("订单",),
+        columns={"orders": frozenset({"amount"})})])
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(FakeRetriever(), FakeLLM(), ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), FakeLLM()),
+        Nl2SqlService(FakeLLM(), catalog, recording),
+    )
+    ctx = RequestContext(tenant_id="t", user_id="u",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    result = service.ask("统计本月数据", conversation_id="c", context=ctx)
+    assert result.status.value == "clarification"
+    assert "domain_unknown" in result.warnings
+    assert recording.calls == 0
+    assert result.mode == Intent.CLARIFICATION
+
+
+def test_general_technical_question_answered_without_domain():
+    """通用/技术概念问题在企业检索无召回时,由通用知识通道作答,而非 no_context。"""
+    from app.chat.application.context import RequestContext
+    class _EmptyRetriever:
+        def retrieve(self, *a, **k): return []
+        def close(self): pass
+    llm = FakeLLM()
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(_EmptyRetriever(), llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm),
+        Nl2SqlService(FakeLLM(), MemorySchemaCatalog([]), FakeSql()),
+        general_qa=GeneralQaAnswerer(llm),
+    )
+    ctx = RequestContext(tenant_id="t", user_id="u",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    result = service.ask("同一个词苹果，一会儿指手机公司，一会儿指水果，靠什么机制让它在不同句子里有不同的表示？",
+                         conversation_id="g", context=ctx)
+    assert result.mode == Intent.KNOWLEDGE_QA
+    assert result.status.value == "answered"
+    assert "general_knowledge" in result.warnings
+
+
+def test_enterprise_question_without_docs_stays_no_context():
+    """企业制度类问题不得用通用知识通道作答,避免凭空回答企业政策。"""
+    from app.chat.application.context import RequestContext
+    class _EmptyRetriever:
+        def retrieve(self, *a, **k): return []
+        def close(self): pass
+    llm = FakeLLM()
+    service = ChatService(
+        RuleIntentRouter(), MemoryConversationStore(),
+        RagAnswerer(_EmptyRetriever(), llm, ContextBuilder()),
+        SopService(MemorySopStore(default_sops()), llm),
+        Nl2SqlService(FakeLLM(), MemorySchemaCatalog([]), FakeSql()),
+        general_qa=GeneralQaAnswerer(llm),
+    )
+    ctx = RequestContext(tenant_id="t", user_id="u",
+                         authenticated=True, permissions=("chat:ask", "sql:read"))
+    # 企业制度问题不含通用/技术概念特征,即使走 RAG 也不会触发通用知识兜底。
+    result = service.ask("报销标准规定的上限是多少", conversation_id="e", context=ctx)
+    assert "general_knowledge" not in result.warnings
 
 
 def test_sop_service_rejects_missing_llm():
